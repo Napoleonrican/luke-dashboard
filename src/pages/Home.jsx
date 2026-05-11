@@ -6,7 +6,7 @@ const tools = [
     icon: Inbox,
     title: 'Inbox Dashboard',
     description: 'Monitor and triage your email threads from a single view.',
-    href: 'https://placeholder-inbox.example.com',
+    href: 'https://script.google.com/macros/s/AKfycbwvCSxfyFnZkq35C-i6zHuS9ufnQoTMEBxUE0-_tmyGtiifxHyGFnn_JknEKLsbraE/exec',
     accentColor: 'text-emerald-400',
   },
   {
