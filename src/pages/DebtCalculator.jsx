@@ -72,7 +72,7 @@ const fmt = (n) =>
 // Month 0 = May 2026 (current month)
 function monthLabel(offset) {
   const d = new Date(2026, 4 + offset);
-  return d.toLocaleDateString('en-US', { month: 'short', year: "'yy" });
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
 // ─── Simulation ───────────────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ export default function DebtCalculator() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([due, { total, items }]) => {
         const [yr, mo] = due.split('-').map(Number);
-        const label = new Date(yr, mo - 1).toLocaleDateString('en-US', { month: 'short', year: "'yy" });
+        const label = new Date(yr, mo - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
         return { label, total, items, due };
       });
   }, []);
