@@ -1,16 +1,45 @@
-# React + Vite
+# Luke's Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Personal dashboard hub for Luke's tools and side projects. A single-page React app deployed on Vercel.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19 + Vite** — frontend framework and build tool
+- **React Router v7** — client-side routing
+- **Tailwind CSS v3** — utility-first styling
+- **Recharts** — charts in the Debt Payoff Calculator
+- **lucide-react** — icon library
+- **Vercel** — production hosting
 
-## React Compiler
+## Folder Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+src/
+├── pages/          # One file per tool/page (Home, DebtCalculator, VersaRepair, TaskManager)
+├── components/     # Shared UI (ToolCard, TopNav, ProtectedRoute)
+└── utils/          # Hooks and helpers (useRandomPalette.js)
+```
 
-## Expanding the ESLint configuration
+## How to Add a New Tool
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Create `src/pages/YourTool.jsx` — include `<TopNav />` at the top
+2. Add a route in `src/App.jsx`:
+   ```jsx
+   <Route path="/your-tool" element={<ProtectedRoute><YourTool /></ProtectedRoute>} />
+   ```
+3. Add a `ToolCard` entry to the `tools` array in `src/pages/Home.jsx`
+
+## How to Add a New Background Palette
+
+Edit `src/utils/useRandomPalette.js` — append a new CSS radial-gradient string to the `palettes` array. It will be randomly selected on page load.
+
+## Password Gate
+
+Routes are protected by a client-side password gate (`src/components/ProtectedRoute.jsx`). Auth state is stored in `localStorage`. This is convenience-only — **keep the repo private** and do not store sensitive data in the app.
+
+## Commands
+
+```bash
+npm run dev      # start local dev server
+npm run build    # production build
+```
