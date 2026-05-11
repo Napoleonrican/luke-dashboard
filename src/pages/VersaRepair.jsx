@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import TopNav from '../components/TopNav';
 
 const PHASES = [
   {
@@ -243,16 +242,8 @@ export default function VersaRepair() {
         backgroundAttachment: 'fixed',
       }}
     >
+      <TopNav />
       <div className="max-w-4xl mx-auto px-6 py-10">
-
-        {/* Back link */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm mb-8 transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Back to Hub
-        </Link>
 
         {/* Header */}
         <header className="border-b border-zinc-800 pb-6 mb-7 flex justify-between items-end gap-6 flex-wrap">

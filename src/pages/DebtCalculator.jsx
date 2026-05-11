@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import TopNav from '../components/TopNav';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -265,17 +265,11 @@ export default function DebtCalculator() {
 
   return (
     <div className="min-h-screen text-white">
+      <TopNav />
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
         <div className="mb-8">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-sm mb-4"
-          >
-            <ArrowLeft size={15} />
-            Back to Hub
-          </Link>
           <h1 className="text-3xl font-bold tracking-tight">Debt Payoff Calculator</h1>
           <p className="text-zinc-400 mt-1 text-sm">Model your path to zero using gig income.</p>
         </div>

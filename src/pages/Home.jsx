@@ -5,7 +5,7 @@ const tools = [
   {
     icon: Inbox,
     title: 'Personal Email',
-    description: 'napoleonrican08@gmail.com',
+    description: 'Monitor and triage your email threads from a single view. (napoleonrican08@gmail.com)',
     href: 'https://script.google.com/macros/s/AKfycbwvCSxfyFnZkq35C-i6zHuS9ufnQoTMEBxUE0-_tmyGtiifxHyGFnn_JknEKLsbraE/exec',
     accentColor: 'text-emerald-400',
   },
@@ -47,7 +47,7 @@ const workshop = [
   {
     icon: Mail,
     title: 'Professional Email',
-    description: 'lnapoleon14@gmail.com',
+    description: 'Inbox digest (lnapoleon14@gmail.com)',
     accentColor: 'text-emerald-400',
     wip: true,
   },
