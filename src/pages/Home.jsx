@@ -22,6 +22,7 @@ const tools = [
     description: 'Capture, prioritize, and knock out your to-do list.',
     to: '/task-manager',
     accentColor: 'text-blue-400',
+    locked: true,
   },
   {
     icon: Wallet,
@@ -29,6 +30,7 @@ const tools = [
     description: 'Model payoff timelines and find the fastest path to zero.',
     to: '/debt-calculator',
     accentColor: 'text-purple-400',
+    locked: true,
   },
   {
     icon: Wrench,
@@ -36,6 +38,7 @@ const tools = [
     description: 'Log jobs, track parts, and manage repair tickets.',
     to: '/versa-repair',
     accentColor: 'text-red-400',
+    locked: true,
   },
 ];
 

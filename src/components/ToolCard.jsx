@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Lock } from 'lucide-react';
 
-export default function ToolCard({ icon: Icon, title, description, to, href, accentColor }) {
+export default function ToolCard({ icon: Icon, title, description, to, href, accentColor, locked }) {
   const inner = (
     <>
       <div className="flex items-start justify-between">
@@ -10,6 +10,9 @@ export default function ToolCard({ icon: Icon, title, description, to, href, acc
         </div>
         {href && (
           <ExternalLink size={14} className="text-zinc-600 transition-colors group-hover:text-zinc-400" />
+        )}
+        {locked && !href && (
+          <Lock size={12} className="text-zinc-600" strokeWidth={1.75} />
         )}
       </div>
       <div>
