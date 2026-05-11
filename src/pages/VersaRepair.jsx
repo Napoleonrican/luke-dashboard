@@ -236,7 +236,7 @@ export default function VersaRepair() {
 
   return (
     <div
-      className="min-h-screen bg-zinc-950 text-zinc-100"
+      className="min-h-screen text-zinc-100"
       style={{
         backgroundImage:
           'radial-gradient(circle at 15% 0%, rgba(245,158,11,0.06), transparent 45%), radial-gradient(circle at 85% 100%, rgba(245,158,11,0.03), transparent 45%)',

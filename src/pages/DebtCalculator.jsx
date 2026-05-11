@@ -264,7 +264,7 @@ export default function DebtCalculator() {
   const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'BNPL Timeline'];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen text-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
