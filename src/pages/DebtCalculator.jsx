@@ -7,6 +7,11 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const PASSWORD    = 'Napoleon21!';
+const AUTH_KEY    = 'dashboard_auth';
+const isAuthed    = () => localStorage.getItem(AUTH_KEY) === 'true';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GIG_EFFICIENCY   = 0.83;
 const WEEKS_PER_MONTH  = 4.33;
@@ -213,10 +218,14 @@ export default function DebtCalculator() {
   );
 
   // UI state (not persisted)
-  const [showInputs, setShowInputs]   = useState(false);  // My Numbers panel
+  const [showInputs, setShowInputs]     = useState(false);  // My Numbers panel
   const [balancesOpen, setBalancesOpen] = useState(false);  // Current Balances panel
-  const [activeTab, setActiveTab]     = useState(0);
-  const [privacyMode, setPrivacyMode] = useState(false);   // Demo mode — never persisted
+  const [activeTab, setActiveTab]       = useState(0);
+  // Privacy: always start blurred; unblur requires password (or already authed)
+  const [privacyMode, setPrivacyMode]   = useState(true);
+  const [showUnlock, setShowUnlock]     = useState(false);
+  const [pwInput, setPwInput]           = useState('');
+  const [pwError, setPwError]           = useState(false);
 
   // Persist to localStorage
   useEffect(() => {
@@ -291,6 +300,34 @@ export default function DebtCalculator() {
     );
   }
 
+  // Privacy / unlock handlers
+  function handleEyeClick() {
+    if (!privacyMode) {
+      // Currently showing → re-blur
+      setPrivacyMode(true);
+    } else if (isAuthed()) {
+      // Already authenticated this session → unblur without password
+      setPrivacyMode(false);
+    } else {
+      // Need password → show modal
+      setShowUnlock(true);
+    }
+  }
+
+  function handleUnlock(e) {
+    e?.preventDefault();
+    if (pwInput === PASSWORD) {
+      localStorage.setItem(AUTH_KEY, 'true');
+      setPrivacyMode(false);
+      setShowUnlock(false);
+      setPwInput('');
+      setPwError(false);
+    } else {
+      setPwError(true);
+      setPwInput('');
+    }
+  }
+
   const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'BNPL Freed Cash'];
 
   const shortfallLabel = monthlyDeficit > 0
@@ -322,18 +359,18 @@ export default function DebtCalculator() {
               6 major debts modeled. BNPL minimums roll in as they complete.
             </p>
           </div>
-          {/* Privacy / Demo mode toggle */}
+          {/* Privacy / Unlock toggle */}
           <button
-            onClick={() => setPrivacyMode((m) => !m)}
-            title={privacyMode ? 'Show numbers' : 'Demo mode — hide numbers'}
+            onClick={handleEyeClick}
+            title={privacyMode ? 'Unlock to show numbers' : 'Hide numbers (demo mode)'}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors mt-1 ${
               privacyMode
-                ? 'bg-amber-900/30 border-amber-600 text-amber-400'
+                ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
                 : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
             }`}
           >
-            {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
-            Demo
+            {privacyMode ? <Eye size={15} /> : <EyeOff size={15} />}
+            {privacyMode ? 'Unlock' : 'Hide'}
           </button>
         </div>
 
@@ -911,6 +948,54 @@ export default function DebtCalculator() {
         </section>
 
       </div>
+
+      {/* ── Unlock modal ────────────────────────────────────────────────────── */}
+      {showUnlock && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowUnlock(false); setPwInput(''); setPwError(false); } }}
+        >
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-2xl p-6 shadow-2xl">
+            <div className="flex flex-col items-center gap-2 mb-5">
+              <div className="bg-zinc-800 rounded-xl p-3 text-amber-400">
+                <Eye size={22} strokeWidth={1.75} />
+              </div>
+              <h3 className="text-base font-semibold text-white">Unlock Numbers</h3>
+              <p className="text-xs text-zinc-400 text-center">
+                Enter your dashboard password to view figures.
+              </p>
+            </div>
+            <form onSubmit={handleUnlock} className="flex flex-col gap-3">
+              <input
+                type="password"
+                autoFocus
+                value={pwInput}
+                onChange={(e) => { setPwInput(e.target.value); setPwError(false); }}
+                placeholder="Password"
+                className={`w-full bg-zinc-800 rounded-lg border px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors focus:border-purple-500 ${
+                  pwError ? 'border-red-500/60' : 'border-zinc-700'
+                }`}
+              />
+              {pwError && <p className="text-xs text-red-400">Incorrect password.</p>}
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowUnlock(false); setPwInput(''); setPwError(false); }}
+                  className="flex-1 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm text-white font-medium transition-colors"
+                >
+                  Unlock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
