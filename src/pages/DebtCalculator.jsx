@@ -1,57 +1,57 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import TopNav from '../components/TopNav';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const GIG_EFFICIENCY = 0.83;
-const WEEKS_PER_MONTH = 4.33;
-const HRB_ALL_WEEKS_AVG = 161;
+const GIG_EFFICIENCY   = 0.83;
+const WEEKS_PER_MONTH  = 4.33;
+const HOURLY_RATE      = 25.27;
+const HRB_ALL_WEEKS_AVG  = 161;
 const HRB_WORK_WEEKS_AVG = 203;
 
-// Apr '26 snapshot balances (used for progress bars and defaults)
-const APR26_SNAPSHOT = {
-  upstart:        8420,
-  capOnePersonal: 3650,
-  bestEgg:        5870,
-  capOneBP:       1340,
-  oneMain:        5120,
-  studentLoan:   12400,
-};
-
+// ─── Real debt data (from debt_payoff_model.html, Apr '26 snapshot) ───────────
 const BASE_DEBTS = [
-  { id: 'upstart',        name: 'Upstart',         apr: 0.2099, min: 248 },
-  { id: 'capOnePersonal', name: 'Cap One Personal', apr: 0.2199, min:  89 },
-  { id: 'bestEgg',        name: 'Best Egg',         apr: 0.1899, min: 163 },
-  { id: 'capOneBP',       name: 'Cap One BP',       apr: 0.2990, min:  35 },
-  { id: 'oneMain',        name: 'OneMain',          apr: 0.2799, min: 175 },
-  { id: 'studentLoan',    name: 'Student Loan',     apr: 0.0650, min: 135 },
+  { id: 'upstart',        name: 'Upstart',          balance: 1351.15, apr: 0.2857, min:  42.50, tag: 'Loan' },
+  { id: 'capOnePersonal', name: 'Cap One Personal',  balance: 2647.99, apr: 0.3049, min:  99.00, tag: 'CC'   },
+  { id: 'bestEgg',        name: 'Best Egg',          balance: 7977.00, apr: 0.2949, min: 343.13, tag: 'Loan' },
+  { id: 'capOneBP',       name: 'Cap One BP',        balance: 4436.49, apr: 0.2899, min: 154.00, tag: 'CC'   },
+  { id: 'oneMain',        name: 'OneMain',           balance: 7187.49, apr: 0.1699, min: 517.46, tag: 'Loan' },
+  { id: 'studentLoan',    name: 'Student Loan',      balance: 2998.17, apr: 0.0680, min:  39.17, tag: 'Loan' },
 ];
 
+// APR '26 snapshot = starting balances above
+const APR26_SNAPSHOT = Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
+
+// ─── BNPL schedule (monthly minimums + payoff month from May '26 = month 0) ──
 const BNPL_SCHEDULE = [
-  { name: 'Klarna',       amount: 148, due: '2026-06' },
-  { name: 'TD Retail',    amount: 820, due: '2026-07' },
-  { name: 'BMV/Affirm',   amount: 396, due: '2026-08' },
-  { name: 'Senator Inn',  amount: 312, due: '2026-06' },
-  { name: "Lowe's",       amount: 485, due: '2026-07' },
-  { name: 'Amazon Aug',   amount: 198, due: '2026-08' },
-  { name: 'Amazon Sep',   amount: 154, due: '2026-09' },
-  { name: "Goodwin's",    amount: 340, due: '2026-07' },
-  { name: 'Amazon Mar',   amount: 176, due: '2027-03' },
-  { name: "Men's Wear",   amount: 285, due: '2026-08' },
-  { name: 'Norwich Spa',  amount: 210, due: '2026-09' },
-  { name: 'Xmas Amazon',  amount: 245, due: '2026-12' },
-  { name: 'Aubuchon',     amount:  98, due: '2026-06' },
+  { name: 'Klarna',                min:  29.01, payoffMonth:  1 },
+  { name: 'TD Retail',             min:  31.38, payoffMonth:  1 },
+  { name: 'BMV (Affirm)',          min:  31.40, payoffMonth:  2 },
+  { name: 'Senator Inn (Affirm)',  min:  39.03, payoffMonth:  2 },
+  { name: "Lowe's (Affirm)",       min:  64.73, payoffMonth:  3 },
+  { name: 'Amazon Aug (Affirm)',   min:  24.11, payoffMonth:  4 },
+  { name: 'Amazon Sep (Affirm)',   min:  28.17, payoffMonth:  5 },
+  { name: "Goodwin's (Affirm)",    min:  73.11, payoffMonth: 10 },
+  { name: 'Amazon Mar (Affirm)',   min:  22.97, payoffMonth: 11 },
+  { name: "Men's Wear (Affirm)",   min:  29.24, payoffMonth: 13 },
+  { name: 'Norwich Spa (Affirm)',  min:  50.69, payoffMonth: 13 },
+  { name: 'Xmas Amazon (Affirm)', min:  28.76, payoffMonth: 14 },
+  { name: 'Aubuchon (Affirm)',     min:  60.44, payoffMonth: 14 },
 ];
+const TOTAL_BNPL_MINS  = BNPL_SCHEDULE.reduce((s, b) => s + b.min, 0);
+const TOTAL_MAJOR_MINS = BASE_DEBTS.reduce((s, d) => s + d.min, 0);
+const TOTAL_DEBT_MINS  = TOTAL_MAJOR_MINS + TOTAL_BNPL_MINS;
 
 const STRATEGIES = [
   { id: 'current',   label: 'Current Order', desc: 'Pay in listed order' },
   { id: 'avalanche', label: 'Avalanche',      desc: 'Highest APR first — lowest total interest' },
   { id: 'snowball',  label: 'Snowball',       desc: 'Lowest balance first — fastest wins' },
-  { id: 'hybrid',    label: 'Hybrid ⭐',      desc: 'Recommended — clear small debts, then avalanche' },
+  { id: 'hybrid',    label: 'Hybrid ⭐',      desc: 'Recommended — clear Upstart, then avalanche' },
 ];
 
 const DEBT_COLORS = {
@@ -63,29 +63,41 @@ const DEBT_COLORS = {
   studentLoan:    '#6366f1',
 };
 
+const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1' };
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency', currency: 'USD', maximumFractionDigits: 0,
   }).format(n ?? 0);
 
-// Month 0 = May 2026 (current month)
+// Month 0 = May 2026
 function monthLabel(offset) {
   const d = new Date(2026, 4 + offset);
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
-// ─── Simulation ───────────────────────────────────────────────────────────────
+// ─── Simulation (mirrors HTML: BNPL freed cash + paid-off debt snowball) ─────
 function simulate(debts, strategy, extraPerMonth) {
+  const origMins = Object.fromEntries(debts.map((d) => [d.id, d.min]));
+
   let order;
   if (strategy === 'avalanche') {
     order = [...debts].sort((a, b) => b.apr - a.apr).map((d) => d.id);
   } else if (strategy === 'snowball') {
     order = [...debts].sort((a, b) => a.balance - b.balance).map((d) => d.id);
   } else if (strategy === 'hybrid') {
-    const small = debts.filter((d) => d.balance < 2000).sort((a, b) => a.balance - b.balance);
-    const large = debts.filter((d) => d.balance >= 2000).sort((a, b) => b.apr - a.apr);
-    order = [...small, ...large].map((d) => d.id);
+    // Smallest first, then avalanche (matches HTML optimized hybrid)
+    order = [...debts]
+      .sort((a, b) => {
+        const aSmall = a.balance < 2000;
+        const bSmall = b.balance < 2000;
+        if (aSmall && !bSmall) return -1;
+        if (!aSmall && bSmall) return 1;
+        if (aSmall && bSmall) return a.balance - b.balance;
+        return b.apr - a.apr;
+      })
+      .map((d) => d.id);
   } else {
     order = debts.map((d) => d.id);
   }
@@ -95,11 +107,20 @@ function simulate(debts, strategy, extraPerMonth) {
   const months = [];
   let cumulativeInterest = 0;
 
-  for (let m = 0; m < 180; m++) {
+  for (let m = 0; m < 120; m++) {
     if (balances.every((d) => d.balance <= 0)) break;
+
+    // Cash freed as BNPL items complete (cumulative)
+    const bnplFreed = BNPL_SCHEDULE.filter((b) => b.payoffMonth <= m)
+      .reduce((s, b) => s + b.min, 0);
+    // Cash freed from paid-off major debts (their minimums recycle)
+    const discFreed = balances
+      .filter((d) => d.balance <= 0)
+      .reduce((s, d) => s + (origMins[d.id] || 0), 0);
 
     let monthlyInterest = 0;
 
+    // Apply interest + minimum payments
     balances.forEach((d) => {
       if (d.balance <= 0) return;
       const interest = d.balance * (d.apr / 12);
@@ -113,7 +134,8 @@ function simulate(debts, strategy, extraPerMonth) {
       }
     });
 
-    let extra = Math.max(0, extraPerMonth);
+    // Apply extra payment pool to priority debts
+    let extra = Math.max(0, extraPerMonth) + bnplFreed + discFreed;
     for (const id of order) {
       if (extra < 0.01) break;
       const d = balances.find((b) => b.id === id);
@@ -128,18 +150,28 @@ function simulate(debts, strategy, extraPerMonth) {
     }
 
     cumulativeInterest += monthlyInterest;
-    const snap = { month: m, label: monthLabel(m), totalBalance: 0, cumulativeInterest: Math.round(cumulativeInterest) };
-    balances.forEach((d) => { snap[d.id] = Math.round(d.balance); });
-    snap.totalBalance = balances.reduce((s, d) => s + d.balance, 0);
-    snap.totalBalance = Math.round(snap.totalBalance);
+    const snap = {
+      month: m,
+      label: monthLabel(m),
+      totalBalance: 0,
+      cumulativeInterest: Math.round(cumulativeInterest),
+    };
+    balances.forEach((d) => { snap[d.id] = Math.round(Math.max(0, d.balance)); });
+    snap.totalBalance = Math.round(balances.reduce((s, d) => s + Math.max(0, d.balance), 0));
     months.push(snap);
   }
 
   return { months, payoffMonths, totalInterest: cumulativeInterest };
 }
 
-// ─── Custom chart tooltip ─────────────────────────────────────────────────────
-function DarkTooltip({ active, payload, label }) {
+// ─── Privacy wrapper ──────────────────────────────────────────────────────────
+function Redacted({ children, on }) {
+  if (!on) return <>{children}</>;
+  return <span className="blur-sm select-none pointer-events-none">{children}</span>;
+}
+
+// ─── Custom dark tooltip ──────────────────────────────────────────────────────
+function DarkTooltip({ active, payload, label, privacyMode }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-xs shadow-xl">
@@ -147,7 +179,9 @@ function DarkTooltip({ active, payload, label }) {
       {payload.map((p) => (
         <div key={p.dataKey} className="flex justify-between gap-4">
           <span style={{ color: p.color }}>{p.name}</span>
-          <span className="text-white font-mono">{fmt(p.value)}</span>
+          <Redacted on={privacyMode}>
+            <span className="text-white font-mono">{fmt(p.value)}</span>
+          </Redacted>
         </div>
       ))}
     </div>
@@ -156,73 +190,84 @@ function DarkTooltip({ active, payload, label }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DebtCalculator() {
-  const [takeHome, setTakeHome] = useState(() => {
-    const v = localStorage.getItem('dc_takeHome');
-    return v ? parseFloat(v) : 3200;
-  });
-  const [billsVariable, setBillsVariable] = useState(() => {
-    const v = localStorage.getItem('dc_billsVariable');
-    return v ? parseFloat(v) : 1800;
-  });
-  const [weeklyGross, setWeeklyGross] = useState(() => {
-    const v = localStorage.getItem('dc_weeklyGross');
-    return v ? parseFloat(v) : 0;
-  });
-  const [strategy, setStrategy] = useState(
-    () => localStorage.getItem('dc_strategy') || 'hybrid',
-  );
+  // localStorage helper (dp_ prefix matches HTML version)
+  const ls = (k) => { try { return localStorage.getItem('dp_' + k); } catch { return null; } };
+
+  // Persistent state
+  const [takeHome, setTakeHome] = useState(() => Number(ls('takeHome')) || 4162);
+  const [billsVariable, setBillsVariable] = useState(() => Number(ls('billsVariable')) || 2862);
+  const [weeklyGross, setWeeklyGross] = useState(() => Number(ls('weeklyGross')) || 120);
+  const [strategy, setStrategy] = useState(() => ls('strategy') || 'hybrid');
   const [debtBalances, setDebtBalances] = useState(() => {
-    const v = localStorage.getItem('dc_debtBalances');
-    if (v) {
-      try { return JSON.parse(v); } catch { /* fall through */ }
+    try {
+      const saved = ls('debtBalances');
+      return saved
+        ? JSON.parse(saved)
+        : Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
+    } catch {
+      return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
     }
-    return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, APR26_SNAPSHOT[d.id]]));
   });
   const [balancesUpdated, setBalancesUpdated] = useState(
-    () => localStorage.getItem('dc_balancesUpdated') || "Apr '26",
+    () => ls('balancesUpdated') || "Apr '26",
   );
-  const [balancesOpen, setBalancesOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+
+  // UI state (not persisted)
+  const [showInputs, setShowInputs]   = useState(false);  // My Numbers panel
+  const [balancesOpen, setBalancesOpen] = useState(false);  // Current Balances panel
+  const [activeTab, setActiveTab]     = useState(0);
+  const [privacyMode, setPrivacyMode] = useState(false);   // Demo mode — never persisted
 
   // Persist to localStorage
-  useEffect(() => { localStorage.setItem('dc_takeHome', takeHome); }, [takeHome]);
-  useEffect(() => { localStorage.setItem('dc_billsVariable', billsVariable); }, [billsVariable]);
-  useEffect(() => { localStorage.setItem('dc_weeklyGross', weeklyGross); }, [weeklyGross]);
-  useEffect(() => { localStorage.setItem('dc_strategy', strategy); }, [strategy]);
-  useEffect(() => { localStorage.setItem('dc_debtBalances', JSON.stringify(debtBalances)); }, [debtBalances]);
-  useEffect(() => { localStorage.setItem('dc_balancesUpdated', balancesUpdated); }, [balancesUpdated]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('dp_takeHome',      takeHome);
+      localStorage.setItem('dp_billsVariable', billsVariable);
+      localStorage.setItem('dp_weeklyGross',   weeklyGross);
+      localStorage.setItem('dp_strategy',      strategy);
+      localStorage.setItem('dp_debtBalances',  JSON.stringify(debtBalances));
+      if (balancesUpdated) localStorage.setItem('dp_balancesUpdated', balancesUpdated);
+    } catch {}
+  }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
 
-  // Derived values
+  // Live debts with user-edited balances
   const debts = useMemo(
-    () => BASE_DEBTS.map((d) => ({ ...d, balance: debtBalances[d.id] ?? APR26_SNAPSHOT[d.id] })),
+    () => BASE_DEBTS.map((d) => ({ ...d, balance: Math.max(0, debtBalances[d.id] ?? d.balance) })),
     [debtBalances],
   );
 
-  const monthlyGigNet = useMemo(
-    () => weeklyGross * GIG_EFFICIENCY * WEEKS_PER_MONTH,
-    [weeklyGross],
-  );
+  // Monthly math
+  const monthlyOutflow  = billsVariable + TOTAL_DEBT_MINS;
+  const monthlyDeficit  = Math.max(0, monthlyOutflow - takeHome);
+  const breakEvenWeekly = Math.ceil(monthlyDeficit / (WEEKS_PER_MONTH * GIG_EFFICIENCY));
+  const monthlyGigNet   = weeklyGross * GIG_EFFICIENCY * WEEKS_PER_MONTH;
+  const extraPerMonth   = Math.max(0, monthlyGigNet - monthlyDeficit);
+  const isDeficit       = weeklyGross < breakEvenWeekly;
+  const surplusDefAmt   = Math.abs(Math.round(monthlyGigNet - monthlyDeficit));
+  const hoursPerWeek    = (weeklyGross / HOURLY_RATE).toFixed(1);
+  const totalIncome     = takeHome + monthlyGigNet;
 
-  const totalIncome = takeHome + monthlyGigNet;
-  const minPaymentsTotal = BASE_DEBTS.reduce((s, d) => s + d.min, 0);
-  const extraPerMonth = Math.max(0, totalIncome - billsVariable - minPaymentsTotal);
-
-  const breakEvenWeekly = useMemo(() => {
-    const needed = billsVariable + minPaymentsTotal - takeHome;
-    if (needed <= 0) return 0;
-    return Math.ceil(needed / (GIG_EFFICIENCY * WEEKS_PER_MONTH));
-  }, [billsVariable, minPaymentsTotal, takeHome]);
-
+  // Simulation
   const { months, payoffMonths, totalInterest } = useMemo(
     () => simulate(debts, strategy, extraPerMonth),
     [debts, strategy, extraPerMonth],
   );
 
-  // Downsample chart data for legibility
+  // Chart data (every 3rd month + last for readability)
   const chartData = useMemo(
     () => months.filter((_, i) => i % 3 === 0 || i === months.length - 1),
     [months],
   );
+
+  // BNPL Freed Cash chart — cumulative $/mo freed over 15 months
+  const bnplFreedData = useMemo(() => {
+    const pts = [];
+    for (let m = 0; m <= 15; m++) {
+      const freed = BNPL_SCHEDULE.filter((b) => b.payoffMonth <= m).reduce((s, b) => s + b.min, 0);
+      pts.push({ label: monthLabel(m), freed: Math.round(freed) });
+    }
+    return pts;
+  }, []);
 
   // Payoff sequence sorted by month
   const sequenceData = useMemo(
@@ -233,162 +278,273 @@ export default function DebtCalculator() {
     [payoffMonths],
   );
 
-  // BNPL by month
-  const bnplChartData = useMemo(() => {
-    const byMonth = {};
-    BNPL_SCHEDULE.forEach((item) => {
-      if (!byMonth[item.due]) byMonth[item.due] = { total: 0, items: [] };
-      byMonth[item.due].total += item.amount;
-      byMonth[item.due].items.push(item);
-    });
-    return Object.entries(byMonth)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([due, { total, items }]) => {
-        const [yr, mo] = due.split('-').map(Number);
-        const label = new Date(yr, mo - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-        return { label, total, items, due };
-      });
-  }, []);
-
-  const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
+  const totalDebt     = debts.reduce((s, d) => s + d.balance, 0);
+  const totalOriginal = BASE_DEBTS.reduce((s, d) => s + d.balance, 0);
+  const totalPaidDown = Math.max(0, totalOriginal - totalDebt);
   const debtFreeMonth = months.length > 0 ? months.length - 1 : null;
 
   function updateBalance(id, raw) {
-    const val = parseFloat(raw) || 0;
+    const val = Math.max(0, parseFloat(raw) || 0);
     setDebtBalances((prev) => ({ ...prev, [id]: val }));
     setBalancesUpdated(
       new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
     );
   }
 
-  const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'BNPL Timeline'];
+  const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'BNPL Freed Cash'];
+
+  const shortfallLabel = monthlyDeficit > 0
+    ? `DoorDash must cover ${fmt(monthlyDeficit)}/mo`
+    : `Surplus ${fmt(Math.abs(monthlyOutflow - takeHome))}/mo ✓`;
+
+  const goalPresets = [
+    { weekly: breakEvenWeekly,    label: 'Break-even', note: 'min to cover',  color: '#f59e0b' },
+    { weekly: HRB_ALL_WEEKS_AVG,  label: 'HRB avg',    note: 'all weeks',    color: '#94a3b8' },
+    { weekly: HRB_WORK_WEEKS_AVG, label: 'HRB avg',    note: 'work weeks',   color: '#6366f1' },
+    { weekly: 270,                label: '3 days/wk',  note: 'Scenario 2',   color: '#10b981' },
+  ];
 
   return (
-    <div className="min-h-screen text-white">
-      <TopNav />
+    <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Debt Payoff Calculator</h1>
-          <p className="text-zinc-400 mt-1 text-sm">Model your path to zero using gig income.</p>
+        {/* ── Page header ───────────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-sm mb-3"
+            >
+              <ArrowLeft size={15} />Back to Hub
+            </Link>
+            <h1 className="text-3xl font-bold tracking-tight">Debt Payoff Calculator</h1>
+            <p className="text-zinc-400 mt-1 text-sm">
+              6 major debts modeled. BNPL minimums roll in as they complete.
+            </p>
+          </div>
+          {/* Privacy / Demo mode toggle */}
+          <button
+            onClick={() => setPrivacyMode((m) => !m)}
+            title={privacyMode ? 'Show numbers' : 'Demo mode — hide numbers'}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors mt-1 ${
+              privacyMode
+                ? 'bg-amber-900/30 border-amber-600 text-amber-400'
+                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+            }`}
+          >
+            {privacyMode ? <EyeOff size={15} /> : <Eye size={15} />}
+            Demo
+          </button>
         </div>
 
-        {/* ── Financial Inputs ───────────────────────────────────────────────── */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-4">
-          <h2 className="text-base font-semibold mb-4">Monthly Finances</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <label className="block">
-              <span className="text-xs text-zinc-400 mb-1 block">Take-Home Pay / Month</span>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                <input
-                  type="number"
-                  value={takeHome}
-                  onChange={(e) => setTakeHome(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
-                />
+        {/* ── My Numbers (collapsible) ───────────────────────────────────────── */}
+        <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
+          <button
+            className="w-full flex items-center justify-between p-5 text-left"
+            onClick={() => setShowInputs((o) => !o)}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-base flex-shrink-0">⚙️</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-semibold">My Numbers</h2>
+                  <span className="text-xs bg-zinc-800 text-zinc-500 rounded-full px-2 py-0.5 border border-zinc-700">
+                    {takeHome !== 4162 || billsVariable !== 2862 ? 'edited' : 'defaults'}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5 truncate">
+                  <Redacted on={privacyMode}>{shortfallLabel}</Redacted>
+                </p>
               </div>
-            </label>
-            <label className="block">
-              <span className="text-xs text-zinc-400 mb-1 block">Variable Bills / Month</span>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                <input
-                  type="number"
-                  value={billsVariable}
-                  onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
-                />
+            </div>
+            {showInputs
+              ? <ChevronUp size={18} className="text-zinc-400 flex-shrink-0 ml-2" />
+              : <ChevronDown size={18} className="text-zinc-400 flex-shrink-0 ml-2" />}
+          </button>
+
+          {showInputs && (
+            <div className="px-5 pb-5 border-t border-zinc-800">
+              <p className="text-xs text-zinc-500 mt-3 mb-3">
+                Update whenever your income or expenses change.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <label className="block">
+                  <span className="text-xs text-zinc-400 mb-0.5 block">HRB Monthly Take-Home</span>
+                  <span className="text-xs text-zinc-600 mb-1 block">Net paycheck × paychecks/mo</span>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      value={takeHome}
+                      onChange={(e) => setTakeHome(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+                </label>
+                <label className="block">
+                  <span className="text-xs text-zinc-400 mb-0.5 block">Bills &amp; Variable Expenses</span>
+                  <span className="text-xs text-zinc-600 mb-1 block">Everything except debt payments</span>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      value={billsVariable}
+                      onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+                </label>
               </div>
-            </label>
+              {/* Breakdown table */}
+              <div className="bg-zinc-800 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Bills &amp; variable expenses</span>
+                  <Redacted on={privacyMode}><span>{fmt(billsVariable)}/mo</span></Redacted>
+                </div>
+                <div className="flex justify-between text-zinc-400">
+                  <span>Debt minimums (auto)</span>
+                  <Redacted on={privacyMode}><span>{fmt(TOTAL_DEBT_MINS)}/mo</span></Redacted>
+                </div>
+                <div className="flex justify-between font-semibold text-zinc-200 border-t border-zinc-700 pt-1.5">
+                  <span>Total outflow</span>
+                  <Redacted on={privacyMode}><span>{fmt(monthlyOutflow)}/mo</span></Redacted>
+                </div>
+                <div className="flex justify-between font-semibold text-zinc-200">
+                  <span>HRB take-home</span>
+                  <Redacted on={privacyMode}>
+                    <span className="text-emerald-400">–{fmt(takeHome)}/mo</span>
+                  </Redacted>
+                </div>
+                <div className={`flex justify-between font-bold border-t border-zinc-700 pt-1.5 ${monthlyDeficit > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  <span>Monthly shortfall (DoorDash must cover)</span>
+                  <Redacted on={privacyMode}>
+                    <span>{monthlyDeficit > 0 ? fmt(monthlyDeficit) : 'Surplus!'}/mo</span>
+                  </Redacted>
+                </div>
+                <div className="flex justify-between text-amber-400">
+                  <span>Break-even weekly</span>
+                  <Redacted on={privacyMode}><span>{fmt(breakEvenWeekly)}/wk</span></Redacted>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── Weekly DoorDash Slider ─────────────────────────────────────────── */}
+        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h2 className="text-base font-semibold">Weekly DoorDash Earnings</h2>
+              <p className="text-xs text-zinc-400 mt-0.5">Drag to model different dashing commitments</p>
+            </div>
+            <div className="text-right flex-shrink-0 ml-4">
+              <Redacted on={privacyMode}>
+                <div className="text-2xl font-bold">
+                  ${weeklyGross}
+                  <span className="text-sm font-normal text-zinc-400">/wk</span>
+                </div>
+                <div className="text-xs text-zinc-400">
+                  ≈ {hoursPerWeek} hrs/wk · ${Math.round(weeklyGross * WEEKS_PER_MONTH)}/mo gross
+                </div>
+              </Redacted>
+            </div>
           </div>
 
-          {/* Weekly gig slider */}
-          <div>
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-xs text-zinc-400">Weekly Gig Gross</span>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-zinc-500">{fmt(monthlyGigNet)}/mo net</span>
-                <span className="text-white font-semibold text-sm">{fmt(weeklyGross)}/wk</span>
-              </div>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={450}
-              step={5}
-              value={weeklyGross}
-              onChange={(e) => setWeeklyGross(parseFloat(e.target.value))}
-              className="w-full accent-purple-500"
-            />
-            <div className="flex justify-between text-xs text-zinc-600 mt-1 px-0.5">
-              <span>$0</span>
-              {breakEvenWeekly > 0 && breakEvenWeekly <= 450 && (
-                <span className="text-amber-500 font-medium">
-                  break-even ≈ {fmt(breakEvenWeekly)}/wk
-                </span>
-              )}
-              <span>$450</span>
-            </div>
+          <input
+            type="range"
+            min={0}
+            max={450}
+            step={5}
+            value={weeklyGross}
+            onChange={(e) => setWeeklyGross(Number(e.target.value))}
+            className="w-full accent-purple-500 mb-2"
+          />
 
-            {/* Goal presets */}
-            <div className="flex flex-wrap gap-2 mt-3">
-              <button
-                onClick={() => setWeeklyGross(Math.min(450, breakEvenWeekly))}
-                className="px-3 py-1 rounded-full bg-amber-950/50 border border-amber-700/50 text-amber-400 text-xs hover:bg-amber-900/40 transition-colors"
-              >
-                Break-even {fmt(breakEvenWeekly)}/wk
-              </button>
-              <button
-                onClick={() => setWeeklyGross(HRB_ALL_WEEKS_AVG)}
-                className="px-3 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors"
-              >
-                HRB avg {fmt(HRB_ALL_WEEKS_AVG)}/wk
-              </button>
-              <button
-                onClick={() => setWeeklyGross(HRB_WORK_WEEKS_AVG)}
-                className="px-3 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors"
-              >
-                Working-wk avg {fmt(HRB_WORK_WEEKS_AVG)}/wk
-              </button>
-              <button
-                onClick={() => setWeeklyGross(270)}
-                className="px-3 py-1 rounded-full bg-purple-950/50 border border-purple-700/50 text-purple-400 text-xs hover:bg-purple-900/40 transition-colors"
-              >
-                Goal $270/wk
-              </button>
-            </div>
+          <div className="flex justify-between text-xs text-zinc-600 mb-3 px-0.5">
+            <span>$0</span>
+            <Redacted on={privacyMode}>
+              <span className="text-amber-500">break-even ≈ {fmt(breakEvenWeekly)}/wk</span>
+            </Redacted>
+            <span>$450</span>
+          </div>
+
+          {/* Status box */}
+          <div
+            className={`rounded-lg p-3 mb-4 ${
+              isDeficit
+                ? 'bg-red-950/50 border border-red-800/60'
+                : 'bg-emerald-950/50 border border-emerald-800/60'
+            }`}
+          >
+            {isDeficit ? (
+              <>
+                <p className="text-sm font-bold text-red-400">
+                  <Redacted on={privacyMode}>{fmt(surplusDefAmt)}/mo short of break-even</Redacted>
+                </p>
+                <p className="text-xs text-red-500 mt-0.5">
+                  <Redacted on={privacyMode}>
+                    Need at least {fmt(breakEvenWeekly)}/wk to cover all minimums
+                  </Redacted>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-emerald-400">
+                  <Redacted on={privacyMode}>{fmt(extraPerMonth)}/mo available for extra debt paydown</Redacted>
+                </p>
+                <p className="text-xs text-emerald-500 mt-0.5">
+                  <Redacted on={privacyMode}>
+                    ${weeklyGross - breakEvenWeekly}/wk above break-even
+                  </Redacted>
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Goal preset buttons */}
+          <div className="grid grid-cols-4 gap-2">
+            {goalPresets.map((g) => {
+              const active = weeklyGross === g.weekly;
+              return (
+                <button
+                  key={g.label + g.weekly}
+                  onClick={() => setWeeklyGross(Math.min(450, g.weekly))}
+                  className="rounded-xl p-2 text-center border transition-all hover:opacity-90"
+                  style={{
+                    borderColor: g.color,
+                    background: active ? g.color + '22' : 'transparent',
+                    boxShadow: active ? `0 0 0 2px ${g.color}` : 'none',
+                  }}
+                >
+                  <div className="font-bold text-xs" style={{ color: g.color }}>
+                    <Redacted on={privacyMode}>${g.weekly}/wk</Redacted>
+                  </div>
+                  <div className="text-xs text-zinc-300 font-medium">{g.label}</div>
+                  <div className="text-xs text-zinc-500">{g.note}</div>
+                </button>
+              );
+            })}
           </div>
         </section>
 
         {/* ── Summary cards ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
-            { label: 'Income / Month', value: fmt(totalIncome), color: 'text-white' },
-            {
-              label: 'Extra / Month',
-              value: fmt(extraPerMonth),
-              color: extraPerMonth > 0 ? 'text-emerald-400' : 'text-red-400',
-            },
-            {
-              label: 'Debt-Free',
-              value: debtFreeMonth !== null ? monthLabel(debtFreeMonth) : '> 15yr',
-              color: 'text-purple-400',
-            },
-          ].map(({ label, value, color }) => (
-            <div
-              key={label}
-              className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center"
-            >
+            { label: 'Income / Month', value: fmt(totalIncome),     color: 'text-white',       blur: true },
+            { label: 'Extra / Month',  value: fmt(extraPerMonth),   color: extraPerMonth > 0 ? 'text-emerald-400' : 'text-red-400', blur: true },
+            { label: 'Debt-Free',      value: debtFreeMonth !== null ? monthLabel(debtFreeMonth) : '> 10yr', color: 'text-purple-400', blur: false },
+          ].map(({ label, value, color, blur }) => (
+            <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
               <p className="text-xs text-zinc-400 mb-1">{label}</p>
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
+              <p className={`text-xl font-bold ${color}`}>
+                {blur ? <Redacted on={privacyMode}>{value}</Redacted> : value}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* ── Strategy selector ──────────────────────────────────────────────── */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-4">
+        {/* ── Payoff Strategy ────────────────────────────────────────────────── */}
+        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
           <h2 className="text-base font-semibold mb-3">Payoff Strategy</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {STRATEGIES.map((s) => (
@@ -408,21 +564,23 @@ export default function DebtCalculator() {
           </div>
         </section>
 
-        {/* ── Payoff timeline ────────────────────────────────────────────────── */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-4">
+        {/* ── Payoff Timeline ────────────────────────────────────────────────── */}
+        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
           <div className="flex justify-between items-baseline mb-4">
             <h2 className="text-base font-semibold">Payoff Timeline</h2>
             <span className="text-xs text-zinc-400">
               Total interest:{' '}
-              <span className="text-red-400 font-medium">{fmt(totalInterest)}</span>
+              <Redacted on={privacyMode}>
+                <span className="text-red-400 font-medium">{fmt(totalInterest)}</span>
+              </Redacted>
             </span>
           </div>
           <div className="space-y-3">
             {BASE_DEBTS.map((d) => {
-              const balance = debtBalances[d.id] ?? APR26_SNAPSHOT[d.id];
-              const snap = APR26_SNAPSHOT[d.id];
-              const mo = payoffMonths[d.id];
-              const pct = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
+              const balance = debtBalances[d.id] ?? d.balance;
+              const snap    = APR26_SNAPSHOT[d.id];
+              const mo      = payoffMonths[d.id];
+              const pct     = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
               return (
                 <div key={d.id} className="flex items-center gap-3">
                   <div
@@ -436,9 +594,11 @@ export default function DebtCalculator() {
                       style={{ backgroundColor: DEBT_COLORS[d.id], width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-xs text-zinc-400 w-16 text-right flex-shrink-0">
-                    {mo !== undefined ? monthLabel(mo) : '> 15yr'}
-                  </span>
+                  <Redacted on={privacyMode}>
+                    <span className="text-xs text-zinc-400 w-16 text-right flex-shrink-0">
+                      {mo !== undefined ? monthLabel(mo) : '> 10yr'}
+                    </span>
+                  </Redacted>
                 </div>
               );
             })}
@@ -446,60 +606,85 @@ export default function DebtCalculator() {
           <div className="mt-4 pt-4 border-t border-zinc-800 flex flex-wrap justify-between gap-2 text-sm">
             <span className="text-zinc-400">
               Total debt:{' '}
-              <span className="text-white font-medium">{fmt(totalDebt)}</span>
+              <Redacted on={privacyMode}>
+                <span className="text-white font-medium">{fmt(totalDebt)}</span>
+              </Redacted>
             </span>
             <span className="text-zinc-400">
-              Min payments:{' '}
-              <span className="text-white font-medium">{fmt(minPaymentsTotal)}/mo</span>
+              All minimums:{' '}
+              <Redacted on={privacyMode}>
+                <span className="text-white font-medium">{fmt(TOTAL_DEBT_MINS)}/mo</span>
+              </Redacted>
             </span>
           </div>
         </section>
 
-        {/* ── Editable Balances ──────────────────────────────────────────────── */}
+        {/* ── Current Balances (collapsible) ────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
           <button
-            className="w-full flex items-center justify-between p-6 text-left"
+            className="w-full flex items-center justify-between p-5 text-left"
             onClick={() => setBalancesOpen((o) => !o)}
           >
             <div>
               <h2 className="text-base font-semibold">Current Balances</h2>
-              <p className="text-xs text-zinc-400 mt-0.5">Last updated: {balancesUpdated}</p>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Last updated: {balancesUpdated}
+                {totalPaidDown > 0 && (
+                  <span className="ml-2 text-emerald-400">
+                    ·{' '}
+                    <Redacted on={privacyMode}>{fmt(totalPaidDown)} paid down</Redacted>
+                  </span>
+                )}
+              </p>
             </div>
-            {balancesOpen ? (
-              <ChevronUp size={18} className="text-zinc-400" />
-            ) : (
-              <ChevronDown size={18} className="text-zinc-400" />
-            )}
+            {balancesOpen
+              ? <ChevronUp size={18} className="text-zinc-400" />
+              : <ChevronDown size={18} className="text-zinc-400" />}
           </button>
 
           {balancesOpen && (
-            <div className="px-6 pb-6">
+            <div className="px-5 pb-5">
               <p className="text-xs text-zinc-500 mb-4">
-                Edit to update projections. Progress bars show % paid vs Apr &lsquo;26 snapshot.
+                Edit balances to update projections. Progress bars show % paid vs Apr &lsquo;26 snapshot.
               </p>
               <div className="space-y-5">
                 {BASE_DEBTS.map((d) => {
-                  const balance = debtBalances[d.id] ?? APR26_SNAPSHOT[d.id];
-                  const snap = APR26_SNAPSHOT[d.id];
-                  const pct = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
+                  const balance = debtBalances[d.id] ?? d.balance;
+                  const snap    = APR26_SNAPSHOT[d.id];
+                  const pct     = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
+                  const tagColor = TAG_COLORS[d.tag];
+                  const isPaidOff = balance < 0.01;
                   return (
                     <div key={d.id}>
-                      <div className="flex justify-between items-baseline mb-1">
-                        <span
-                          className="text-sm font-medium"
-                          style={{ color: DEBT_COLORS[d.id] }}
-                        >
-                          {d.name}
-                        </span>
-                        <span className="text-xs text-zinc-500">
-                          Apr &lsquo;26 snapshot: {fmt(snap)}
+                      <div className="flex justify-between items-center mb-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className="text-sm font-medium"
+                            style={{ color: DEBT_COLORS[d.id] }}
+                          >
+                            {d.name}
+                          </span>
+                          <span
+                            className="text-xs px-1.5 py-0.5 rounded font-medium"
+                            style={{
+                              color: tagColor,
+                              background: tagColor + '20',
+                              border: `1px solid ${tagColor}50`,
+                            }}
+                          >
+                            {d.tag}
+                          </span>
+                          {isPaidOff && (
+                            <span className="text-xs text-emerald-400 font-medium">✓ Paid off</span>
+                          )}
+                        </div>
+                        <span className="text-xs text-zinc-500 flex-shrink-0">
+                          {(d.apr * 100).toFixed(2)}% · {fmt(d.min)}/mo min
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">
-                            $
-                          </span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
                           <input
                             type="number"
                             value={balance}
@@ -507,9 +692,7 @@ export default function DebtCalculator() {
                             className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
                           />
                         </div>
-                        <span className="text-xs text-zinc-400 w-14 text-right">
-                          {pct.toFixed(1)}% off
-                        </span>
+                        <span className="text-xs text-zinc-400 w-14 text-right">{pct.toFixed(1)}% off</span>
                       </div>
                       <div className="mt-2 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                         <div
@@ -521,12 +704,23 @@ export default function DebtCalculator() {
                   );
                 })}
               </div>
+              <div className="mt-4 pt-4 border-t border-zinc-800 flex justify-between text-sm">
+                <span className="text-zinc-400">
+                  Remaining:{' '}
+                  <Redacted on={privacyMode}>
+                    <span className="text-white font-medium">{fmt(totalDebt)}</span>
+                  </Redacted>
+                </span>
+                <span className="text-zinc-500 text-xs">
+                  Apr &lsquo;26 snapshot: {fmt(totalOriginal)}
+                </span>
+              </div>
             </div>
           )}
         </section>
 
         {/* ── Charts ────────────────────────────────────────────────────────── */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
+        <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-8">
           {/* Tab bar */}
           <div className="flex border-b border-zinc-800 overflow-x-auto">
             {tabs.map((tab, i) => (
@@ -556,11 +750,11 @@ export default function DebtCalculator() {
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`}
                     tick={{ fill: '#71717a', fontSize: 10 }}
-                    width={42}
+                    width={44}
                   />
-                  <Tooltip content={<DarkTooltip />} />
+                  <Tooltip content={(props) => <DarkTooltip {...props} privacyMode={privacyMode} />} />
                   <Legend wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
                   {BASE_DEBTS.map((d) => (
                     <Line
@@ -597,11 +791,11 @@ export default function DebtCalculator() {
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`}
                     tick={{ fill: '#71717a', fontSize: 10 }}
-                    width={42}
+                    width={44}
                   />
-                  <Tooltip content={<DarkTooltip />} />
+                  <Tooltip content={(props) => <DarkTooltip {...props} privacyMode={privacyMode} />} />
                   <Area
                     type="monotone"
                     dataKey="cumulativeInterest"
@@ -620,7 +814,7 @@ export default function DebtCalculator() {
               <div className="space-y-3 py-2 min-h-[200px]">
                 {sequenceData.length === 0 ? (
                   <p className="text-zinc-500 text-sm text-center py-12">
-                    Add extra income above to see payoff sequence.
+                    Add gig income above to see payoff sequence.
                   </p>
                 ) : (
                   sequenceData.map((item, i) => {
@@ -634,7 +828,7 @@ export default function DebtCalculator() {
                         />
                         <span className="text-sm text-zinc-300 w-36 flex-shrink-0">{item.name}</span>
                         <div
-                          className="h-5 rounded flex-shrink-0 transition-all"
+                          className="h-5 rounded transition-all"
                           style={{
                             background: `${item.color}30`,
                             border: `1px solid ${item.color}80`,
@@ -642,9 +836,11 @@ export default function DebtCalculator() {
                             minWidth: '2rem',
                           }}
                         />
-                        <span className="text-xs font-medium ml-1" style={{ color: item.color }}>
-                          {monthLabel(item.payoffMonth)}
-                        </span>
+                        <Redacted on={privacyMode}>
+                          <span className="text-xs font-medium ml-1" style={{ color: item.color }}>
+                            {monthLabel(item.payoffMonth)}
+                          </span>
+                        </Redacted>
                       </div>
                     );
                   })
@@ -652,83 +848,68 @@ export default function DebtCalculator() {
               </div>
             )}
 
-            {/* Tab 3 — BNPL Timeline */}
+            {/* Tab 3 — BNPL Freed Cash */}
             {activeTab === 3 && (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={bnplChartData}
-                  margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                  <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} />
-                  <YAxis
-                    tickFormatter={(v) => `$${v}`}
-                    tick={{ fill: '#71717a', fontSize: 10 }}
-                    width={42}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      const entry = bnplChartData.find((d) => d.label === label);
-                      return (
-                        <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-xs shadow-xl">
-                          <p className="text-zinc-300 font-medium mb-1.5">{label}</p>
-                          {entry?.items.map((item) => (
-                            <div key={item.name} className="flex justify-between gap-4">
-                              <span className="text-zinc-400">{item.name}</span>
-                              <span className="text-white font-mono">{fmt(item.amount)}</span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between gap-4 mt-2 pt-2 border-t border-zinc-700">
-                            <span className="text-zinc-300 font-medium">Total</span>
-                            <span className="text-white font-mono font-bold">
-                              {fmt(payload[0].value)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" name="BNPL Due" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={bnplFreedData}
+                    margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+                    <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} />
+                    <YAxis
+                      tickFormatter={(v) => privacyMode ? '●●●' : `$${v}`}
+                      tick={{ fill: '#71717a', fontSize: 10 }}
+                      width={44}
+                    />
+                    <Tooltip
+                      formatter={(v) =>
+                        privacyMode ? ['●●●', 'Freed/mo'] : [`$${v}/mo`, 'Freed from BNPLs']
+                      }
+                    />
+                    <ReferenceLine
+                      y={248}
+                      stroke="#f59e0b"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: "$248 by Sep '26",
+                        fontSize: 9,
+                        fill: '#f59e0b',
+                        position: 'insideTopRight',
+                      }}
+                    />
+                    <Bar dataKey="freed" name="Freed/mo" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                {/* BNPL itemized list */}
+                <div className="mt-3 space-y-1">
+                  {BNPL_SCHEDULE.map((b) => (
+                    <div key={b.name} className="flex justify-between text-xs">
+                      <span className="text-zinc-400">{b.name}</span>
+                      <div className="flex gap-4">
+                        <Redacted on={privacyMode}>
+                          <span className="text-zinc-300 font-mono">${b.min.toFixed(2)}/mo</span>
+                        </Redacted>
+                        <span className="text-zinc-500 w-24 text-right">
+                          done {monthLabel(b.payoffMonth)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t border-zinc-700 pt-1.5 flex justify-between font-semibold text-xs">
+                    <span className="text-zinc-300">Total freed by {monthLabel(14)}</span>
+                    <Redacted on={privacyMode}>
+                      <span className="text-indigo-400">${TOTAL_BNPL_MINS.toFixed(0)}/mo</span>
+                    </Redacted>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </section>
 
-        {/* ── BNPL Schedule list ─────────────────────────────────────────────── */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-8">
-          <h2 className="text-base font-semibold mb-4">BNPL Schedule</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-            {BNPL_SCHEDULE.map((item) => {
-              const [yr, mo] = item.due.split('-').map(Number);
-              const label = new Date(yr, mo - 1).toLocaleDateString('en-US', {
-                month: 'short',
-                year: 'numeric',
-              });
-              return (
-                <div
-                  key={item.name}
-                  className="flex items-center justify-between py-2 border-b border-zinc-800"
-                >
-                  <span className="text-sm text-zinc-300">{item.name}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-500">{label}</span>
-                    <span className="text-sm font-mono text-white">{fmt(item.amount)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex justify-end">
-            <span className="text-sm text-zinc-400">
-              Total BNPL:{' '}
-              <span className="text-white font-semibold">
-                {fmt(BNPL_SCHEDULE.reduce((s, i) => s + i.amount, 0))}
-              </span>
-            </span>
-          </div>
-        </section>
       </div>
     </div>
   );
