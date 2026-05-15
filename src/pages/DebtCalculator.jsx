@@ -414,7 +414,7 @@ export default function DebtCalculator() {
                       type="number"
                       value={takeHome}
                       onChange={(e) => setTakeHome(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                      className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
                     />
                   </div>
                 </label>
@@ -427,7 +427,7 @@ export default function DebtCalculator() {
                       type="number"
                       value={billsVariable}
                       onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                      className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
                     />
                   </div>
                 </label>
@@ -726,10 +726,12 @@ export default function DebtCalculator() {
                             type="number"
                             value={balance}
                             onChange={(e) => updateBalance(d.id, e.target.value)}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                            className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
                           />
                         </div>
-                        <span className="text-xs text-zinc-400 w-14 text-right">{pct.toFixed(1)}% off</span>
+                        <Redacted on={privacyMode}>
+                          <span className="text-xs text-zinc-400 w-14 text-right">{pct.toFixed(1)}% off</span>
+                        </Redacted>
                       </div>
                       <div className="mt-2 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                         <div
