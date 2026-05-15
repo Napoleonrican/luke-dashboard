@@ -232,8 +232,63 @@ export default function DebtCalculator() {
   const [pwInput, setPwInput]           = useState('');
   const [pwError, setPwError]           = useState(false);
 
-  // ── Persist to localStorage ──────────────────────────────────────────────────
+  // ── Sync state: blocks writes until initial Supabase pull completes ────────
+  const [synced, setSynced] = useState(false);
+
+  // ── Supabase: pull remote on mount FIRST, then enable writes ───────────────
   useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      if (!supabase) {
+        console.log('[Supabase] no client — skipping remote pull, working offline');
+        if (!cancelled) setSynced(true);
+        return;
+      }
+
+      console.log('[Supabase] pulling remote state…');
+      const { data, error } = await supabase
+        .from('debt_settings')
+        .select('*')
+        .eq('id', SB_ROW_ID)
+        .single();
+
+      if (cancelled) return;
+
+      if (data && !error) {
+        const localTs  = localStorage.getItem(UPDATED_KEY);
+        const remoteTs = data.updated_at;
+        console.log('[Supabase] remote pulled:', { localTs, remoteTs, take_home: data.take_home });
+
+        if (!localTs || remoteTs > localTs) {
+          console.log('[Supabase] remote is newer — overwriting local state');
+          setTakeHome(Number(data.take_home)          || 4162);
+          setBillsVariable(Number(data.bills_variable) || 2862);
+          setWeeklyGross(Number(data.weekly_gross)     || 120);
+          setStrategy(data.strategy                    || 'hybrid');
+          if (data.debt_balances && Object.keys(data.debt_balances).length) {
+            setDebtBalances(data.debt_balances);
+          }
+          if (data.balances_updated) setBalancesUpdated(data.balances_updated);
+          try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
+        } else {
+          console.log('[Supabase] local is newer — keeping local state');
+        }
+      } else if (error) {
+        console.warn('[Supabase] pull error:', error);
+      }
+
+      setSynced(true);
+    }
+
+    init();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Persist to localStorage (gated by synced) ──────────────────────────────
+  useEffect(() => {
+    if (!synced) return;
     try {
       const now = new Date().toISOString();
       localStorage.setItem('dp_takeHome',      takeHome);
@@ -244,39 +299,12 @@ export default function DebtCalculator() {
       if (balancesUpdated) localStorage.setItem('dp_balancesUpdated', balancesUpdated);
       localStorage.setItem(UPDATED_KEY,        now);
     } catch {}
-  }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
 
-  // ── Supabase: pull remote on mount (prefer whichever device wrote most recently) ──
-  useEffect(() => {
-    if (!supabase) return;
-    supabase
-      .from('debt_settings')
-      .select('*')
-      .eq('id', SB_ROW_ID)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) return;
-        const localTs  = localStorage.getItem(UPDATED_KEY) || '1970-01-01T00:00:00.000Z';
-        const remoteTs = data.updated_at || '1970-01-01T00:00:00.000Z';
-        if (remoteTs <= localTs) return; // local is up-to-date or newer
-
-        // Remote is newer — overwrite state and resync localStorage
-        setTakeHome(Number(data.take_home)          || 4162);
-        setBillsVariable(Number(data.bills_variable) || 2862);
-        setWeeklyGross(Number(data.weekly_gross)     || 120);
-        setStrategy(data.strategy                    || 'hybrid');
-        if (data.debt_balances && Object.keys(data.debt_balances).length) {
-          setDebtBalances(data.debt_balances);
-        }
-        if (data.balances_updated) setBalancesUpdated(data.balances_updated);
-        try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
-
-  // ── Supabase: push on any state change (1500ms debounce) ──────────────────
+  // ── Supabase: push on any state change (1500ms debounce, gated by synced) ──
   const debounceRef = useRef(null);
   const pushToSupabase = useCallback(() => {
+    if (!synced) return;
     console.log('[Supabase] pushToSupabase fired (state change detected)');
     if (!supabase) { console.log('[Supabase] client is null — skipping'); return; }
     clearTimeout(debounceRef.current);
@@ -295,7 +323,7 @@ export default function DebtCalculator() {
         console.log('[Supabase] upsert response:', { data, error, status, statusText });
       });
     }, 1500);
-  }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
 
   useEffect(() => {
     pushToSupabase();
