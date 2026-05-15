@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -11,6 +12,10 @@ import {
 const PASSWORD    = 'Napoleon21!';
 const AUTH_KEY    = 'dashboard_auth';
 const isAuthed    = () => localStorage.getItem(AUTH_KEY) === 'true';
+
+// ─── Supabase sync ────────────────────────────────────────────────────────────
+const SB_ROW_ID   = 'luke';
+const UPDATED_KEY = 'dp_updatedAt'; // ISO timestamp of last local write
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GIG_EFFICIENCY   = 0.83;
@@ -227,17 +232,71 @@ export default function DebtCalculator() {
   const [pwInput, setPwInput]           = useState('');
   const [pwError, setPwError]           = useState(false);
 
-  // Persist to localStorage
+  // ── Persist to localStorage ──────────────────────────────────────────────────
   useEffect(() => {
     try {
+      const now = new Date().toISOString();
       localStorage.setItem('dp_takeHome',      takeHome);
       localStorage.setItem('dp_billsVariable', billsVariable);
       localStorage.setItem('dp_weeklyGross',   weeklyGross);
       localStorage.setItem('dp_strategy',      strategy);
       localStorage.setItem('dp_debtBalances',  JSON.stringify(debtBalances));
       if (balancesUpdated) localStorage.setItem('dp_balancesUpdated', balancesUpdated);
+      localStorage.setItem(UPDATED_KEY,        now);
     } catch {}
   }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+
+  // ── Supabase: pull remote on mount (prefer whichever device wrote most recently) ──
+  useEffect(() => {
+    if (!supabase) return;
+    supabase
+      .from('debt_settings')
+      .select('*')
+      .eq('id', SB_ROW_ID)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const localTs  = localStorage.getItem(UPDATED_KEY) || '1970-01-01T00:00:00.000Z';
+        const remoteTs = data.updated_at || '1970-01-01T00:00:00.000Z';
+        if (remoteTs <= localTs) return; // local is up-to-date or newer
+
+        // Remote is newer — overwrite state and resync localStorage
+        setTakeHome(Number(data.take_home)          || 4162);
+        setBillsVariable(Number(data.bills_variable) || 2862);
+        setWeeklyGross(Number(data.weekly_gross)     || 120);
+        setStrategy(data.strategy                    || 'hybrid');
+        if (data.debt_balances && Object.keys(data.debt_balances).length) {
+          setDebtBalances(data.debt_balances);
+        }
+        if (data.balances_updated) setBalancesUpdated(data.balances_updated);
+        try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  // ── Supabase: push on any state change (1500ms debounce) ──────────────────
+  const debounceRef = useRef(null);
+  const pushToSupabase = useCallback(() => {
+    if (!supabase) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      supabase.from('debt_settings').upsert({
+        id:               SB_ROW_ID,
+        take_home:        takeHome,
+        bills_variable:   billsVariable,
+        weekly_gross:     weeklyGross,
+        strategy,
+        debt_balances:    debtBalances,
+        balances_updated: balancesUpdated,
+        updated_at:       new Date().toISOString(),
+      });
+    }, 1500);
+  }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+
+  useEffect(() => {
+    pushToSupabase();
+    return () => clearTimeout(debounceRef.current);
+  }, [pushToSupabase]);
 
   // Live debts with user-edited balances
   const debts = useMemo(
