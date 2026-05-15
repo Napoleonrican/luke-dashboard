@@ -277,9 +277,11 @@ export default function DebtCalculator() {
   // ── Supabase: push on any state change (1500ms debounce) ──────────────────
   const debounceRef = useRef(null);
   const pushToSupabase = useCallback(() => {
-    if (!supabase) return;
+    console.log('[Supabase] pushToSupabase fired (state change detected)');
+    if (!supabase) { console.log('[Supabase] client is null — skipping'); return; }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      console.log('[Supabase] debounce elapsed → sending upsert', { takeHome });
       supabase.from('debt_settings').upsert({
         id:               SB_ROW_ID,
         take_home:        takeHome,
@@ -289,6 +291,8 @@ export default function DebtCalculator() {
         debt_balances:    debtBalances,
         balances_updated: balancesUpdated,
         updated_at:       new Date().toISOString(),
+      }).then(({ data, error }) => {
+        console.log('[Supabase] upsert response:', { data, error });
       });
     }, 1500);
   }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
