@@ -291,8 +291,8 @@ export default function DebtCalculator() {
         debt_balances:    debtBalances,
         balances_updated: balancesUpdated,
         updated_at:       new Date().toISOString(),
-      }).then(({ data, error }) => {
-        console.log('[Supabase] upsert response:', { data, error });
+      }).select().then(({ data, error, status, statusText }) => {
+        console.log('[Supabase] upsert response:', { data, error, status, statusText });
       });
     }, 1500);
   }, [takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
