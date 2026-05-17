@@ -139,7 +139,7 @@ export default function GigTracker() {
       if (!supabase) return;
       const { data, error } = await supabase
         .from('gig_tracker_prefs')
-        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars')
+        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time')
         .eq('id', 'default')
         .single();
       if (cancelled || !data || error) return;
@@ -150,6 +150,7 @@ export default function GigTracker() {
         minGoalDollars:     Number(data.min_goal_dollars)  || s.minGoalDollars,
         stretchGoalHours:   Number(data.stretch_goal_hours)   || s.stretchGoalHours,
         stretchGoalDollars: Number(data.stretch_goal_dollars) || s.stretchGoalDollars,
+        ...(data.start_time != null && { startTime: data.start_time }),
       }));
     }
     loadPrefs();
@@ -202,10 +203,11 @@ export default function GigTracker() {
       supabase.from('gig_tracker_prefs').upsert({
         id:                   'default',
         zone:                 state.zone,
-        min_goal_hours:       state.minGoalHours,
-        min_goal_dollars:     state.minGoalDollars,
-        stretch_goal_hours:   state.stretchGoalHours,
-        stretch_goal_dollars: state.stretchGoalDollars,
+        start_time:           state.startTime,
+        min_goal_hours:       Number(state.minGoalHours) || 0,
+        min_goal_dollars:     Number(state.minGoalDollars) || 0,
+        stretch_goal_hours:   Number(state.stretchGoalHours) || 0,
+        stretch_goal_dollars: Number(state.stretchGoalDollars) || 0,
         updated_at:           new Date().toISOString(),
       }).then(({ error }) => {
         if (error) console.error('[Supabase upsert error]', error.message);
@@ -267,9 +269,13 @@ export default function GigTracker() {
   // Destructure for derived calcs
   const {
     shiftStarted, startTime, zone, day, breakLength,
-    minGoalHours, minGoalDollars, stretchGoalHours, stretchGoalDollars,
     orderLog, ephElapsedMinutes, etaElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
   } = state;
+  // Coerce to numbers for calculations; state values may be '' while the user is typing
+  const minGoalHours = Number(state.minGoalHours) || 0;
+  const minGoalDollars = Number(state.minGoalDollars) || 0;
+  const stretchGoalHours = Number(state.stretchGoalHours) || 0;
+  const stretchGoalDollars = Number(state.stretchGoalDollars) || 0;
 
   // Live elapsed time — used for the clock display and goal timing only
   let elapsedMinutes = 0;
@@ -468,8 +474,8 @@ export default function GigTracker() {
                     <span className="text-zinc-500 text-xs shrink-0">hrs</span>
                     <input
                       type="number" min="0" step="0.5"
-                      value={minGoalHours}
-                      onChange={e => update({ minGoalHours: Number(e.target.value) })}
+                      value={state.minGoalHours}
+                      onChange={e => { const v = e.target.value; update({ minGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
                       className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
                     />
                   </div>
@@ -477,8 +483,8 @@ export default function GigTracker() {
                     <span className="text-zinc-500 text-xs shrink-0">$</span>
                     <input
                       type="number" min="0"
-                      value={minGoalDollars}
-                      onChange={e => update({ minGoalDollars: Number(e.target.value) })}
+                      value={state.minGoalDollars}
+                      onChange={e => { const v = e.target.value; update({ minGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
                       className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
                     />
                   </div>
@@ -492,8 +498,8 @@ export default function GigTracker() {
                     <span className="text-zinc-500 text-xs shrink-0">hrs</span>
                     <input
                       type="number" min="0" step="0.5"
-                      value={stretchGoalHours}
-                      onChange={e => update({ stretchGoalHours: Number(e.target.value) })}
+                      value={state.stretchGoalHours}
+                      onChange={e => { const v = e.target.value; update({ stretchGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
                       className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
                     />
                   </div>
@@ -501,8 +507,8 @@ export default function GigTracker() {
                     <span className="text-zinc-500 text-xs shrink-0">$</span>
                     <input
                       type="number" min="0"
-                      value={stretchGoalDollars}
-                      onChange={e => update({ stretchGoalDollars: Number(e.target.value) })}
+                      value={state.stretchGoalDollars}
+                      onChange={e => { const v = e.target.value; update({ stretchGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
                       className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
                     />
                   </div>
