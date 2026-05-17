@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -30,6 +30,14 @@ const tools = [
     description: 'Log jobs, track parts, and manage repair tickets.',
     to: '/versa-repair',
     accentColor: 'text-red-400',
+    locked: true,
+  },
+  {
+    icon: Truck,
+    title: 'Gig Tracker',
+    description: 'Live shift tracker for DoorDash & UberEats.',
+    to: '/gig-tracker',
+    accentColor: 'text-green-400',
     locked: true,
   },
 ];

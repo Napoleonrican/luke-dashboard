@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import TaskManager from './pages/TaskManager';
 import DebtCalculator from './pages/DebtCalculator';
 import VersaRepair from './pages/VersaRepair';
+import GigTracker from './pages/GigTracker';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -18,6 +19,9 @@ export default function App() {
         <Route path="/debt-calculator" element={<DebtCalculator />} />
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
+        } />
+        <Route path="/gig-tracker" element={
+          <ProtectedRoute><GigTracker /></ProtectedRoute>
         } />
       </Routes>
     </div>

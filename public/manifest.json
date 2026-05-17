@@ -1,0 +1,9 @@
+{
+  "name": "Gig Tracker",
+  "short_name": "Gig",
+  "theme_color": "#16a34a",
+  "background_color": "#0a0a0a",
+  "display": "standalone",
+  "start_url": "/gig-tracker",
+  "icons": []
+}
