@@ -241,12 +241,10 @@ export default function DebtCalculator() {
 
     async function init() {
       if (!supabase) {
-        console.log('[Supabase] no client — skipping remote pull, working offline');
         if (!cancelled) setSynced(true);
         return;
       }
 
-      console.log('[Supabase] pulling remote state…');
       const { data, error } = await supabase
         .from('debt_settings')
         .select('*')
@@ -258,10 +256,7 @@ export default function DebtCalculator() {
       if (data && !error) {
         const localTs  = localStorage.getItem(UPDATED_KEY);
         const remoteTs = data.updated_at;
-        console.log('[Supabase] remote pulled:', { localTs, remoteTs, take_home: data.take_home });
-
         if (!localTs || remoteTs > localTs) {
-          console.log('[Supabase] remote is newer — overwriting local state');
           setTakeHome(Number(data.take_home)          || 4162);
           setBillsVariable(Number(data.bills_variable) || 2862);
           setWeeklyGross(Number(data.weekly_gross)     || 120);
@@ -271,11 +266,7 @@ export default function DebtCalculator() {
           }
           if (data.balances_updated) setBalancesUpdated(data.balances_updated);
           try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
-        } else {
-          console.log('[Supabase] local is newer — keeping local state');
         }
-      } else if (error) {
-        console.warn('[Supabase] pull error:', error);
       }
 
       setSynced(true);
@@ -304,12 +295,9 @@ export default function DebtCalculator() {
   // ── Supabase: push on any state change (1500ms debounce, gated by synced) ──
   const debounceRef = useRef(null);
   const pushToSupabase = useCallback(() => {
-    if (!synced) return;
-    console.log('[Supabase] pushToSupabase fired (state change detected)');
-    if (!supabase) { console.log('[Supabase] client is null — skipping'); return; }
+    if (!synced || !supabase) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      console.log('[Supabase] debounce elapsed → sending upsert', { takeHome });
       supabase.from('debt_settings').upsert({
         id:               SB_ROW_ID,
         take_home:        takeHome,
@@ -319,8 +307,6 @@ export default function DebtCalculator() {
         debt_balances:    debtBalances,
         balances_updated: balancesUpdated,
         updated_at:       new Date().toISOString(),
-      }).select().then(({ data, error, status, statusText }) => {
-        console.log('[Supabase] upsert response:', { data, error, status, statusText });
       });
     }, 1500);
   }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
