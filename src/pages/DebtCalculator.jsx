@@ -33,7 +33,7 @@ const BASE_DEBTS = [
   { id: 'bestEgg',     name: 'Best Egg',      balance: 7977.00, apr: 0.2949, min: 343.13, tag: 'Loan' },
   { id: 'oneMain',     name: 'OneMain',       balance: 7187.49, apr: 0.1699, min: 517.46, tag: 'Loan' },
   { id: 'studentLoan', name: 'Student Loan',  balance: 2998.17, apr: 0.0680, min:  39.17, tag: 'Loan' },
-  { id: 'affirm',      name: 'Affirm',        balance: 0,       apr: 0.2999, min:   0,    tag: 'Loan' },
+  { id: 'affirm',      name: 'Affirm',        balance: 0,       apr: 0.2999, min:   0,    tag: 'BNPL' },
 ];
 
 // May '26 snapshot for progress bars (Affirm starts at 0 — no prior baseline)
@@ -48,17 +48,17 @@ const APR26_SNAPSHOT = {
 
 // ─── Affirm individual loans (default — user fills actual balances) ───────────
 const DEFAULT_AFFIRM_LOANS = [
-  { id: 'bmv',        name: 'BMV',          balance: 0, apr: 29.99, min:  31.40 },
-  { id: 'senatorInn', name: 'Senator Inn',   balance: 0, apr: 29.99, min:  39.03 },
-  { id: 'lowes',      name: "Lowe's",        balance: 0, apr: 29.99, min:  64.73 },
-  { id: 'amazonAug',  name: 'Amazon (Aug)',  balance: 0, apr: 29.99, min:  24.11 },
-  { id: 'amazonSep',  name: 'Amazon (Sep)',  balance: 0, apr: 29.99, min:  28.17 },
-  { id: 'goodwins',   name: "Goodwin's",     balance: 0, apr: 29.99, min:  73.11 },
-  { id: 'amazonMar',  name: 'Amazon (Mar)',  balance: 0, apr: 29.99, min:  22.97 },
-  { id: 'mensWear',   name: "Men's Wear",    balance: 0, apr: 29.99, min:  29.24 },
-  { id: 'norwichSpa', name: 'Norwich Spa',   balance: 0, apr: 29.99, min:  50.69 },
-  { id: 'xmasAmazon', name: 'Xmas Amazon',   balance: 0, apr: 29.99, min:  28.76 },
-  { id: 'aubuchon',   name: 'Aubuchon',      balance: 0, apr: 29.99, min:  60.44 },
+  { id: 'bmv',        name: 'BMV',          balance: 0, apr: 29.99, min:  31.40, original: 0 },
+  { id: 'senatorInn', name: 'Senator Inn',   balance: 0, apr: 29.99, min:  39.03, original: 0 },
+  { id: 'lowes',      name: "Lowe's",        balance: 0, apr: 29.99, min:  64.73, original: 0 },
+  { id: 'amazonAug',  name: 'Amazon (Aug)',  balance: 0, apr: 29.99, min:  24.11, original: 0 },
+  { id: 'amazonSep',  name: 'Amazon (Sep)',  balance: 0, apr: 29.99, min:  28.17, original: 0 },
+  { id: 'goodwins',   name: "Goodwin's",     balance: 0, apr: 29.99, min:  73.11, original: 0 },
+  { id: 'amazonMar',  name: 'Amazon (Mar)',  balance: 0, apr: 29.99, min:  22.97, original: 0 },
+  { id: 'mensWear',   name: "Men's Wear",    balance: 0, apr: 29.99, min:  29.24, original: 0 },
+  { id: 'norwichSpa', name: 'Norwich Spa',   balance: 0, apr: 29.99, min:  50.69, original: 0 },
+  { id: 'xmasAmazon', name: 'Xmas Amazon',   balance: 0, apr: 29.99, min:  28.76, original: 0 },
+  { id: 'aubuchon',   name: 'Aubuchon',      balance: 0, apr: 29.99, min:  60.44, original: 0 },
 ];
 
 // ─── Strategies ───────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ const DEBT_COLORS = {
   affirm:      '#f97316',
 };
 
-const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1' };
+const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1', BNPL: '#f97316' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -354,6 +354,11 @@ export default function DebtCalculator() {
       / affirmBalance / 100;
   }, [affirmLoans, affirmBalance]);
 
+  const affirmOriginal = useMemo(
+    () => affirmLoans.reduce((s, l) => s + (l.original || 0), 0),
+    [affirmLoans],
+  );
+
   // ── Live debts (BASE_DEBTS + user overrides) ──────────────────────────────
   const debts = useMemo(
     () => BASE_DEBTS.map((d) => {
@@ -425,8 +430,9 @@ export default function DebtCalculator() {
     stampUpdated();
   }
   function updateAffirmLoan(id, field, raw) {
+    const val = field === 'name' ? raw : Math.max(0, parseFloat(raw) || 0);
     setAffirmLoans((prev) =>
-      prev.map((l) => l.id === id ? { ...l, [field]: Math.max(0, parseFloat(raw) || 0) } : l)
+      prev.map((l) => l.id === id ? { ...l, [field]: val } : l)
     );
     stampUpdated();
   }
@@ -708,7 +714,9 @@ export default function DebtCalculator() {
           </div>
           <div className="space-y-3">
             {debts.map((d) => {
-              const snap = d.id === 'affirm' ? affirmBalance : (APR26_SNAPSHOT[d.id] || d.balance);
+              const snap = d.id === 'affirm'
+                ? (affirmOriginal > 0 ? affirmOriginal : affirmBalance)
+                : (APR26_SNAPSHOT[d.id] || d.balance);
               const mo   = payoffMonths[d.id];
               const pct  = snap > 0 ? Math.min(100, Math.max(0, ((snap - d.balance) / snap) * 100)) : 0;
               return (
@@ -775,7 +783,9 @@ export default function DebtCalculator() {
               <div className="space-y-6">
                 {debts.map((d) => {
                   const tagColor  = TAG_COLORS[d.tag];
-                  const snap      = d.id === 'affirm' ? affirmBalance : (APR26_SNAPSHOT[d.id] || d.balance);
+                  const snap      = d.id === 'affirm'
+                    ? (affirmOriginal > 0 ? affirmOriginal : affirmBalance)
+                    : (APR26_SNAPSHOT[d.id] || d.balance);
                   const pct       = snap > 0 ? Math.min(100, Math.max(0, ((snap - d.balance) / snap) * 100)) : 0;
                   const isPaidOff = d.balance < 0.01;
                   const isAffirm  = d.id === 'affirm';
@@ -1017,40 +1027,69 @@ export default function DebtCalculator() {
                 </p>
 
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_100px_72px_100px] gap-2 px-1 mb-1">
-                  <span className="text-xs text-zinc-600">Loan</span>
-                  <span className="text-xs text-zinc-600 text-center">Balance</span>
+                <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 px-1 mb-1">
+                  <span className="text-xs text-zinc-600">Balance</span>
+                  <span className="text-xs text-zinc-600 text-center">Total Due</span>
                   <span className="text-xs text-zinc-600 text-center">APR %</span>
                   <span className="text-xs text-zinc-600 text-center">Min / mo</span>
+                  <span className="text-xs text-zinc-600 text-center">Progress</span>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {affirmLoans.map((loan) => {
                     const isPaidOff = loan.balance < 0.01;
+                    const loanOrig  = loan.original || 0;
+                    const loanPct   = loanOrig > 0
+                      ? Math.min(100, Math.max(0, ((loanOrig - loan.balance) / loanOrig) * 100))
+                      : 0;
                     return (
-                      <div key={loan.id}
-                        className={`grid grid-cols-[1fr_100px_72px_100px] gap-2 items-center rounded-lg px-1 py-0.5 ${isPaidOff ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center gap-1.5 min-w-0">
+                      <div key={loan.id} className={`rounded-lg px-1 py-1 ${isPaidOff ? 'opacity-40' : ''}`}>
+                        {/* Row 1: editable name */}
+                        <div className="flex items-center gap-1.5 mb-1 min-w-0">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-500/60 flex-shrink-0" />
-                          <span className="text-xs text-zinc-300 truncate">{loan.name}</span>
-                          {isPaidOff && <span className="text-xs text-emerald-500 flex-shrink-0">✓</span>}
+                          <input
+                            type="text"
+                            value={loan.name}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'name', e.target.value)}
+                            className="flex-1 min-w-0 bg-transparent border-b border-zinc-700 focus:border-orange-500 text-xs text-zinc-300 placeholder-zinc-600 outline-none transition-colors py-0.5"
+                          />
+                          {isPaidOff && <span className="text-xs text-emerald-500 flex-shrink-0">✓ paid</span>}
                         </div>
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                          <input type="number" step="0.01" value={loan.balance}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
-                            className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
-                        </div>
-                        <div className="relative">
-                          <input type="number" step="0.01" value={loan.apr}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
-                            className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
-                        </div>
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                          <input type="number" step="0.01" value={loan.min}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
-                            className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                        {/* Row 2: numeric fields + progress */}
+                        <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 items-center">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                            <input type="number" step="0.01" value={loan.balance}
+                              onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
+                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                          </div>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                            <input type="number" step="0.01" value={loan.original ?? 0}
+                              onChange={(e) => updateAffirmLoan(loan.id, 'original', e.target.value)}
+                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
+                              title="Original / total amount due" />
+                          </div>
+                          <div className="relative">
+                            <input type="number" step="0.01" value={loan.apr}
+                              onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
+                              className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                          </div>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                            <input type="number" step="0.01" value={loan.min}
+                              onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
+                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <div className="w-full bg-zinc-700 rounded-full h-1.5 overflow-hidden">
+                              <div className="h-1.5 rounded-full bg-orange-500 transition-all"
+                                style={{ width: `${loanPct}%` }} />
+                            </div>
+                            <span className="text-xs text-zinc-500 text-center">
+                              {loanOrig > 0 ? `${loanPct.toFixed(0)}%` : '—'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1058,11 +1097,15 @@ export default function DebtCalculator() {
                 </div>
 
                 {/* Totals footer */}
-                <div className="grid grid-cols-[1fr_100px_72px_100px] gap-2 mt-3 pt-3 border-t border-zinc-700 px-1">
-                  <span className="text-xs font-semibold text-zinc-300">Totals</span>
+                <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 mt-3 pt-3 border-t border-zinc-700 px-1 items-center">
                   <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
+                    <span className="text-xs font-semibold text-orange-400 font-mono">
                       {fmtDec(affirmBalance)}
+                    </span>
+                  </Redacted>
+                  <Redacted on={privacyMode}>
+                    <span className="text-xs font-semibold text-zinc-300 font-mono text-center">
+                      {affirmOriginal > 0 ? fmtDec(affirmOriginal) : '—'}
                     </span>
                   </Redacted>
                   <Redacted on={privacyMode}>
@@ -1075,6 +1118,11 @@ export default function DebtCalculator() {
                       {fmtDec(affirmMin)}
                     </span>
                   </Redacted>
+                  <span className="text-xs text-zinc-500 text-center">
+                    {affirmOriginal > 0
+                      ? `${Math.min(100, Math.max(0, ((affirmOriginal - affirmBalance) / affirmOriginal) * 100)).toFixed(0)}% paid`
+                      : ''}
+                  </span>
                 </div>
               </div>
             )}
