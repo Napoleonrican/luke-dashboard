@@ -59,6 +59,11 @@ const DEFAULT_AFFIRM_LOANS = [
   { id: 'norwichSpa', name: 'Norwich Spa',   balance: 0, apr: 29.99, min:  50.69, original: 0 },
   { id: 'xmasAmazon', name: 'Xmas Amazon',   balance: 0, apr: 29.99, min:  28.76, original: 0 },
   { id: 'aubuchon',   name: 'Aubuchon',      balance: 0, apr: 29.99, min:  60.44, original: 0 },
+  { id: 'affirm12',   name: 'Loan 12',       balance: 0, apr: 29.99, min:   0,    original: 0 },
+  { id: 'affirm13',   name: 'Loan 13',       balance: 0, apr: 29.99, min:   0,    original: 0 },
+  { id: 'affirm14',   name: 'Loan 14',       balance: 0, apr: 29.99, min:   0,    original: 0 },
+  { id: 'affirm15',   name: 'Loan 15',       balance: 0, apr: 29.99, min:   0,    original: 0 },
+  { id: 'affirm16',   name: 'Loan 16',       balance: 0, apr: 29.99, min:   0,    original: 0 },
 ];
 
 // ─── Strategies ───────────────────────────────────────────────────────────────
@@ -1027,69 +1032,77 @@ export default function DebtCalculator() {
                 </p>
 
                 {/* Column headers */}
-                <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 px-1 mb-1">
-                  <span className="text-xs text-zinc-600">Balance</span>
+                <div className="grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 px-1 mb-1">
+                  <span className="text-xs text-zinc-600">Loan</span>
+                  <span className="text-xs text-zinc-600 text-center">Balance</span>
                   <span className="text-xs text-zinc-600 text-center">Total Due</span>
-                  <span className="text-xs text-zinc-600 text-center">APR %</span>
-                  <span className="text-xs text-zinc-600 text-center">Min / mo</span>
+                  <span className="text-xs text-zinc-600 text-center">APR%</span>
+                  <span className="text-xs text-zinc-600 text-center">Min/mo</span>
                   <span className="text-xs text-zinc-600 text-center">Progress</span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {affirmLoans.map((loan) => {
                     const isPaidOff = loan.balance < 0.01;
                     const loanOrig  = loan.original || 0;
                     const loanPct   = loanOrig > 0
                       ? Math.min(100, Math.max(0, ((loanOrig - loan.balance) / loanOrig) * 100))
                       : 0;
+                    const numCls = `w-full bg-zinc-800 border border-zinc-700 rounded py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`;
                     return (
-                      <div key={loan.id} className={`rounded-lg px-1 py-1 ${isPaidOff ? 'opacity-40' : ''}`}>
-                        {/* Row 1: editable name */}
-                        <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                      <div key={loan.id}
+                        className={`grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 items-center rounded-lg px-1 py-0.5 ${isPaidOff ? 'opacity-40' : ''}`}>
+                        {/* Name — editable text input */}
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-500/60 flex-shrink-0" />
                           <input
                             type="text"
                             value={loan.name}
                             onChange={(e) => updateAffirmLoan(loan.id, 'name', e.target.value)}
-                            className="flex-1 min-w-0 bg-transparent border-b border-zinc-700 focus:border-orange-500 text-xs text-zinc-300 placeholder-zinc-600 outline-none transition-colors py-0.5"
+                            className="flex-1 min-w-0 bg-transparent border-b border-zinc-700 focus:border-orange-500 text-xs text-zinc-300 outline-none transition-colors py-0.5 truncate"
                           />
-                          {isPaidOff && <span className="text-xs text-emerald-500 flex-shrink-0">✓ paid</span>}
                         </div>
-                        {/* Row 2: numeric fields + progress */}
-                        <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 items-center">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                            <input type="number" step="0.01" value={loan.balance}
-                              onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
-                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                        {/* Balance */}
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                          <input type="number" step="0.01" value={loan.balance}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className={`${numCls} pl-4 pr-1`} />
+                        </div>
+                        {/* Total Due */}
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                          <input type="number" step="0.01" value={loan.original ?? 0}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'original', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className={`${numCls} pl-4 pr-1`}
+                            title="Original / total amount due" />
+                        </div>
+                        {/* APR */}
+                        <div className="relative">
+                          <input type="number" step="0.01" value={loan.apr}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className={`${numCls} px-1.5`} />
+                        </div>
+                        {/* Min */}
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                          <input type="number" step="0.01" value={loan.min}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className={`${numCls} pl-4 pr-1`} />
+                        </div>
+                        {/* Progress */}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="w-full bg-zinc-700 rounded-full h-1.5 overflow-hidden">
+                            <div className="h-1.5 rounded-full bg-orange-500 transition-all"
+                              style={{ width: `${loanPct}%` }} />
                           </div>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                            <input type="number" step="0.01" value={loan.original ?? 0}
-                              onChange={(e) => updateAffirmLoan(loan.id, 'original', e.target.value)}
-                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
-                              title="Original / total amount due" />
-                          </div>
-                          <div className="relative">
-                            <input type="number" step="0.01" value={loan.apr}
-                              onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
-                              className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
-                          </div>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                            <input type="number" step="0.01" value={loan.min}
-                              onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
-                              className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <div className="w-full bg-zinc-700 rounded-full h-1.5 overflow-hidden">
-                              <div className="h-1.5 rounded-full bg-orange-500 transition-all"
-                                style={{ width: `${loanPct}%` }} />
-                            </div>
-                            <span className="text-xs text-zinc-500 text-center">
-                              {loanOrig > 0 ? `${loanPct.toFixed(0)}%` : '—'}
-                            </span>
-                          </div>
+                          <span className="text-xs text-zinc-500 text-center">
+                            {loanOrig > 0 ? `${loanPct.toFixed(0)}%` : '—'}
+                          </span>
                         </div>
                       </div>
                     );
@@ -1097,9 +1110,10 @@ export default function DebtCalculator() {
                 </div>
 
                 {/* Totals footer */}
-                <div className="grid grid-cols-[72px_88px_60px_88px_88px] gap-1.5 mt-3 pt-3 border-t border-zinc-700 px-1 items-center">
+                <div className="grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 mt-3 pt-3 border-t border-zinc-700 px-1 items-center">
+                  <span className="text-xs font-semibold text-zinc-400">Totals</span>
                   <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-orange-400 font-mono">
+                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
                       {fmtDec(affirmBalance)}
                     </span>
                   </Redacted>
@@ -1120,7 +1134,7 @@ export default function DebtCalculator() {
                   </Redacted>
                   <span className="text-xs text-zinc-500 text-center">
                     {affirmOriginal > 0
-                      ? `${Math.min(100, Math.max(0, ((affirmOriginal - affirmBalance) / affirmOriginal) * 100)).toFixed(0)}% paid`
+                      ? `${Math.min(100, Math.max(0, ((affirmOriginal - affirmBalance) / affirmOriginal) * 100)).toFixed(0)}%`
                       : ''}
                   </span>
                 </div>
