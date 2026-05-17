@@ -67,7 +67,7 @@ export default function Home() {
       <div className="mx-auto max-w-3xl">
         <header className="mb-12">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Luke's Dashboard
+            Luke's Dashboards &amp; Tools
           </h1>
           <p className="mt-3 text-zinc-400">Personal tools, one click away.</p>
         </header>

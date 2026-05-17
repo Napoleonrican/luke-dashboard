@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronUp, Plus, X, Trash2 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 
 const STORAGE_KEY = 'gig_tracker_state';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ZONES = ['Augusta', 'Brunswick/Bath/Freeport', 'Lewiston', 'Portland'];
+
+// Highest EPH across all 4 zones per day (Sun=0 … Sat=6)
+const DAY_MAX_EPH = [21.93, 21.25, 22.06, 23.04, 23.42, 23.60, 25.15];
 
 const ZONE_EPH = {
   'Augusta':                 { Sun: 17.49, Mon: 17.61, Tue: 19.35, Wed: 15.92, Thu: 16.23, Fri: 18.98, Sat: 21.43 },
@@ -40,6 +43,16 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function computeElapsedMinutes(startTime, breakLength) {
+  if (!startTime) return 0;
+  const now = new Date();
+  const [h, m] = startTime.split(':').map(Number);
+  const startDate = new Date(now);
+  startDate.setHours(h, m, 0, 0);
+  if (startDate > now) startDate.setDate(startDate.getDate() - 1);
+  return Math.max(0, (now - startDate) / 60000 - Number(breakLength));
+}
+
 function getDefaultState() {
   return {
     shiftStarted: false,
@@ -51,11 +64,12 @@ function getDefaultState() {
     minGoalDollars: 107,
     stretchGoalHours: 6,
     stretchGoalDollars: 156,
-    ueOrders: [],
-    ddOrders: [],
+    orderLog: [],
+    ephElapsedMinutes: 0,
     strikes: 0,
     setupCollapsed: false,
     statsCollapsed: true,
+    orderLogCollapsed: true,
     shiftDate: todayISO(),
   };
 }
@@ -95,6 +109,10 @@ export default function GigTracker() {
   const [ueInputValue, setUeInputValue] = useState('');
   const [ddInputValue, setDdInputValue] = useState('');
 
+  // Always-fresh ref for use inside intervals
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
   // Check for resumable shift on mount
   useEffect(() => {
     try {
@@ -110,9 +128,21 @@ export default function GigTracker() {
     }
   }, []);
 
-  // Live clock — 1s tick
+  // Live clock — 1s tick (display only, not EPH)
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // EPH auto-refresh every 15 minutes
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = stateRef.current;
+      if (s.shiftStarted && s.startTime) {
+        const elapsed = computeElapsedMinutes(s.startTime, s.breakLength);
+        setState(prev => ({ ...prev, ephElapsedMinutes: elapsed }));
+      }
+    }, 15 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -126,31 +156,53 @@ export default function GigTracker() {
   }
 
   function startShift() {
-    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO() });
+    const elapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed });
   }
 
   function addOrder(platform, amountStr) {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
-    if (platform === 'ue') {
-      update({ ueOrders: [...state.ueOrders, { amount }] });
-      setUeInputOpen(false);
-      setUeInputValue('');
-    } else {
-      update({ ddOrders: [...state.ddOrders, { amount }] });
-      setDdInputOpen(false);
-      setDdInputValue('');
-    }
+
+    const platformLabel = platform === 'ue' ? 'UberEats' : 'DoorDash';
+    const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString() };
+    const newLog = [...state.orderLog, newOrder];
+    const newCombined = newLog.reduce((s, o) => s + o.amount, 0);
+
+    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const newEph = currentElapsed > 0 ? newCombined / (currentElapsed / 60) : 0;
+    const dayIndex = DAYS.indexOf(state.day);
+    const dayMax = DAY_MAX_EPH[dayIndex] ?? 22;
+    const newStrikes = newEph >= dayMax ? Math.max(0, state.strikes - 1) : state.strikes;
+
+    setState(s => ({
+      ...s,
+      orderLog: newLog,
+      ephElapsedMinutes: currentElapsed,
+      strikes: newStrikes,
+    }));
+
+    if (platform === 'ue') { setUeInputOpen(false); setUeInputValue(''); }
+    else { setDdInputOpen(false); setDdInputValue(''); }
+  }
+
+  function removeOrder(id) {
+    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    setState(s => ({
+      ...s,
+      orderLog: s.orderLog.filter(o => o.id !== id),
+      ephElapsedMinutes: currentElapsed,
+    }));
   }
 
   // Destructure for derived calcs
   const {
     shiftStarted, startTime, zone, day, breakLength,
     minGoalHours, minGoalDollars, stretchGoalHours, stretchGoalDollars,
-    ueOrders, ddOrders, strikes, setupCollapsed, statsCollapsed,
+    orderLog, ephElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
   } = state;
 
-  // Elapsed time
+  // Live elapsed time — used for the clock display and goal timing only
   let elapsedMinutes = 0;
   if (shiftStarted && startTime) {
     const [h, m] = startTime.split(':').map(Number);
@@ -161,13 +213,23 @@ export default function GigTracker() {
   }
   const elapsedHours = elapsedMinutes / 60;
 
+  const safeLog = orderLog ?? [];
+  const ueOrders = safeLog.filter(o => o.platform === 'UberEats');
+  const ddOrders = safeLog.filter(o => o.platform === 'DoorDash');
   const ueTotal = ueOrders.reduce((s, o) => s + o.amount, 0);
   const ddTotal = ddOrders.reduce((s, o) => s + o.amount, 0);
   const combined = ueTotal + ddTotal;
-  const totalOrders = ueOrders.length + ddOrders.length;
+  const totalOrders = safeLog.length;
 
-  const eph = elapsedHours > 0 ? combined / elapsedHours : 0;
+  // EPH uses snapshotted elapsed time — only updates on order add/remove or 15-min tick
+  const ephElapsedHours = ephElapsedMinutes / 60;
+  const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
+
+  const dayIndex = DAYS.indexOf(day);
   const zoneEPH = ZONE_EPH[zone]?.[day] ?? 20;
+  const dayMax = DAY_MAX_EPH[dayIndex] ?? 22;
+  const midpoint = (zoneEPH + dayMax) / 2;
+
   const avgTripMins = ZONE_TRIP_MINS[zone]?.[day] ?? 30;
   const avgMiles = ZONE_MILES[zone]?.[day] ?? 10;
   const orderMin = zoneEPH * (avgTripMins / 60);
@@ -190,10 +252,10 @@ export default function GigTracker() {
     ? new Date(now.getTime() + (stretchDollarLeft / eph) * 3600000)
     : null;
 
-  // EPH color
-  const ephColor = eph >= zoneEPH
+  // Green >= dayMax, Amber >= midpoint, Red < midpoint
+  const ephColor = eph >= dayMax
     ? 'text-green-400'
-    : eph >= zoneEPH * 0.85
+    : eph >= midpoint
       ? 'text-amber-400'
       : 'text-red-400';
 
@@ -220,7 +282,7 @@ export default function GigTracker() {
             <span className="text-sm text-zinc-300">Resume today&apos;s shift?</span>
             <div className="flex gap-2">
               <button
-                onClick={() => { setState(savedResume); setResumePrompt(false); }}
+                onClick={() => { setState({ ...getDefaultState(), ...savedResume }); setResumePrompt(false); }}
                 className="rounded-lg bg-green-700 hover:bg-green-600 px-4 py-2 text-sm font-medium text-white min-h-[40px] transition-colors"
               >
                 Resume
@@ -408,8 +470,8 @@ export default function GigTracker() {
               <div className="text-center border-t border-zinc-800 pt-4">
                 <div className="text-xs text-zinc-500 mb-1">Combined EPH</div>
                 <div className={`text-5xl font-bold tabular-nums ${ephColor}`}>
-                  {elapsedHours > 0.01 ? fmtMoney(eph) : '—'}
-                  {elapsedHours > 0.01 && (
+                  {ephElapsedHours > 0.01 ? fmtMoney(eph) : '—'}
+                  {ephElapsedHours > 0.01 && (
                     <span className="text-2xl font-normal text-zinc-500">/hr</span>
                   )}
                 </div>
@@ -473,7 +535,7 @@ export default function GigTracker() {
             </div>
 
             {/* Order guidance strip */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 space-y-3">
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <div className="text-xs text-zinc-500">Order Min</div>
@@ -486,6 +548,16 @@ export default function GigTracker() {
                 <div>
                   <div className="text-xs text-zinc-500">Avg Trip</div>
                   <div className="text-lg font-bold text-zinc-200 tabular-nums">{Math.round(avgTripMins)}m</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center border-t border-zinc-800 pt-3">
+                <div>
+                  <div className="text-xs text-zinc-500">Avg EPH</div>
+                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{fmtMoney(zoneEPH)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-zinc-500">Max EPH</div>
+                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{fmtMoney(dayMax)}</div>
                 </div>
               </div>
             </div>
@@ -608,7 +680,52 @@ export default function GigTracker() {
           </div>
         )}
 
-        {/* ── Section 4: Detailed Stats ── */}
+        {/* ── Section 4: Order Log ── */}
+        {shiftStarted && safeLog.length > 0 && (
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+            <button
+              onClick={() => update({ orderLogCollapsed: !orderLogCollapsed })}
+              className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
+            >
+              <span className="text-sm font-semibold text-zinc-200">
+                Order Log <span className="text-zinc-500 font-normal">({safeLog.length})</span>
+              </span>
+              {orderLogCollapsed
+                ? <ChevronDown size={16} className="text-zinc-500" />
+                : <ChevronUp size={16} className="text-zinc-500" />}
+            </button>
+
+            {!orderLogCollapsed && (
+              <div className="border-t border-zinc-800 divide-y divide-zinc-800 max-h-[400px] overflow-y-auto">
+                {[...safeLog].reverse().map(order => (
+                  <div key={order.id} className="flex items-center gap-3 px-4 py-3">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
+                      order.platform === 'UberEats'
+                        ? 'bg-green-900 text-green-300'
+                        : 'bg-red-900 text-red-300'
+                    }`}>
+                      {order.platform === 'UberEats' ? 'UE' : 'DD'}
+                    </span>
+                    <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
+                      {fmtMoney(order.amount)}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {fmtTime(new Date(order.timestamp))}
+                    </span>
+                    <button
+                      onClick={() => removeOrder(order.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Section 5: Detailed Stats ── */}
         {shiftStarted && (
           <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
             <button
