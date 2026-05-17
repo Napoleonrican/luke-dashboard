@@ -199,40 +199,31 @@ export default function VersaRepair() {
     let cancelled = false;
 
     async function init() {
-      console.log('[VR] init — supabase client?', !!supabase);
       if (!supabase) {
         if (!cancelled) setSynced(true);
         return;
       }
 
-      console.log('[VR] pulling remote…');
       const { data, error } = await supabase
         .from('versa_repair_settings')
         .select('*')
         .eq('id', SB_ROW_ID)
         .single();
 
-      console.log('[VR] pull response:', { data, error });
-
       if (cancelled) return;
 
       if (data && !error) {
         const localTs  = localStorage.getItem(UPDATED_KEY);
         const remoteTs = data.updated_at;
-        console.log('[VR] timestamps:', { localTs, remoteTs });
 
         if (!localTs || remoteTs > localTs) {
-          console.log('[VR] applying remote state');
           if (data.done && typeof data.done === 'object') setDone(data.done);
           if (typeof data.notes === 'string') setNotes(data.notes);
           try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
-        } else {
-          console.log('[VR] local is newer — keeping local');
         }
       }
 
       setSynced(true);
-      console.log('[VR] synced=true, writes enabled');
     }
 
     init();
@@ -252,18 +243,14 @@ export default function VersaRepair() {
   // ── Push to Supabase (gated, 1500ms debounce) ───────────────────────────────
   const sbDebounceRef = useRef(null);
   const pushToSupabase = useCallback(() => {
-    console.log('[VR] pushToSupabase fired', { synced, hasClient: !!supabase });
     if (!synced || !supabase) return;
     clearTimeout(sbDebounceRef.current);
     sbDebounceRef.current = setTimeout(() => {
-      console.log('[VR] debounce elapsed → sending upsert', { done, notes });
       supabase.from('versa_repair_settings').upsert({
         id:         SB_ROW_ID,
         done,
         notes,
         updated_at: new Date().toISOString(),
-      }).select().then(({ data, error, status }) => {
-        console.log('[VR] upsert response:', { data, error, status });
       });
     }, 1500);
   }, [synced, done, notes]);
