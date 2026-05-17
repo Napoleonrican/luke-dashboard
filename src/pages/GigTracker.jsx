@@ -284,6 +284,8 @@ export default function GigTracker() {
     ? new Date(shiftStartMs + (elapsedHours < minGoalHours ? minGoalHours : stretchGoalHours) * 3600000)
     : null;
 
+  const stretchGoalHit = shiftStarted && combined >= stretchGoalDollars && elapsedHours >= stretchGoalHours;
+
   // Green >= dayMax, Amber >= midpoint, Red < midpoint
   const ephColor = eph >= dayMax
     ? 'text-green-400'
@@ -337,6 +339,13 @@ export default function GigTracker() {
               : 'bg-amber-950 border border-amber-700 text-amber-300'
           }`}>
             {warning.msg}
+          </div>
+        )}
+
+        {/* Stretch goal hit banner */}
+        {stretchGoalHit && (
+          <div className="mt-4 rounded-xl px-4 py-3 text-sm font-medium bg-green-950 border border-green-700 text-green-300">
+            ✓ Stretch goal hit — great night, consider wrapping up!
           </div>
         )}
 
@@ -518,14 +527,20 @@ export default function GigTracker() {
               {/* Overall ETA */}
               <div className="text-center pb-4 border-b border-zinc-800">
                 <div className="text-xs text-zinc-500 mb-1">Done by</div>
-                <div className="text-3xl font-bold text-zinc-100 tabular-nums">
-                  {overallETA ? fmtTime(overallETA) : '—'}
-                </div>
-                <div className="text-xs text-zinc-600 mt-1">
-                  {elapsedHours < minGoalHours
-                    ? `min goal (${minGoalHours}h)`
-                    : `stretch goal (${stretchGoalHours}h)`}
-                </div>
+                {eph === 0 ? (
+                  <div className="text-sm text-zinc-500">Log an order to calculate</div>
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold text-zinc-100 tabular-nums">
+                      {overallETA ? fmtTime(overallETA) : '—'}
+                    </div>
+                    <div className="text-xs text-zinc-600 mt-1">
+                      {elapsedHours < minGoalHours
+                        ? `min goal (${minGoalHours}h)`
+                        : `stretch goal (${stretchGoalHours}h)`}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Min goal */}
@@ -547,7 +562,9 @@ export default function GigTracker() {
                   </div>
                   <div>
                     <div className="text-xs text-zinc-600">ETA</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{fmtTime(minETA)}</div>
+                    <div className={`font-semibold tabular-nums ${eph === 0 ? 'text-xs text-zinc-500' : 'text-xl text-zinc-200'}`}>
+                      {eph === 0 ? 'Log an order' : fmtTime(minETA)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -573,7 +590,9 @@ export default function GigTracker() {
                   </div>
                   <div>
                     <div className="text-xs text-zinc-600">ETA</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{fmtTime(stretchETA)}</div>
+                    <div className={`font-semibold tabular-nums ${eph === 0 ? 'text-xs text-zinc-500' : 'text-xl text-zinc-200'}`}>
+                      {eph === 0 ? 'Log an order' : fmtTime(stretchETA)}
+                    </div>
                   </div>
                 </div>
               </div>
