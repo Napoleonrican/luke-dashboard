@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
 import TopNav from '../components/TopNav';
 
 const STORAGE_KEY = 'gig_tracker_state';
@@ -108,6 +108,8 @@ export default function GigTracker() {
   const [ddInputOpen, setDdInputOpen] = useState(false);
   const [ueInputValue, setUeInputValue] = useState('');
   const [ddInputValue, setDdInputValue] = useState('');
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
 
   // Always-fresh ref for use inside intervals
   const stateRef = useRef(state);
@@ -193,6 +195,19 @@ export default function GigTracker() {
       orderLog: s.orderLog.filter(o => o.id !== id),
       ephElapsedMinutes: currentElapsed,
     }));
+  }
+
+  function editOrder(id, newAmountStr) {
+    const newAmount = parseFloat(newAmountStr);
+    if (isNaN(newAmount) || newAmount <= 0) return;
+    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    setState(s => ({
+      ...s,
+      orderLog: s.orderLog.map(o => o.id === id ? { ...o, amount: newAmount } : o),
+      ephElapsedMinutes: currentElapsed,
+    }));
+    setEditingOrderId(null);
+    setEditingValue('');
   }
 
   // Destructure for derived calcs
@@ -727,29 +742,73 @@ export default function GigTracker() {
 
             {!orderLogCollapsed && (
               <div className="border-t border-zinc-800 divide-y divide-zinc-800 max-h-[400px] overflow-y-auto">
-                {[...safeLog].reverse().map(order => (
-                  <div key={order.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
-                      order.platform === 'UberEats'
-                        ? 'bg-green-900 text-green-300'
-                        : 'bg-red-900 text-red-300'
-                    }`}>
-                      {order.platform === 'UberEats' ? 'UE' : 'DD'}
-                    </span>
-                    <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
-                      {fmtMoney(order.amount)}
-                    </span>
-                    <span className="text-xs text-zinc-500">
-                      {fmtTime(new Date(order.timestamp))}
-                    </span>
-                    <button
-                      onClick={() => removeOrder(order.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                {[...safeLog].reverse().map(order => {
+                  const isEditing = editingOrderId === order.id;
+                  return (
+                    <div key={order.id} className="flex items-center gap-3 px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
+                        order.platform === 'UberEats'
+                          ? 'bg-green-900 text-green-300'
+                          : 'bg-red-900 text-red-300'
+                      }`}>
+                        {order.platform === 'UberEats' ? 'UE' : 'DD'}
+                      </span>
+                      {isEditing ? (
+                        <>
+                          <div className="flex items-center gap-1 flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-2 py-1 min-w-0">
+                            <span className="text-zinc-400 text-sm">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editingValue}
+                              onChange={e => setEditingValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') editOrder(order.id, editingValue);
+                                if (e.key === 'Escape') { setEditingOrderId(null); setEditingValue(''); }
+                              }}
+                              autoFocus
+                              className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                            />
+                          </div>
+                          <button
+                            onClick={() => editOrder(order.id, editingValue)}
+                            className="text-green-400 hover:text-green-300 transition-colors p-1 shrink-0"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={() => { setEditingOrderId(null); setEditingValue(''); }}
+                            className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
+                            {fmtMoney(order.amount)}
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            {fmtTime(new Date(order.timestamp))}
+                          </span>
+                          <button
+                            onClick={() => { setEditingOrderId(order.id); setEditingValue(String(order.amount)); }}
+                            className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => removeOrder(order.id)}
+                            className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
