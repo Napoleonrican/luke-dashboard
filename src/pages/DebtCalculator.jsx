@@ -343,6 +343,8 @@ export default function DebtCalculator() {
         affirm_loans:     affirmLoans,
         balances_updated: balancesUpdated,
         updated_at:       new Date().toISOString(),
+      }).then(({ error }) => {
+        if (error) console.error('[Supabase upsert error]', error.message, error.details);
       });
     }, 1500);
   }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, debtAprs, debtMins, affirmLoans, balancesUpdated]);
