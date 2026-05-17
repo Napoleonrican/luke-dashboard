@@ -97,7 +97,8 @@ const fmtDec = (n) =>
   }).format(n ?? 0);
 
 function monthLabel(offset) {
-  const d = new Date(2026, 4 + offset);
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offset);
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
@@ -424,7 +425,10 @@ export default function DebtCalculator() {
   );
 
   const totalDebt     = debts.reduce((s, d) => s + d.balance, 0);
-  const totalOriginal = BASE_DEBTS.reduce((s, d) => s + d.balance, 0) + affirmBalance;
+  // Original = baseline balances (non-Affirm) + sum of Affirm "Total Due" amounts
+  const totalOriginal = BASE_DEBTS
+    .filter((d) => d.id !== 'affirm')
+    .reduce((s, d) => s + d.balance, 0) + affirmOriginal;
   const totalPaidDown = Math.max(0, totalOriginal - totalDebt);
   const debtFreeMonth = months.length > 0 ? months.length - 1 : null;
 
@@ -449,7 +453,8 @@ export default function DebtCalculator() {
     setAffirmLoans((prev) =>
       prev.map((l) => l.id === id ? { ...l, [field]: val } : l)
     );
-    stampUpdated();
+    // Renaming a loan isn't a balance change — don't bump "Last updated"
+    if (field !== 'name') stampUpdated();
   }
 
   // ── Privacy / unlock ──────────────────────────────────────────────────────
@@ -506,7 +511,7 @@ export default function DebtCalculator() {
             </Link>
             <h1 className="text-3xl font-bold tracking-tight">Debt Payoff Calculator</h1>
             <p className="text-zinc-400 mt-1 text-sm">
-              6 debts tracked · APR &amp; minimums editable · cross-device sync
+              {BASE_DEBTS.length} debts tracked · APR &amp; minimums editable · cross-device sync
             </p>
           </div>
           <button
@@ -558,6 +563,7 @@ export default function DebtCalculator() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
                     <input type="number" value={takeHome}
                       onChange={(e) => setTakeHome(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
                       className={`${inputCls()} pl-7 pr-3`} />
                   </div>
                 </label>
@@ -568,6 +574,7 @@ export default function DebtCalculator() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
                     <input type="number" value={billsVariable}
                       onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
                       className={`${inputCls()} pl-7 pr-3`} />
                   </div>
                 </label>
@@ -592,7 +599,7 @@ export default function DebtCalculator() {
                 <div className={`flex justify-between font-bold border-t border-zinc-700 pt-1.5 ${monthlyDeficit > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   <span>Monthly shortfall (DoorDash must cover)</span>
                   <Redacted on={privacyMode}>
-                    <span>{monthlyDeficit > 0 ? fmt(monthlyDeficit) : 'Surplus!'}/mo</span>
+                    <span>{monthlyDeficit > 0 ? `${fmt(monthlyDeficit)}/mo` : 'Surplus ✓'}</span>
                   </Redacted>
                 </div>
                 <div className="flex justify-between text-amber-400">
@@ -865,14 +872,16 @@ export default function DebtCalculator() {
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                             <input type="number" value={d.balance}
                               onChange={(e) => updateBalance(d.id, e.target.value)}
+                              onFocus={(e) => e.target.select()}
                               className={`${inputCls()} pl-6 pr-2 text-xs`}
                               title="Current balance" />
                             <span className="absolute -top-4 left-0 text-zinc-600 text-xs">Balance</span>
                           </div>
                           <div className="relative">
                             <input type="number" step="0.01" min="0" max="100"
-                              value={debtAprs[d.id] ?? (d.apr * 100).toFixed(2)}
+                              value={debtAprs[d.id] ?? +(d.apr * 100).toFixed(2)}
                               onChange={(e) => updateApr(d.id, e.target.value)}
+                              onFocus={(e) => e.target.select()}
                               className={`${inputCls()} pl-3 pr-6 text-xs`}
                               title="APR %" />
                             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">%</span>
@@ -883,6 +892,7 @@ export default function DebtCalculator() {
                             <input type="number" step="0.01"
                               value={debtMins[d.id] ?? d.min}
                               onChange={(e) => updateMin(d.id, e.target.value)}
+                              onFocus={(e) => e.target.select()}
                               className={`${inputCls()} pl-6 pr-2 text-xs`}
                               title="Monthly minimum" />
                             <span className="absolute -top-4 left-0 text-zinc-600 text-xs">Min/mo</span>
@@ -911,7 +921,7 @@ export default function DebtCalculator() {
                   Remaining: <Redacted on={privacyMode}><span className="text-white font-medium">{fmt(totalDebt)}</span></Redacted>
                 </span>
                 <span className="text-zinc-500 text-xs">
-                  Apr &lsquo;26 snapshot: {fmt(totalOriginal)}
+                  Starting baseline: {fmt(totalOriginal)}
                 </span>
               </div>
             </div>
