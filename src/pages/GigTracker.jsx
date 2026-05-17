@@ -245,11 +245,28 @@ export default function GigTracker() {
   const minOrdersLeft = orderMin > 0 ? Math.ceil(minDollarLeft / orderMin) : 0;
   const stretchOrdersLeft = orderMin > 0 ? Math.ceil(stretchDollarLeft / orderMin) : 0;
 
+  // Base start timestamp — derived from startTime string, not from the live `now`
+  let shiftStartMs = 0;
+  if (shiftStarted && startTime) {
+    const [sh, sm] = startTime.split(':').map(Number);
+    const sd = new Date();
+    sd.setHours(sh, sm, 0, 0);
+    if (sd > new Date()) sd.setDate(sd.getDate() - 1);
+    shiftStartMs = sd.getTime();
+  }
+
+  // ETAs anchored to snapshotted elapsed time — only update on order add/remove or 15-min tick
+  const etaAnchorMs = shiftStartMs + ephElapsedMinutes * 60000;
   const minETA = eph > 0 && minDollarLeft > 0
-    ? new Date(now.getTime() + (minDollarLeft / eph) * 3600000)
+    ? new Date(etaAnchorMs + (minDollarLeft / eph) * 3600000)
     : null;
   const stretchETA = eph > 0 && stretchDollarLeft > 0
-    ? new Date(now.getTime() + (stretchDollarLeft / eph) * 3600000)
+    ? new Date(etaAnchorMs + (stretchDollarLeft / eph) * 3600000)
+    : null;
+
+  // Overall ETA: defaults to min goal mark, flips to stretch goal once min is cleared
+  const overallETA = shiftStartMs > 0
+    ? new Date(shiftStartMs + (elapsedHours < minGoalHours ? minGoalHours : stretchGoalHours) * 3600000)
     : null;
 
   // Green >= dayMax, Amber >= midpoint, Red < midpoint
@@ -483,6 +500,19 @@ export default function GigTracker() {
 
             {/* Goal progress */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
+              {/* Overall ETA */}
+              <div className="text-center pb-4 border-b border-zinc-800">
+                <div className="text-xs text-zinc-500 mb-1">Done by</div>
+                <div className="text-3xl font-bold text-zinc-100 tabular-nums">
+                  {overallETA ? fmtTime(overallETA) : '—'}
+                </div>
+                <div className="text-xs text-zinc-600 mt-1">
+                  {elapsedHours < minGoalHours
+                    ? `min goal (${minGoalHours}h)`
+                    : `stretch goal (${stretchGoalHours}h)`}
+                </div>
+              </div>
+
               {/* Min goal */}
               <div>
                 <div className="flex items-center justify-between mb-2">
