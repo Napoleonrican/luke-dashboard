@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import TopNav from '../components/TopNav';
+import { supabase } from '../lib/supabase';
 
 const PHASES = [
   {
@@ -157,6 +158,8 @@ const PHASES = [
 ];
 
 const STORAGE_KEY = 'versa_repair_state';
+const SB_ROW_ID   = 'luke';
+const UPDATED_KEY = 'vr_updatedAt';
 
 const BADGE_STYLES = {
   diy:     'text-lime-400 border-lime-400/40 bg-lime-400/5',
@@ -188,11 +191,74 @@ export default function VersaRepair() {
   const [saveGreen, setSaveGreen] = useState(false);
   const debounceRef = useRef(null);
 
+  // ── synced gate: blocks writes until initial Supabase pull completes ────────
+  const [synced, setSynced] = useState(false);
+
+  // ── Pull from Supabase on mount FIRST, then enable writes ──────────────────
   useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      if (!supabase) {
+        if (!cancelled) setSynced(true);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('versa_repair_settings')
+        .select('*')
+        .eq('id', SB_ROW_ID)
+        .single();
+
+      if (cancelled) return;
+
+      if (data && !error) {
+        const localTs  = localStorage.getItem(UPDATED_KEY);
+        const remoteTs = data.updated_at;
+
+        if (!localTs || remoteTs > localTs) {
+          if (data.done && typeof data.done === 'object') setDone(data.done);
+          if (typeof data.notes === 'string') setNotes(data.notes);
+          try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
+        }
+      }
+
+      setSynced(true);
+    }
+
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Persist to localStorage (gated) ────────────────────────────────────────
+  useEffect(() => {
+    if (!synced) return;
     try {
+      const now = new Date().toISOString();
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ done, notes }));
+      localStorage.setItem(UPDATED_KEY, now);
     } catch (_) {}
-  }, [done, notes]);
+  }, [synced, done, notes]);
+
+  // ── Push to Supabase (gated, 1500ms debounce) ───────────────────────────────
+  const sbDebounceRef = useRef(null);
+  const pushToSupabase = useCallback(() => {
+    if (!synced || !supabase) return;
+    clearTimeout(sbDebounceRef.current);
+    sbDebounceRef.current = setTimeout(() => {
+      supabase.from('versa_repair_settings').upsert({
+        id:         SB_ROW_ID,
+        done,
+        notes,
+        updated_at: new Date().toISOString(),
+      });
+    }, 1500);
+  }, [synced, done, notes]);
+
+  useEffect(() => {
+    pushToSupabase();
+    return () => clearTimeout(sbDebounceRef.current);
+  }, [pushToSupabase]);
 
   const allTasks = useMemo(() => PHASES.flatMap((p) => p.tasks), []);
   const totalTasks = allTasks.length;
