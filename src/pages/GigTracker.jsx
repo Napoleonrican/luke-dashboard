@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
 import TopNav from '../components/TopNav';
+import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'gig_tracker_state';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -131,6 +132,30 @@ export default function GigTracker() {
     }
   }, []);
 
+  // Load saved setup prefs from Supabase on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPrefs() {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('gig_tracker_prefs')
+        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars')
+        .eq('id', 'default')
+        .single();
+      if (cancelled || !data || error) return;
+      setState(s => ({
+        ...s,
+        zone:               data.zone               ?? s.zone,
+        minGoalHours:       Number(data.min_goal_hours)    || s.minGoalHours,
+        minGoalDollars:     Number(data.min_goal_dollars)  || s.minGoalDollars,
+        stretchGoalHours:   Number(data.stretch_goal_hours)   || s.stretchGoalHours,
+        stretchGoalDollars: Number(data.stretch_goal_dollars) || s.stretchGoalDollars,
+      }));
+    }
+    loadPrefs();
+    return () => { cancelled = true; };
+  }, []);
+
   // Live clock — 1s tick (display only, not EPH)
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -173,6 +198,19 @@ export default function GigTracker() {
   function startShift() {
     const elapsed = computeElapsedMinutes(state.startTime, state.breakLength);
     update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaElapsedMinutes: elapsed });
+    if (supabase) {
+      supabase.from('gig_tracker_prefs').upsert({
+        id:                   'default',
+        zone:                 state.zone,
+        min_goal_hours:       state.minGoalHours,
+        min_goal_dollars:     state.minGoalDollars,
+        stretch_goal_hours:   state.stretchGoalHours,
+        stretch_goal_dollars: state.stretchGoalDollars,
+        updated_at:           new Date().toISOString(),
+      }).then(({ error }) => {
+        if (error) console.error('[Supabase upsert error]', error.message);
+      });
+    }
   }
 
   function addOrder(platform, amountStr) {
