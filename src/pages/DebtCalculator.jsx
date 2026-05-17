@@ -205,6 +205,14 @@ function DarkTooltip({ active, payload, label, privacyMode }) {
   );
 }
 
+// Merge saved loans with defaults — appends any new default rows not yet in saved data
+function mergeAffirmLoans(saved) {
+  if (!saved || !Array.isArray(saved) || saved.length === 0) return DEFAULT_AFFIRM_LOANS;
+  const savedIds = new Set(saved.map((l) => l.id));
+  const missing  = DEFAULT_AFFIRM_LOANS.filter((l) => !savedIds.has(l.id));
+  return missing.length > 0 ? [...saved, ...missing] : saved;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DebtCalculator() {
   const ls = (k) => { try { return localStorage.getItem('dp_' + k); } catch { return null; } };
@@ -239,7 +247,7 @@ export default function DebtCalculator() {
   const [affirmLoans, setAffirmLoans] = useState(() => {
     try {
       const saved = ls('affirmLoans');
-      return saved ? JSON.parse(saved) : DEFAULT_AFFIRM_LOANS;
+      return saved ? mergeAffirmLoans(JSON.parse(saved)) : DEFAULT_AFFIRM_LOANS;
     } catch { return DEFAULT_AFFIRM_LOANS; }
   });
 
@@ -285,7 +293,7 @@ export default function DebtCalculator() {
           if (data.debt_mins && Object.keys(data.debt_mins).length)
             setDebtMins(data.debt_mins);
           if (data.affirm_loans && Array.isArray(data.affirm_loans) && data.affirm_loans.length)
-            setAffirmLoans(data.affirm_loans);
+            setAffirmLoans(mergeAffirmLoans(data.affirm_loans));
           if (data.balances_updated) setBalancesUpdated(data.balances_updated);
           try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
         }
