@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
-  LineChart, Line, BarChart, Bar, AreaChart, Area,
+  LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer,
 } from 'recharts';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -15,48 +15,53 @@ const isAuthed    = () => localStorage.getItem(AUTH_KEY) === 'true';
 
 // ─── Supabase sync ────────────────────────────────────────────────────────────
 const SB_ROW_ID   = 'luke';
-const UPDATED_KEY = 'dp_updatedAt'; // ISO timestamp of last local write
+const UPDATED_KEY = 'dp_updatedAt';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const GIG_EFFICIENCY   = 0.83;
-const WEEKS_PER_MONTH  = 4.33;
-const HOURLY_RATE      = 25.27;
+const GIG_EFFICIENCY     = 0.83;
+const WEEKS_PER_MONTH    = 4.33;
+const HOURLY_RATE        = 25.27;
 const HRB_ALL_WEEKS_AVG  = 161;
 const HRB_WORK_WEEKS_AVG = 203;
 
-// ─── Real debt data (from debt_payoff_model.html, Apr '26 snapshot) ───────────
+// ─── Debt list ────────────────────────────────────────────────────────────────
+// Cap One Personal ($2,647.99 @ 30.49%) + Cap One BP ($4,436.49 @ 28.99%)
+// Weighted avg APR = (2647.99×0.3049 + 4436.49×0.2899) / 7084.48 = 29.55%
 const BASE_DEBTS = [
-  { id: 'upstart',        name: 'Upstart',          balance: 1351.15, apr: 0.2857, min:  42.50, tag: 'Loan' },
-  { id: 'capOnePersonal', name: 'Cap One Personal',  balance: 2647.99, apr: 0.3049, min:  99.00, tag: 'CC'   },
-  { id: 'bestEgg',        name: 'Best Egg',          balance: 7977.00, apr: 0.2949, min: 343.13, tag: 'Loan' },
-  { id: 'capOneBP',       name: 'Cap One BP',        balance: 4436.49, apr: 0.2899, min: 154.00, tag: 'CC'   },
-  { id: 'oneMain',        name: 'OneMain',           balance: 7187.49, apr: 0.1699, min: 517.46, tag: 'Loan' },
-  { id: 'studentLoan',    name: 'Student Loan',      balance: 2998.17, apr: 0.0680, min:  39.17, tag: 'Loan' },
+  { id: 'upstart',     name: 'Upstart',       balance: 1351.15, apr: 0.2857, min:  42.50, tag: 'Loan' },
+  { id: 'capOne',      name: 'Capital One',   balance: 7084.48, apr: 0.2955, min: 253.00, tag: 'CC'   },
+  { id: 'bestEgg',     name: 'Best Egg',      balance: 7977.00, apr: 0.2949, min: 343.13, tag: 'Loan' },
+  { id: 'oneMain',     name: 'OneMain',       balance: 7187.49, apr: 0.1699, min: 517.46, tag: 'Loan' },
+  { id: 'studentLoan', name: 'Student Loan',  balance: 2998.17, apr: 0.0680, min:  39.17, tag: 'Loan' },
+  { id: 'affirm',      name: 'Affirm',        balance: 0,       apr: 0.2999, min:   0,    tag: 'Loan' },
 ];
 
-// APR '26 snapshot = starting balances above
-const APR26_SNAPSHOT = Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
+// May '26 snapshot for progress bars (Affirm starts at 0 — no prior baseline)
+const APR26_SNAPSHOT = {
+  upstart:     1351.15,
+  capOne:      7084.48,
+  bestEgg:     7977.00,
+  oneMain:     7187.49,
+  studentLoan: 2998.17,
+  affirm:      0,
+};
 
-// ─── BNPL schedule (monthly minimums + payoff month from May '26 = month 0) ──
-const BNPL_SCHEDULE = [
-  { name: 'Klarna',                min:  29.01, payoffMonth:  1 },
-  { name: 'TD Retail',             min:  31.38, payoffMonth:  1 },
-  { name: 'BMV (Affirm)',          min:  31.40, payoffMonth:  2 },
-  { name: 'Senator Inn (Affirm)',  min:  39.03, payoffMonth:  2 },
-  { name: "Lowe's (Affirm)",       min:  64.73, payoffMonth:  3 },
-  { name: 'Amazon Aug (Affirm)',   min:  24.11, payoffMonth:  4 },
-  { name: 'Amazon Sep (Affirm)',   min:  28.17, payoffMonth:  5 },
-  { name: "Goodwin's (Affirm)",    min:  73.11, payoffMonth: 10 },
-  { name: 'Amazon Mar (Affirm)',   min:  22.97, payoffMonth: 11 },
-  { name: "Men's Wear (Affirm)",   min:  29.24, payoffMonth: 13 },
-  { name: 'Norwich Spa (Affirm)',  min:  50.69, payoffMonth: 13 },
-  { name: 'Xmas Amazon (Affirm)', min:  28.76, payoffMonth: 14 },
-  { name: 'Aubuchon (Affirm)',     min:  60.44, payoffMonth: 14 },
+// ─── Affirm individual loans (default — user fills actual balances) ───────────
+const DEFAULT_AFFIRM_LOANS = [
+  { id: 'bmv',        name: 'BMV',          balance: 0, apr: 29.99, min:  31.40 },
+  { id: 'senatorInn', name: 'Senator Inn',   balance: 0, apr: 29.99, min:  39.03 },
+  { id: 'lowes',      name: "Lowe's",        balance: 0, apr: 29.99, min:  64.73 },
+  { id: 'amazonAug',  name: 'Amazon (Aug)',  balance: 0, apr: 29.99, min:  24.11 },
+  { id: 'amazonSep',  name: 'Amazon (Sep)',  balance: 0, apr: 29.99, min:  28.17 },
+  { id: 'goodwins',   name: "Goodwin's",     balance: 0, apr: 29.99, min:  73.11 },
+  { id: 'amazonMar',  name: 'Amazon (Mar)',  balance: 0, apr: 29.99, min:  22.97 },
+  { id: 'mensWear',   name: "Men's Wear",    balance: 0, apr: 29.99, min:  29.24 },
+  { id: 'norwichSpa', name: 'Norwich Spa',   balance: 0, apr: 29.99, min:  50.69 },
+  { id: 'xmasAmazon', name: 'Xmas Amazon',   balance: 0, apr: 29.99, min:  28.76 },
+  { id: 'aubuchon',   name: 'Aubuchon',      balance: 0, apr: 29.99, min:  60.44 },
 ];
-const TOTAL_BNPL_MINS  = BNPL_SCHEDULE.reduce((s, b) => s + b.min, 0);
-const TOTAL_MAJOR_MINS = BASE_DEBTS.reduce((s, d) => s + d.min, 0);
-const TOTAL_DEBT_MINS  = TOTAL_MAJOR_MINS + TOTAL_BNPL_MINS;
 
+// ─── Strategies ───────────────────────────────────────────────────────────────
 const STRATEGIES = [
   { id: 'current',   label: 'Current Order', desc: 'Pay in listed order' },
   { id: 'avalanche', label: 'Avalanche',      desc: 'Highest APR first — lowest total interest' },
@@ -65,12 +70,12 @@ const STRATEGIES = [
 ];
 
 const DEBT_COLORS = {
-  upstart:        '#a855f7',
-  capOnePersonal: '#3b82f6',
-  bestEgg:        '#10b981',
-  capOneBP:       '#f59e0b',
-  oneMain:        '#ef4444',
-  studentLoan:    '#6366f1',
+  upstart:     '#a855f7',
+  capOne:      '#3b82f6',
+  bestEgg:     '#10b981',
+  oneMain:     '#ef4444',
+  studentLoan: '#6366f1',
+  affirm:      '#f97316',
 };
 
 const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1' };
@@ -81,13 +86,17 @@ const fmt = (n) =>
     style: 'currency', currency: 'USD', maximumFractionDigits: 0,
   }).format(n ?? 0);
 
-// Month 0 = May 2026
+const fmtDec = (n) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(n ?? 0);
+
 function monthLabel(offset) {
   const d = new Date(2026, 4 + offset);
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
-// ─── Simulation (mirrors HTML: BNPL freed cash + paid-off debt snowball) ─────
+// ─── Simulation ───────────────────────────────────────────────────────────────
 function simulate(debts, strategy, extraPerMonth) {
   const origMins = Object.fromEntries(debts.map((d) => [d.id, d.min]));
 
@@ -97,7 +106,6 @@ function simulate(debts, strategy, extraPerMonth) {
   } else if (strategy === 'snowball') {
     order = [...debts].sort((a, b) => a.balance - b.balance).map((d) => d.id);
   } else if (strategy === 'hybrid') {
-    // Smallest first, then avalanche (matches HTML optimized hybrid)
     order = [...debts]
       .sort((a, b) => {
         const aSmall = a.balance < 2000;
@@ -120,17 +128,12 @@ function simulate(debts, strategy, extraPerMonth) {
   for (let m = 0; m < 120; m++) {
     if (balances.every((d) => d.balance <= 0)) break;
 
-    // Cash freed as BNPL items complete (cumulative)
-    const bnplFreed = BNPL_SCHEDULE.filter((b) => b.payoffMonth <= m)
-      .reduce((s, b) => s + b.min, 0);
-    // Cash freed from paid-off major debts (their minimums recycle)
     const discFreed = balances
       .filter((d) => d.balance <= 0)
       .reduce((s, d) => s + (origMins[d.id] || 0), 0);
 
     let monthlyInterest = 0;
 
-    // Apply interest + minimum payments
     balances.forEach((d) => {
       if (d.balance <= 0) return;
       const interest = d.balance * (d.apr / 12);
@@ -144,8 +147,7 @@ function simulate(debts, strategy, extraPerMonth) {
       }
     });
 
-    // Apply extra payment pool to priority debts
-    let extra = Math.max(0, extraPerMonth) + bnplFreed + discFreed;
+    let extra = Math.max(0, extraPerMonth) + discFreed;
     for (const id of order) {
       if (extra < 0.01) break;
       const d = balances.find((b) => b.id === id);
@@ -180,7 +182,7 @@ function Redacted({ children, on }) {
   return <span className="blur-sm select-none pointer-events-none">{children}</span>;
 }
 
-// ─── Custom dark tooltip ──────────────────────────────────────────────────────
+// ─── Dark tooltip ─────────────────────────────────────────────────────────────
 function DarkTooltip({ active, payload, label, privacyMode }) {
   if (!active || !payload?.length) return null;
   return (
@@ -200,50 +202,60 @@ function DarkTooltip({ active, payload, label, privacyMode }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DebtCalculator() {
-  // localStorage helper (dp_ prefix matches HTML version)
   const ls = (k) => { try { return localStorage.getItem('dp_' + k); } catch { return null; } };
 
-  // Persistent state
+  // ── Persistent state ───────────────────────────────────────────────────────
   const [takeHome, setTakeHome] = useState(() => Number(ls('takeHome')) || 4162);
   const [billsVariable, setBillsVariable] = useState(() => Number(ls('billsVariable')) || 2862);
   const [weeklyGross, setWeeklyGross] = useState(() => Number(ls('weeklyGross')) || 120);
   const [strategy, setStrategy] = useState(() => ls('strategy') || 'hybrid');
+
   const [debtBalances, setDebtBalances] = useState(() => {
     try {
       const saved = ls('debtBalances');
-      return saved
-        ? JSON.parse(saved)
-        : Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
-    } catch {
-      return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
-    }
+      return saved ? JSON.parse(saved) : Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance]));
+    } catch { return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.balance])); }
   });
-  const [balancesUpdated, setBalancesUpdated] = useState(
-    () => ls('balancesUpdated') || "Apr '26",
-  );
 
-  // UI state (not persisted)
-  const [showInputs, setShowInputs]     = useState(false);  // My Numbers panel
-  const [balancesOpen, setBalancesOpen] = useState(false);  // Current Balances panel
+  const [debtAprs, setDebtAprs] = useState(() => {
+    try {
+      const saved = ls('debtAprs');
+      return saved ? JSON.parse(saved) : Object.fromEntries(BASE_DEBTS.map((d) => [d.id, +(d.apr * 100).toFixed(2)]));
+    } catch { return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, +(d.apr * 100).toFixed(2)])); }
+  });
+
+  const [debtMins, setDebtMins] = useState(() => {
+    try {
+      const saved = ls('debtMins');
+      return saved ? JSON.parse(saved) : Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.min]));
+    } catch { return Object.fromEntries(BASE_DEBTS.map((d) => [d.id, d.min])); }
+  });
+
+  const [affirmLoans, setAffirmLoans] = useState(() => {
+    try {
+      const saved = ls('affirmLoans');
+      return saved ? JSON.parse(saved) : DEFAULT_AFFIRM_LOANS;
+    } catch { return DEFAULT_AFFIRM_LOANS; }
+  });
+
+  const [balancesUpdated, setBalancesUpdated] = useState(() => ls('balancesUpdated') || "Apr '26");
+
+  // ── UI state (not persisted) ───────────────────────────────────────────────
+  const [showInputs, setShowInputs]     = useState(false);
+  const [balancesOpen, setBalancesOpen] = useState(false);
   const [activeTab, setActiveTab]       = useState(0);
-  // Privacy: always start blurred; unblur requires password (or already authed)
   const [privacyMode, setPrivacyMode]   = useState(true);
   const [showUnlock, setShowUnlock]     = useState(false);
   const [pwInput, setPwInput]           = useState('');
   const [pwError, setPwError]           = useState(false);
+  const [synced, setSynced]             = useState(false);
 
-  // ── Sync state: blocks writes until initial Supabase pull completes ────────
-  const [synced, setSynced] = useState(false);
-
-  // ── Supabase: pull remote on mount FIRST, then enable writes ───────────────
+  // ── Supabase: pull on mount, then enable writes ────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
-      if (!supabase) {
-        if (!cancelled) setSynced(true);
-        return;
-      }
+      if (!supabase) { if (!cancelled) setSynced(true); return; }
 
       const { data, error } = await supabase
         .from('debt_settings')
@@ -257,13 +269,18 @@ export default function DebtCalculator() {
         const localTs  = localStorage.getItem(UPDATED_KEY);
         const remoteTs = data.updated_at;
         if (!localTs || remoteTs > localTs) {
-          setTakeHome(Number(data.take_home)          || 4162);
+          setTakeHome(Number(data.take_home)           || 4162);
           setBillsVariable(Number(data.bills_variable) || 2862);
           setWeeklyGross(Number(data.weekly_gross)     || 120);
           setStrategy(data.strategy                    || 'hybrid');
-          if (data.debt_balances && Object.keys(data.debt_balances).length) {
+          if (data.debt_balances && Object.keys(data.debt_balances).length)
             setDebtBalances(data.debt_balances);
-          }
+          if (data.debt_aprs && Object.keys(data.debt_aprs).length)
+            setDebtAprs(data.debt_aprs);
+          if (data.debt_mins && Object.keys(data.debt_mins).length)
+            setDebtMins(data.debt_mins);
+          if (data.affirm_loans && Array.isArray(data.affirm_loans) && data.affirm_loans.length)
+            setAffirmLoans(data.affirm_loans);
           if (data.balances_updated) setBalancesUpdated(data.balances_updated);
           try { localStorage.setItem(UPDATED_KEY, remoteTs); } catch {}
         }
@@ -277,7 +294,7 @@ export default function DebtCalculator() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Persist to localStorage (gated by synced) ──────────────────────────────
+  // ── localStorage persist (gated by synced) ────────────────────────────────
   useEffect(() => {
     if (!synced) return;
     try {
@@ -287,12 +304,15 @@ export default function DebtCalculator() {
       localStorage.setItem('dp_weeklyGross',   weeklyGross);
       localStorage.setItem('dp_strategy',      strategy);
       localStorage.setItem('dp_debtBalances',  JSON.stringify(debtBalances));
+      localStorage.setItem('dp_debtAprs',      JSON.stringify(debtAprs));
+      localStorage.setItem('dp_debtMins',      JSON.stringify(debtMins));
+      localStorage.setItem('dp_affirmLoans',   JSON.stringify(affirmLoans));
       if (balancesUpdated) localStorage.setItem('dp_balancesUpdated', balancesUpdated);
-      localStorage.setItem(UPDATED_KEY,        now);
+      localStorage.setItem(UPDATED_KEY, now);
     } catch {}
-  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, debtAprs, debtMins, affirmLoans, balancesUpdated]);
 
-  // ── Supabase: push on any state change (1500ms debounce, gated by synced) ──
+  // ── Supabase push (debounced, gated by synced) ────────────────────────────
   const debounceRef = useRef(null);
   const pushToSupabase = useCallback(() => {
     if (!synced || !supabase) return;
@@ -305,25 +325,56 @@ export default function DebtCalculator() {
         weekly_gross:     weeklyGross,
         strategy,
         debt_balances:    debtBalances,
+        debt_aprs:        debtAprs,
+        debt_mins:        debtMins,
+        affirm_loans:     affirmLoans,
         balances_updated: balancesUpdated,
         updated_at:       new Date().toISOString(),
       });
     }, 1500);
-  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, balancesUpdated]);
+  }, [synced, takeHome, billsVariable, weeklyGross, strategy, debtBalances, debtAprs, debtMins, affirmLoans, balancesUpdated]);
 
   useEffect(() => {
     pushToSupabase();
     return () => clearTimeout(debounceRef.current);
   }, [pushToSupabase]);
 
-  // Live debts with user-edited balances
+  // ── Affirm derived totals (source of truth for Affirm debt row) ───────────
+  const affirmBalance = useMemo(
+    () => affirmLoans.reduce((s, l) => s + (l.balance || 0), 0),
+    [affirmLoans],
+  );
+  const affirmMin = useMemo(
+    () => affirmLoans.reduce((s, l) => s + (l.balance > 0 ? (l.min || 0) : 0), 0),
+    [affirmLoans],
+  );
+  const affirmApr = useMemo(() => {
+    if (affirmBalance < 0.01) return 0.2999;
+    return affirmLoans.reduce((s, l) => s + (l.balance || 0) * (l.apr || 29.99), 0)
+      / affirmBalance / 100;
+  }, [affirmLoans, affirmBalance]);
+
+  // ── Live debts (BASE_DEBTS + user overrides) ──────────────────────────────
   const debts = useMemo(
-    () => BASE_DEBTS.map((d) => ({ ...d, balance: Math.max(0, debtBalances[d.id] ?? d.balance) })),
-    [debtBalances],
+    () => BASE_DEBTS.map((d) => {
+      if (d.id === 'affirm') {
+        return { ...d, balance: affirmBalance, apr: affirmApr, min: affirmMin };
+      }
+      return {
+        ...d,
+        balance: Math.max(0, debtBalances[d.id] ?? d.balance),
+        apr:     (debtAprs[d.id] ?? (d.apr * 100)) / 100,
+        min:     debtMins[d.id] ?? d.min,
+      };
+    }),
+    [debtBalances, debtAprs, debtMins, affirmBalance, affirmApr, affirmMin],
   );
 
-  // Monthly math
-  const monthlyOutflow  = billsVariable + TOTAL_DEBT_MINS;
+  // ── Live totals ───────────────────────────────────────────────────────────
+  const totalDebtMins = useMemo(() => debts.reduce((s, d) => s + d.min, 0), [debts]);
+
+  // ── Monthly math ──────────────────────────────────────────────────────────
+  const monthlyOutflow  = billsVariable + totalDebtMins;
   const monthlyDeficit  = Math.max(0, monthlyOutflow - takeHome);
   const breakEvenWeekly = Math.ceil(monthlyDeficit / (WEEKS_PER_MONTH * GIG_EFFICIENCY));
   const monthlyGigNet   = weeklyGross * GIG_EFFICIENCY * WEEKS_PER_MONTH;
@@ -333,64 +384,59 @@ export default function DebtCalculator() {
   const hoursPerWeek    = (weeklyGross / HOURLY_RATE).toFixed(1);
   const totalIncome     = takeHome + monthlyGigNet;
 
-  // Simulation
+  // ── Simulation ────────────────────────────────────────────────────────────
   const { months, payoffMonths, totalInterest } = useMemo(
     () => simulate(debts, strategy, extraPerMonth),
     [debts, strategy, extraPerMonth],
   );
 
-  // Chart data (every 3rd month + last for readability)
   const chartData = useMemo(
     () => months.filter((_, i) => i % 3 === 0 || i === months.length - 1),
     [months],
   );
 
-  // BNPL Freed Cash chart — cumulative $/mo freed over 15 months
-  const bnplFreedData = useMemo(() => {
-    const pts = [];
-    for (let m = 0; m <= 15; m++) {
-      const freed = BNPL_SCHEDULE.filter((b) => b.payoffMonth <= m).reduce((s, b) => s + b.min, 0);
-      pts.push({ label: monthLabel(m), freed: Math.round(freed) });
-    }
-    return pts;
-  }, []);
-
-  // Payoff sequence sorted by month
   const sequenceData = useMemo(
-    () =>
-      BASE_DEBTS.filter((d) => d.id in payoffMonths)
-        .map((d) => ({ ...d, payoffMonth: payoffMonths[d.id], color: DEBT_COLORS[d.id] }))
-        .sort((a, b) => a.payoffMonth - b.payoffMonth),
-    [payoffMonths],
+    () => debts
+      .filter((d) => d.id in payoffMonths)
+      .map((d) => ({ ...d, payoffMonth: payoffMonths[d.id], color: DEBT_COLORS[d.id] }))
+      .sort((a, b) => a.payoffMonth - b.payoffMonth),
+    [debts, payoffMonths],
   );
 
   const totalDebt     = debts.reduce((s, d) => s + d.balance, 0);
-  const totalOriginal = BASE_DEBTS.reduce((s, d) => s + d.balance, 0);
+  const totalOriginal = BASE_DEBTS.reduce((s, d) => s + d.balance, 0) + affirmBalance;
   const totalPaidDown = Math.max(0, totalOriginal - totalDebt);
   const debtFreeMonth = months.length > 0 ? months.length - 1 : null;
 
+  // ── Update helpers ────────────────────────────────────────────────────────
+  function stampUpdated() {
+    setBalancesUpdated(new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+  }
   function updateBalance(id, raw) {
-    const val = Math.max(0, parseFloat(raw) || 0);
-    setDebtBalances((prev) => ({ ...prev, [id]: val }));
-    setBalancesUpdated(
-      new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+    setDebtBalances((prev) => ({ ...prev, [id]: Math.max(0, parseFloat(raw) || 0) }));
+    stampUpdated();
+  }
+  function updateApr(id, raw) {
+    setDebtAprs((prev) => ({ ...prev, [id]: Math.max(0, parseFloat(raw) || 0) }));
+    stampUpdated();
+  }
+  function updateMin(id, raw) {
+    setDebtMins((prev) => ({ ...prev, [id]: Math.max(0, parseFloat(raw) || 0) }));
+    stampUpdated();
+  }
+  function updateAffirmLoan(id, field, raw) {
+    setAffirmLoans((prev) =>
+      prev.map((l) => l.id === id ? { ...l, [field]: Math.max(0, parseFloat(raw) || 0) } : l)
     );
+    stampUpdated();
   }
 
-  // Privacy / unlock handlers
+  // ── Privacy / unlock ──────────────────────────────────────────────────────
   function handleEyeClick() {
-    if (!privacyMode) {
-      // Currently showing → re-blur
-      setPrivacyMode(true);
-    } else if (isAuthed()) {
-      // Already authenticated this session → unblur without password
-      setPrivacyMode(false);
-    } else {
-      // Need password → show modal
-      setShowUnlock(true);
-    }
+    if (!privacyMode)      { setPrivacyMode(true); }
+    else if (isAuthed())   { setPrivacyMode(false); }
+    else                   { setShowUnlock(true); }
   }
-
   function handleUnlock(e) {
     e?.preventDefault();
     if (pwInput === PASSWORD) {
@@ -405,7 +451,7 @@ export default function DebtCalculator() {
     }
   }
 
-  const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'BNPL Freed Cash'];
+  const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence', 'Affirm'];
 
   const shortfallLabel = monthlyDeficit > 0
     ? `DoorDash must cover ${fmt(monthlyDeficit)}/mo`
@@ -413,16 +459,22 @@ export default function DebtCalculator() {
 
   const goalPresets = [
     { weekly: breakEvenWeekly,    label: 'Break-even', note: 'min to cover',  color: '#f59e0b' },
-    { weekly: HRB_ALL_WEEKS_AVG,  label: 'HRB avg',    note: 'all weeks',    color: '#94a3b8' },
-    { weekly: HRB_WORK_WEEKS_AVG, label: 'HRB avg',    note: 'work weeks',   color: '#6366f1' },
-    { weekly: 270,                label: '3 days/wk',  note: 'Scenario 2',   color: '#10b981' },
+    { weekly: HRB_ALL_WEEKS_AVG,  label: 'HRB avg',    note: 'all weeks',     color: '#94a3b8' },
+    { weekly: HRB_WORK_WEEKS_AVG, label: 'HRB avg',    note: 'work weeks',    color: '#6366f1' },
+    { weekly: 270,                label: '3 days/wk',  note: 'Scenario 2',    color: '#10b981' },
   ];
+
+  // Input field class helper
+  const inputCls = (blur = true) =>
+    `w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 text-sm text-white
+     focus:outline-none focus:border-purple-500 transition-colors
+     ${blur && privacyMode ? ' blur-sm' : ''}`;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        {/* ── Page header ───────────────────────────────────────────────────── */}
+        {/* ── Page header ─────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between mb-8">
           <div>
             <Link
@@ -433,13 +485,12 @@ export default function DebtCalculator() {
             </Link>
             <h1 className="text-3xl font-bold tracking-tight">Debt Payoff Calculator</h1>
             <p className="text-zinc-400 mt-1 text-sm">
-              6 major debts modeled. BNPL minimums roll in as they complete.
+              6 debts tracked · APR &amp; minimums editable · cross-device sync
             </p>
           </div>
-          {/* Privacy / Unlock toggle */}
           <button
             onClick={handleEyeClick}
-            title={privacyMode ? 'Unlock to show numbers' : 'Hide numbers (demo mode)'}
+            title={privacyMode ? 'Unlock to show numbers' : 'Hide numbers'}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors mt-1 ${
               privacyMode
                 ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
@@ -451,7 +502,7 @@ export default function DebtCalculator() {
           </button>
         </div>
 
-        {/* ── My Numbers (collapsible) ───────────────────────────────────────── */}
+        {/* ── My Numbers (collapsible) ─────────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
           <button
             className="w-full flex items-center justify-between p-5 text-left"
@@ -471,28 +522,22 @@ export default function DebtCalculator() {
                 </p>
               </div>
             </div>
-            {showInputs
-              ? <ChevronUp size={18} className="text-zinc-400 flex-shrink-0 ml-2" />
-              : <ChevronDown size={18} className="text-zinc-400 flex-shrink-0 ml-2" />}
+            {showInputs ? <ChevronUp size={18} className="text-zinc-400 flex-shrink-0 ml-2" />
+                        : <ChevronDown size={18} className="text-zinc-400 flex-shrink-0 ml-2" />}
           </button>
 
           {showInputs && (
             <div className="px-5 pb-5 border-t border-zinc-800">
-              <p className="text-xs text-zinc-500 mt-3 mb-3">
-                Update whenever your income or expenses change.
-              </p>
+              <p className="text-xs text-zinc-500 mt-3 mb-3">Update whenever your income or expenses change.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <label className="block">
                   <span className="text-xs text-zinc-400 mb-0.5 block">HRB Monthly Take-Home</span>
                   <span className="text-xs text-zinc-600 mb-1 block">Net paycheck × paychecks/mo</span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      value={takeHome}
+                    <input type="number" value={takeHome}
                       onChange={(e) => setTakeHome(parseFloat(e.target.value) || 0)}
-                      className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
-                    />
+                      className={`${inputCls()} pl-7 pr-3`} />
                   </div>
                 </label>
                 <label className="block">
@@ -500,24 +545,20 @@ export default function DebtCalculator() {
                   <span className="text-xs text-zinc-600 mb-1 block">Everything except debt payments</span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      value={billsVariable}
+                    <input type="number" value={billsVariable}
                       onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)}
-                      className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
-                    />
+                      className={`${inputCls()} pl-7 pr-3`} />
                   </div>
                 </label>
               </div>
-              {/* Breakdown table */}
               <div className="bg-zinc-800 rounded-xl p-3 text-xs space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
                   <span>Bills &amp; variable expenses</span>
                   <Redacted on={privacyMode}><span>{fmt(billsVariable)}/mo</span></Redacted>
                 </div>
                 <div className="flex justify-between text-zinc-400">
-                  <span>Debt minimums (auto)</span>
-                  <Redacted on={privacyMode}><span>{fmt(TOTAL_DEBT_MINS)}/mo</span></Redacted>
+                  <span>Debt minimums (live)</span>
+                  <Redacted on={privacyMode}><span>{fmt(totalDebtMins)}/mo</span></Redacted>
                 </div>
                 <div className="flex justify-between font-semibold text-zinc-200 border-t border-zinc-700 pt-1.5">
                   <span>Total outflow</span>
@@ -525,9 +566,7 @@ export default function DebtCalculator() {
                 </div>
                 <div className="flex justify-between font-semibold text-zinc-200">
                   <span>HRB take-home</span>
-                  <Redacted on={privacyMode}>
-                    <span className="text-emerald-400">–{fmt(takeHome)}/mo</span>
-                  </Redacted>
+                  <Redacted on={privacyMode}><span className="text-emerald-400">–{fmt(takeHome)}/mo</span></Redacted>
                 </div>
                 <div className={`flex justify-between font-bold border-t border-zinc-700 pt-1.5 ${monthlyDeficit > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   <span>Monthly shortfall (DoorDash must cover)</span>
@@ -544,7 +583,7 @@ export default function DebtCalculator() {
           )}
         </section>
 
-        {/* ── Weekly DoorDash Slider ─────────────────────────────────────────── */}
+        {/* ── Weekly DoorDash Slider ───────────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
           <div className="flex justify-between items-start mb-3">
             <div>
@@ -554,8 +593,7 @@ export default function DebtCalculator() {
             <div className="text-right flex-shrink-0 ml-4">
               <Redacted on={privacyMode}>
                 <div className="text-2xl font-bold">
-                  ${weeklyGross}
-                  <span className="text-sm font-normal text-zinc-400">/wk</span>
+                  ${weeklyGross}<span className="text-sm font-normal text-zinc-400">/wk</span>
                 </div>
                 <div className="text-xs text-zinc-400">
                   ≈ {hoursPerWeek} hrs/wk · ${Math.round(weeklyGross * WEEKS_PER_MONTH)}/mo gross
@@ -564,15 +602,9 @@ export default function DebtCalculator() {
             </div>
           </div>
 
-          <input
-            type="range"
-            min={0}
-            max={450}
-            step={5}
-            value={weeklyGross}
+          <input type="range" min={0} max={450} step={5} value={weeklyGross}
             onChange={(e) => setWeeklyGross(Number(e.target.value))}
-            className="w-full accent-purple-500 mb-2"
-          />
+            className="w-full accent-purple-500 mb-2" />
 
           <div className="flex justify-between text-xs text-zinc-600 mb-3 px-0.5">
             <span>$0</span>
@@ -582,23 +614,14 @@ export default function DebtCalculator() {
             <span>$450</span>
           </div>
 
-          {/* Status box */}
-          <div
-            className={`rounded-lg p-3 mb-4 ${
-              isDeficit
-                ? 'bg-red-950/50 border border-red-800/60'
-                : 'bg-emerald-950/50 border border-emerald-800/60'
-            }`}
-          >
+          <div className={`rounded-lg p-3 mb-4 ${isDeficit ? 'bg-red-950/50 border border-red-800/60' : 'bg-emerald-950/50 border border-emerald-800/60'}`}>
             {isDeficit ? (
               <>
                 <p className="text-sm font-bold text-red-400">
                   <Redacted on={privacyMode}>{fmt(surplusDefAmt)}/mo short of break-even</Redacted>
                 </p>
                 <p className="text-xs text-red-500 mt-0.5">
-                  <Redacted on={privacyMode}>
-                    Need at least {fmt(breakEvenWeekly)}/wk to cover all minimums
-                  </Redacted>
+                  <Redacted on={privacyMode}>Need at least {fmt(breakEvenWeekly)}/wk to cover all minimums</Redacted>
                 </p>
               </>
             ) : (
@@ -607,21 +630,17 @@ export default function DebtCalculator() {
                   <Redacted on={privacyMode}>{fmt(extraPerMonth)}/mo available for extra debt paydown</Redacted>
                 </p>
                 <p className="text-xs text-emerald-500 mt-0.5">
-                  <Redacted on={privacyMode}>
-                    ${weeklyGross - breakEvenWeekly}/wk above break-even
-                  </Redacted>
+                  <Redacted on={privacyMode}>${weeklyGross - breakEvenWeekly}/wk above break-even</Redacted>
                 </p>
               </>
             )}
           </div>
 
-          {/* Goal preset buttons */}
           <div className="grid grid-cols-4 gap-2">
             {goalPresets.map((g) => {
               const active = weeklyGross === g.weekly;
               return (
-                <button
-                  key={g.label + g.weekly}
+                <button key={g.label + g.weekly}
                   onClick={() => setWeeklyGross(Math.min(450, g.weekly))}
                   className="rounded-xl p-2 text-center border transition-all hover:opacity-90"
                   style={{
@@ -641,11 +660,11 @@ export default function DebtCalculator() {
           </div>
         </section>
 
-        {/* ── Summary cards ──────────────────────────────────────────────────── */}
+        {/* ── Summary cards ───────────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
-            { label: 'Income / Month', value: fmt(totalIncome),     color: 'text-white',       blur: true },
-            { label: 'Extra / Month',  value: fmt(extraPerMonth),   color: extraPerMonth > 0 ? 'text-emerald-400' : 'text-red-400', blur: true },
+            { label: 'Income / Month', value: fmt(totalIncome),   color: 'text-white',       blur: true  },
+            { label: 'Extra / Month',  value: fmt(extraPerMonth), color: extraPerMonth > 0 ? 'text-emerald-400' : 'text-red-400', blur: true },
             { label: 'Debt-Free',      value: debtFreeMonth !== null ? monthLabel(debtFreeMonth) : '> 10yr', color: 'text-purple-400', blur: false },
           ].map(({ label, value, color, blur }) => (
             <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
@@ -657,14 +676,12 @@ export default function DebtCalculator() {
           ))}
         </div>
 
-        {/* ── Payoff Strategy ────────────────────────────────────────────────── */}
+        {/* ── Payoff Strategy ─────────────────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
           <h2 className="text-base font-semibold mb-3">Payoff Strategy</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {STRATEGIES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setStrategy(s.id)}
+              <button key={s.id} onClick={() => setStrategy(s.id)}
                 className={`p-3 rounded-lg border text-left transition-colors ${
                   strategy === s.id
                     ? 'bg-purple-900/40 border-purple-500 text-white'
@@ -678,7 +695,7 @@ export default function DebtCalculator() {
           </div>
         </section>
 
-        {/* ── Payoff Timeline ────────────────────────────────────────────────── */}
+        {/* ── Payoff Timeline ─────────────────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
           <div className="flex justify-between items-baseline mb-4">
             <h2 className="text-base font-semibold">Payoff Timeline</h2>
@@ -690,23 +707,18 @@ export default function DebtCalculator() {
             </span>
           </div>
           <div className="space-y-3">
-            {BASE_DEBTS.map((d) => {
-              const balance = debtBalances[d.id] ?? d.balance;
-              const snap    = APR26_SNAPSHOT[d.id];
-              const mo      = payoffMonths[d.id];
-              const pct     = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
+            {debts.map((d) => {
+              const snap = d.id === 'affirm' ? affirmBalance : (APR26_SNAPSHOT[d.id] || d.balance);
+              const mo   = payoffMonths[d.id];
+              const pct  = snap > 0 ? Math.min(100, Math.max(0, ((snap - d.balance) / snap) * 100)) : 0;
               return (
                 <div key={d.id} className="flex items-center gap-3">
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: DEBT_COLORS[d.id] }}
-                  />
+                  <div className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: DEBT_COLORS[d.id] }} />
                   <span className="text-sm text-zinc-300 w-36 flex-shrink-0">{d.name}</span>
                   <div className="flex-1 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="h-1.5 rounded-full transition-all"
-                      style={{ backgroundColor: DEBT_COLORS[d.id], width: `${pct}%` }}
-                    />
+                    <div className="h-1.5 rounded-full transition-all"
+                      style={{ backgroundColor: DEBT_COLORS[d.id], width: `${pct}%` }} />
                   </div>
                   <Redacted on={privacyMode}>
                     <span className="text-xs text-zinc-400 w-16 text-right flex-shrink-0">
@@ -727,13 +739,13 @@ export default function DebtCalculator() {
             <span className="text-zinc-400">
               All minimums:{' '}
               <Redacted on={privacyMode}>
-                <span className="text-white font-medium">{fmt(TOTAL_DEBT_MINS)}/mo</span>
+                <span className="text-white font-medium">{fmt(totalDebtMins)}/mo</span>
               </Redacted>
             </span>
           </div>
         </section>
 
-        {/* ── Current Balances (collapsible) ────────────────────────────────── */}
+        {/* ── Current Balances (collapsible) ──────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
           <button
             className="w-full flex items-center justify-between p-5 text-left"
@@ -745,8 +757,7 @@ export default function DebtCalculator() {
                 Last updated: {balancesUpdated}
                 {totalPaidDown > 0 && (
                   <span className="ml-2 text-emerald-400">
-                    ·{' '}
-                    <Redacted on={privacyMode}>{fmt(totalPaidDown)} paid down</Redacted>
+                    · <Redacted on={privacyMode}>{fmt(totalPaidDown)} paid down</Redacted>
                   </span>
                 )}
               </p>
@@ -759,73 +770,120 @@ export default function DebtCalculator() {
           {balancesOpen && (
             <div className="px-5 pb-5">
               <p className="text-xs text-zinc-500 mb-4">
-                Edit balances to update projections. Progress bars show % paid vs Apr &lsquo;26 snapshot.
+                Edit balance, APR, and minimum for each debt. Affirm totals are calculated from the Affirm tab.
               </p>
-              <div className="space-y-5">
-                {BASE_DEBTS.map((d) => {
-                  const balance = debtBalances[d.id] ?? d.balance;
-                  const snap    = APR26_SNAPSHOT[d.id];
-                  const pct     = Math.min(100, Math.max(0, ((snap - balance) / snap) * 100));
-                  const tagColor = TAG_COLORS[d.tag];
-                  const isPaidOff = balance < 0.01;
+              <div className="space-y-6">
+                {debts.map((d) => {
+                  const tagColor  = TAG_COLORS[d.tag];
+                  const snap      = d.id === 'affirm' ? affirmBalance : (APR26_SNAPSHOT[d.id] || d.balance);
+                  const pct       = snap > 0 ? Math.min(100, Math.max(0, ((snap - d.balance) / snap) * 100)) : 0;
+                  const isPaidOff = d.balance < 0.01;
+                  const isAffirm  = d.id === 'affirm';
+
                   return (
                     <div key={d.id}>
-                      <div className="flex justify-between items-center mb-1.5">
+                      {/* Debt header row */}
+                      <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="text-sm font-medium"
-                            style={{ color: DEBT_COLORS[d.id] }}
-                          >
+                          <span className="text-sm font-medium" style={{ color: DEBT_COLORS[d.id] }}>
                             {d.name}
                           </span>
-                          <span
-                            className="text-xs px-1.5 py-0.5 rounded font-medium"
-                            style={{
-                              color: tagColor,
-                              background: tagColor + '20',
-                              border: `1px solid ${tagColor}50`,
-                            }}
-                          >
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium"
+                            style={{ color: tagColor, background: tagColor + '20', border: `1px solid ${tagColor}50` }}>
                             {d.tag}
                           </span>
-                          {isPaidOff && (
+                          {isPaidOff && !isAffirm && (
                             <span className="text-xs text-emerald-400 font-medium">✓ Paid off</span>
                           )}
+                          {isAffirm && (
+                            <span className="text-xs text-orange-400/70 font-medium">
+                              {affirmLoans.filter(l => l.balance > 0).length} active loans
+                            </span>
+                          )}
                         </div>
-                        <span className="text-xs text-zinc-500 flex-shrink-0">
-                          {(d.apr * 100).toFixed(2)}% · {fmt(d.min)}/mo min
-                        </span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                          <input
-                            type="number"
-                            value={balance}
-                            onChange={(e) => updateBalance(d.id, e.target.value)}
-                            className={`w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors${privacyMode ? ' blur-sm' : ''}`}
-                          />
+
+                      {isAffirm ? (
+                        /* Affirm — read-only calculated totals */
+                        <div className="bg-zinc-800/60 rounded-lg p-3 text-xs space-y-1.5">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <div className="text-zinc-500 mb-0.5">Total balance</div>
+                              <Redacted on={privacyMode}>
+                                <div className="text-white font-medium font-mono">{fmtDec(affirmBalance)}</div>
+                              </Redacted>
+                            </div>
+                            <div>
+                              <div className="text-zinc-500 mb-0.5">Weighted APR</div>
+                              <Redacted on={privacyMode}>
+                                <div className="text-white font-medium">{(affirmApr * 100).toFixed(2)}%</div>
+                              </Redacted>
+                            </div>
+                            <div>
+                              <div className="text-zinc-500 mb-0.5">Total min</div>
+                              <Redacted on={privacyMode}>
+                                <div className="text-white font-medium font-mono">{fmtDec(affirmMin)}/mo</div>
+                              </Redacted>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setActiveTab(3)}
+                            className="text-orange-400 hover:text-orange-300 transition-colors mt-1 inline-block"
+                          >
+                            Edit individual loans in Affirm tab →
+                          </button>
                         </div>
-                        <Redacted on={privacyMode}>
-                          <span className="text-xs text-zinc-400 w-14 text-right">{pct.toFixed(1)}% off</span>
-                        </Redacted>
-                      </div>
-                      <div className="mt-2 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-1.5 rounded-full transition-all"
-                          style={{ backgroundColor: DEBT_COLORS[d.id], width: `${pct}%` }}
-                        />
-                      </div>
+                      ) : (
+                        /* Non-Affirm — three editable inputs */
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                            <input type="number" value={d.balance}
+                              onChange={(e) => updateBalance(d.id, e.target.value)}
+                              className={`${inputCls()} pl-6 pr-2 text-xs`}
+                              title="Current balance" />
+                            <span className="absolute -top-4 left-0 text-zinc-600 text-xs">Balance</span>
+                          </div>
+                          <div className="relative">
+                            <input type="number" step="0.01" min="0" max="100"
+                              value={debtAprs[d.id] ?? (d.apr * 100).toFixed(2)}
+                              onChange={(e) => updateApr(d.id, e.target.value)}
+                              className={`${inputCls()} pl-3 pr-6 text-xs`}
+                              title="APR %" />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">%</span>
+                            <span className="absolute -top-4 left-0 text-zinc-600 text-xs">APR %</span>
+                          </div>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                            <input type="number" step="0.01"
+                              value={debtMins[d.id] ?? d.min}
+                              onChange={(e) => updateMin(d.id, e.target.value)}
+                              className={`${inputCls()} pl-6 pr-2 text-xs`}
+                              title="Monthly minimum" />
+                            <span className="absolute -top-4 left-0 text-zinc-600 text-xs">Min/mo</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Progress bar */}
+                      {!isAffirm && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex-1 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="h-1.5 rounded-full transition-all"
+                              style={{ backgroundColor: DEBT_COLORS[d.id], width: `${pct}%` }} />
+                          </div>
+                          <Redacted on={privacyMode}>
+                            <span className="text-xs text-zinc-500 w-14 text-right">{pct.toFixed(1)}% off</span>
+                          </Redacted>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div className="mt-4 pt-4 border-t border-zinc-800 flex justify-between text-sm">
                 <span className="text-zinc-400">
-                  Remaining:{' '}
-                  <Redacted on={privacyMode}>
-                    <span className="text-white font-medium">{fmt(totalDebt)}</span>
-                  </Redacted>
+                  Remaining: <Redacted on={privacyMode}><span className="text-white font-medium">{fmt(totalDebt)}</span></Redacted>
                 </span>
                 <span className="text-zinc-500 text-xs">
                   Apr &lsquo;26 snapshot: {fmt(totalOriginal)}
@@ -835,14 +893,11 @@ export default function DebtCalculator() {
           )}
         </section>
 
-        {/* ── Charts ────────────────────────────────────────────────────────── */}
+        {/* ── Charts ──────────────────────────────────────────────────────── */}
         <section className="bg-zinc-900 border border-zinc-800 rounded-xl mb-8">
-          {/* Tab bar */}
           <div className="flex border-b border-zinc-800 overflow-x-auto">
             {tabs.map((tab, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveTab(i)}
+              <button key={i} onClick={() => setActiveTab(i)}
                 className={`flex-1 min-w-max px-3 py-3 text-xs font-medium whitespace-nowrap transition-colors ${
                   activeTab === i
                     ? 'text-purple-400 border-b-2 border-purple-500'
@@ -855,43 +910,25 @@ export default function DebtCalculator() {
           </div>
 
           <div className="p-4">
+
             {/* Tab 0 — Balance Over Time */}
             {activeTab === 0 && (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fill: '#71717a', fontSize: 10 }}
-                    interval="preserveStartEnd"
-                  />
+                  <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis
                     tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`}
-                    tick={{ fill: '#71717a', fontSize: 10 }}
-                    width={44}
+                    tick={{ fill: '#71717a', fontSize: 10 }} width={44}
                   />
                   <Tooltip content={(props) => <DarkTooltip {...props} privacyMode={privacyMode} />} />
                   <Legend wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
-                  {BASE_DEBTS.map((d) => (
-                    <Line
-                      key={d.id}
-                      type="monotone"
-                      dataKey={d.id}
-                      name={d.name}
-                      stroke={DEBT_COLORS[d.id]}
-                      dot={false}
-                      strokeWidth={1.5}
-                    />
+                  {debts.map((d) => (
+                    <Line key={d.id} type="monotone" dataKey={d.id} name={d.name}
+                      stroke={DEBT_COLORS[d.id]} dot={false} strokeWidth={1.5} />
                   ))}
-                  <Line
-                    type="monotone"
-                    dataKey="totalBalance"
-                    name="Total"
-                    stroke="#ffffff"
-                    dot={false}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                  />
+                  <Line type="monotone" dataKey="totalBalance" name="Total"
+                    stroke="#ffffff" dot={false} strokeWidth={2} strokeDasharray="5 5" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -901,26 +938,14 @@ export default function DebtCalculator() {
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fill: '#71717a', fontSize: 10 }}
-                    interval="preserveStartEnd"
-                  />
+                  <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis
                     tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`}
-                    tick={{ fill: '#71717a', fontSize: 10 }}
-                    width={44}
+                    tick={{ fill: '#71717a', fontSize: 10 }} width={44}
                   />
                   <Tooltip content={(props) => <DarkTooltip {...props} privacyMode={privacyMode} />} />
-                  <Area
-                    type="monotone"
-                    dataKey="cumulativeInterest"
-                    name="Cumulative Interest"
-                    stroke="#ef4444"
-                    fill="#ef444422"
-                    strokeWidth={2}
-                    dot={false}
-                  />
+                  <Area type="monotone" dataKey="cumulativeInterest" name="Cumulative Interest"
+                    stroke="#ef4444" fill="#ef444422" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -938,20 +963,16 @@ export default function DebtCalculator() {
                     return (
                       <div key={item.id} className="flex items-center gap-3">
                         <span className="text-zinc-600 text-xs w-5 text-right">{i + 1}</span>
-                        <div
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: item.color }}
-                        />
+                        <div className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: item.color }} />
                         <span className="text-sm text-zinc-300 w-36 flex-shrink-0">{item.name}</span>
-                        <div
-                          className="h-5 rounded transition-all"
+                        <div className="h-5 rounded transition-all"
                           style={{
                             background: `${item.color}30`,
                             border: `1px solid ${item.color}80`,
                             width: `${Math.max(barPct, 5)}%`,
                             minWidth: '2rem',
-                          }}
-                        />
+                          }} />
                         <Redacted on={privacyMode}>
                           <span className="text-xs font-medium ml-1" style={{ color: item.color }}>
                             {monthLabel(item.payoffMonth)}
@@ -964,71 +985,106 @@ export default function DebtCalculator() {
               </div>
             )}
 
-            {/* Tab 3 — BNPL Freed Cash */}
+            {/* Tab 3 — Affirm */}
             {activeTab === 3 && (
-              <>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={bnplFreedData}
-                    margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                    <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} />
-                    <YAxis
-                      tickFormatter={(v) => privacyMode ? '●●●' : `$${v}`}
-                      tick={{ fill: '#71717a', fontSize: 10 }}
-                      width={44}
-                    />
-                    <Tooltip
-                      formatter={(v) =>
-                        privacyMode ? ['●●●', 'Freed/mo'] : [`$${v}/mo`, 'Freed from BNPLs']
-                      }
-                    />
-                    <ReferenceLine
-                      y={248}
-                      stroke="#f59e0b"
-                      strokeDasharray="4 4"
-                      label={{
-                        value: "$248 by Sep '26",
-                        fontSize: 9,
-                        fill: '#f59e0b',
-                        position: 'insideTopRight',
-                      }}
-                    />
-                    <Bar dataKey="freed" name="Freed/mo" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-
-                {/* BNPL itemized list */}
-                <div className="mt-3 space-y-1">
-                  {BNPL_SCHEDULE.map((b) => (
-                    <div key={b.name} className="flex justify-between text-xs">
-                      <span className="text-zinc-400">{b.name}</span>
-                      <div className="flex gap-4">
-                        <Redacted on={privacyMode}>
-                          <span className="text-zinc-300 font-mono">${b.min.toFixed(2)}/mo</span>
-                        </Redacted>
-                        <span className="text-zinc-500 w-24 text-right">
-                          done {monthLabel(b.payoffMonth)}
-                        </span>
-                      </div>
+              <div>
+                {/* Header stats */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[
+                    { label: 'Total Balance',  value: fmtDec(affirmBalance) },
+                    { label: 'Weighted APR',   value: `${(affirmApr * 100).toFixed(2)}%` },
+                    { label: 'Total Min/mo',   value: fmtDec(affirmMin) },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-zinc-800 rounded-lg p-3 text-center">
+                      <div className="text-xs text-zinc-400 mb-1">{label}</div>
+                      <Redacted on={privacyMode}>
+                        <div className="text-sm font-bold text-orange-400 font-mono">{value}</div>
+                      </Redacted>
                     </div>
                   ))}
-                  <div className="border-t border-zinc-700 pt-1.5 flex justify-between font-semibold text-xs">
-                    <span className="text-zinc-300">Total freed by {monthLabel(14)}</span>
-                    <Redacted on={privacyMode}>
-                      <span className="text-indigo-400">${TOTAL_BNPL_MINS.toFixed(0)}/mo</span>
-                    </Redacted>
-                  </div>
                 </div>
-              </>
+
+                {payoffMonths.affirm !== undefined && (
+                  <div className="text-xs text-zinc-400 mb-4 text-center">
+                    Affirm paid off:{' '}
+                    <span className="text-orange-400 font-medium">{monthLabel(payoffMonths.affirm)}</span>
+                  </div>
+                )}
+
+                {/* Individual loan table */}
+                <p className="text-xs text-zinc-500 mb-3">
+                  Enter your current balance for each loan from your Affirm account. Zero out any that are fully paid off.
+                </p>
+
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_100px_72px_100px] gap-2 px-1 mb-1">
+                  <span className="text-xs text-zinc-600">Loan</span>
+                  <span className="text-xs text-zinc-600 text-center">Balance</span>
+                  <span className="text-xs text-zinc-600 text-center">APR %</span>
+                  <span className="text-xs text-zinc-600 text-center">Min / mo</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {affirmLoans.map((loan) => {
+                    const isPaidOff = loan.balance < 0.01;
+                    return (
+                      <div key={loan.id}
+                        className={`grid grid-cols-[1fr_100px_72px_100px] gap-2 items-center rounded-lg px-1 py-0.5 ${isPaidOff ? 'opacity-40' : ''}`}>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-500/60 flex-shrink-0" />
+                          <span className="text-xs text-zinc-300 truncate">{loan.name}</span>
+                          {isPaidOff && <span className="text-xs text-emerald-500 flex-shrink-0">✓</span>}
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                          <input type="number" step="0.01" value={loan.balance}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
+                            className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                        </div>
+                        <div className="relative">
+                          <input type="number" step="0.01" value={loan.apr}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
+                            className={`w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                          <input type="number" step="0.01" value={loan.min}
+                            onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
+                            className={`w-full bg-zinc-800 border border-zinc-700 rounded pl-5 pr-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Totals footer */}
+                <div className="grid grid-cols-[1fr_100px_72px_100px] gap-2 mt-3 pt-3 border-t border-zinc-700 px-1">
+                  <span className="text-xs font-semibold text-zinc-300">Totals</span>
+                  <Redacted on={privacyMode}>
+                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
+                      {fmtDec(affirmBalance)}
+                    </span>
+                  </Redacted>
+                  <Redacted on={privacyMode}>
+                    <span className="text-xs font-semibold text-zinc-300 text-center">
+                      {(affirmApr * 100).toFixed(2)}%
+                    </span>
+                  </Redacted>
+                  <Redacted on={privacyMode}>
+                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
+                      {fmtDec(affirmMin)}
+                    </span>
+                  </Redacted>
+                </div>
+              </div>
             )}
+
           </div>
         </section>
 
       </div>
 
-      {/* ── Unlock modal ────────────────────────────────────────────────────── */}
+      {/* ── Unlock modal ─────────────────────────────────────────────────── */}
       {showUnlock && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4"
@@ -1040,34 +1096,24 @@ export default function DebtCalculator() {
                 <Eye size={22} strokeWidth={1.75} />
               </div>
               <h3 className="text-base font-semibold text-white">Unlock Numbers</h3>
-              <p className="text-xs text-zinc-400 text-center">
-                Enter your dashboard password to view figures.
-              </p>
+              <p className="text-xs text-zinc-400 text-center">Enter your dashboard password to view figures.</p>
             </div>
             <form onSubmit={handleUnlock} className="flex flex-col gap-3">
-              <input
-                type="password"
-                autoFocus
-                value={pwInput}
+              <input type="password" autoFocus value={pwInput}
                 onChange={(e) => { setPwInput(e.target.value); setPwError(false); }}
                 placeholder="Password"
                 className={`w-full bg-zinc-800 rounded-lg border px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none transition-colors focus:border-purple-500 ${
                   pwError ? 'border-red-500/60' : 'border-zinc-700'
-                }`}
-              />
+                }`} />
               {pwError && <p className="text-xs text-red-400">Incorrect password.</p>}
               <div className="flex gap-2 mt-1">
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => { setShowUnlock(false); setPwInput(''); setPwError(false); }}
-                  className="flex-1 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
-                >
+                  className="flex-1 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm text-white font-medium transition-colors"
-                >
+                <button type="submit"
+                  className="flex-1 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm text-white font-medium transition-colors">
                   Unlock
                 </button>
               </div>
