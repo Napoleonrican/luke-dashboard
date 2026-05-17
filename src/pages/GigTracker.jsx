@@ -66,6 +66,7 @@ function getDefaultState() {
     stretchGoalDollars: 156,
     orderLog: [],
     ephElapsedMinutes: 0,
+    etaElapsedMinutes: 0,
     strikes: 0,
     setupCollapsed: false,
     statsCollapsed: true,
@@ -148,6 +149,18 @@ export default function GigTracker() {
     return () => clearInterval(id);
   }, []);
 
+  // ETA auto-refresh every 5 minutes
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = stateRef.current;
+      if (s.shiftStarted && s.startTime) {
+        const elapsed = computeElapsedMinutes(s.startTime, s.breakLength);
+        setState(prev => ({ ...prev, etaElapsedMinutes: elapsed }));
+      }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // Persist every state change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -159,7 +172,7 @@ export default function GigTracker() {
 
   function startShift() {
     const elapsed = computeElapsedMinutes(state.startTime, state.breakLength);
-    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed });
+    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaElapsedMinutes: elapsed });
   }
 
   function addOrder(platform, amountStr) {
@@ -181,6 +194,7 @@ export default function GigTracker() {
       ...s,
       orderLog: newLog,
       ephElapsedMinutes: currentElapsed,
+      etaElapsedMinutes: currentElapsed,
       strikes: newStrikes,
     }));
 
@@ -194,6 +208,7 @@ export default function GigTracker() {
       ...s,
       orderLog: s.orderLog.filter(o => o.id !== id),
       ephElapsedMinutes: currentElapsed,
+      etaElapsedMinutes: currentElapsed,
     }));
   }
 
@@ -205,6 +220,7 @@ export default function GigTracker() {
       ...s,
       orderLog: s.orderLog.map(o => o.id === id ? { ...o, amount: newAmount } : o),
       ephElapsedMinutes: currentElapsed,
+      etaElapsedMinutes: currentElapsed,
     }));
     setEditingOrderId(null);
     setEditingValue('');
@@ -214,7 +230,7 @@ export default function GigTracker() {
   const {
     shiftStarted, startTime, zone, day, breakLength,
     minGoalHours, minGoalDollars, stretchGoalHours, stretchGoalDollars,
-    orderLog, ephElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
+    orderLog, ephElapsedMinutes, etaElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
   } = state;
 
   // Live elapsed time — used for the clock display and goal timing only
@@ -270,8 +286,8 @@ export default function GigTracker() {
     shiftStartMs = sd.getTime();
   }
 
-  // ETAs anchored to snapshotted elapsed time — only update on order add/remove or 15-min tick
-  const etaAnchorMs = shiftStartMs + ephElapsedMinutes * 60000;
+  // ETAs anchored to snapshotted elapsed time — only update on order add/remove or 5-min tick
+  const etaAnchorMs = shiftStartMs + etaElapsedMinutes * 60000;
   const minETA = eph > 0 && minDollarLeft > 0
     ? new Date(etaAnchorMs + (minDollarLeft / eph) * 3600000)
     : null;
