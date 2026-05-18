@@ -557,54 +557,77 @@ export default function GigTracker() {
         {/* ── Live Dashboard ── */}
         {shiftStarted && (
           <>
-            {/* Time row */}
+            {/* Elapsed / Done by card */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-xs text-zinc-500 mb-1">Elapsed</div>
                   <div className="text-2xl font-bold text-zinc-100 tabular-nums">
                     {fmtDuration(elapsedMinutes)}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">→ Min</div>
-                  <div className={`text-2xl font-bold tabular-nums ${minTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-100'}`}>
-                    {minTimeLeft <= 0 ? '✓' : fmtDuration(minTimeLeft)}
-                  </div>
+                <div className="text-right">
+                  <div className="text-xs text-zinc-500 mb-1">Done by</div>
+                  {eph === 0 ? (
+                    <div className="text-2xl font-bold text-zinc-600">—</div>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+                        {overallETA ? fmtTime(overallETA) : '—'}
+                      </div>
+                      <div className="text-xs text-zinc-600 mt-0.5">
+                        {elapsedHours < minGoalHours
+                          ? `min goal (${minGoalHours}h)`
+                          : `stretch goal (${stretchGoalHours}h)`}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">→ Stretch</div>
-                  <div className={`text-2xl font-bold tabular-nums ${stretchTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-100'}`}>
-                    {stretchTimeLeft <= 0 ? '✓' : fmtDuration(stretchTimeLeft)}
+              </div>
+              <div className="border-t border-zinc-800 mt-3 pt-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`text-sm font-medium ${minTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-300'}`}>
+                    {minTimeLeft <= 0 ? '✓ Min goal' : `→ Min  ${fmtDuration(minTimeLeft)}`}
+                  </div>
+                  <div className={`text-sm font-medium text-right ${stretchTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-300'}`}>
+                    {stretchTimeLeft <= 0 ? 'Stretch goal ✓' : `${fmtDuration(stretchTimeLeft)}  Stretch →`}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* EPH card */}
+            {/* EPH card — split */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="text-xs text-zinc-500 mb-2">Combined EPH</div>
-              <div className={`text-5xl font-bold tabular-nums ${ephElapsedHours > 0.01 ? ephColor : 'text-zinc-600'}`}>
-                {ephElapsedHours > 0.01 ? fmtMoney(eph) : '—'}
-                {ephElapsedHours > 0.01 && (
-                  <span className="text-2xl font-normal text-zinc-500">/hr</span>
-                )}
-              </div>
-              {lastOrderEph > 0 && ephElapsedHours > 0.01 && (
-                <div className={`text-sm mt-1.5 ${eph >= lastOrderEph ? 'text-green-400' : 'text-red-400'}`}>
-                  {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-zinc-500 mb-2">Current EPH</div>
+                  <div className={`text-4xl font-bold tabular-nums ${ephElapsedHours > 0.01 ? ephColor : 'text-zinc-600'}`}>
+                    {ephElapsedHours > 0.01 ? fmtMoney(eph) : '—'}
+                    {ephElapsedHours > 0.01 && (
+                      <span className="text-xl font-normal text-zinc-500">/hr</span>
+                    )}
+                  </div>
+                  {lastOrderEph > 0 && ephElapsedHours > 0.01 && (
+                    <div className={`text-sm mt-1.5 ${eph >= lastOrderEph ? 'text-green-400' : 'text-red-400'}`}>
+                      {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
+                    </div>
+                  )}
                 </div>
-              )}
+                <div className="text-right">
+                  <div className="text-xs text-zinc-500 mb-2">Total Earnings</div>
+                  <div className="text-4xl font-bold tabular-nums text-zinc-100">
+                    {fmtMoney(combined)}
+                  </div>
+                </div>
+              </div>
               <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center gap-2 flex-wrap text-xs text-zinc-400">
                 <span>Zone avg ${zoneEPH.toFixed(2)}</span>
                 <span className="text-zinc-700">·</span>
                 <span>Max ${dayMax.toFixed(2)}</span>
-                <span className="text-zinc-700">·</span>
-                <span className="text-zinc-200 font-semibold">{fmtMoney(combined)} total</span>
               </div>
             </div>
 
-            {/* Orders/hr card */}
+            {/* Orders/hr + Strikes card */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -630,41 +653,49 @@ export default function GigTracker() {
                   </div>
                 )}
               </div>
+              <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-500 font-medium">Strikes</span>
+                  <div className="flex gap-2">
+                    {[0, 1, 2].map(i => (
+                      <div
+                        key={i}
+                        className={`w-5 h-5 rounded-full ${i < strikes ? 'bg-red-500' : 'bg-zinc-700'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => update({ strikes: Math.min(3, strikes + 1) })}
+                    className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
+                  >
+                    + Strike
+                  </button>
+                  <button
+                    onClick={() => update({ strikes: Math.max(0, strikes - 1) })}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
+                  >
+                    - Strike
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Goal progress */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
-              {/* Overall ETA */}
-              <div className="text-center pb-4 border-b border-zinc-800">
-                <div className="text-xs text-zinc-500 mb-1">Done by</div>
-                {eph === 0 ? (
-                  <div className="text-sm text-zinc-500">Log an order to calculate</div>
-                ) : (
-                  <>
-                    <div className="text-3xl font-bold text-zinc-100 tabular-nums">
-                      {overallETA ? fmtTime(overallETA) : '—'}
-                    </div>
-                    <div className="text-xs text-zinc-600 mt-1">
-                      {elapsedHours < minGoalHours
-                        ? `min goal (${minGoalHours}h)`
-                        : `stretch goal (${stretchGoalHours}h)`}
-                    </div>
-                  </>
-                )}
-              </div>
-
               {/* Min goal */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Min Goal</span>
-                  <span className={`text-xs font-medium ${minDollarLeft <= 0 && minTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-500'}`}>
-                    {minDollarLeft <= 0 && minTimeLeft <= 0 ? '✓ Complete' : `${fmtMoney(minDollarLeft)} left`}
-                  </span>
+                  {minDollarLeft <= 0 && minTimeLeft <= 0 && (
+                    <span className="text-xs font-medium text-green-400">✓ Complete</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <div className="text-xs text-zinc-600">$ left</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{fmtMoney(minDollarLeft)}</div>
+                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">${Math.round(minDollarLeft)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-zinc-600">orders</div>
@@ -685,14 +716,14 @@ export default function GigTracker() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Stretch Goal</span>
-                  <span className={`text-xs font-medium ${stretchDollarLeft <= 0 && stretchTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-500'}`}>
-                    {stretchDollarLeft <= 0 && stretchTimeLeft <= 0 ? '✓ Complete' : `${fmtMoney(stretchDollarLeft)} left`}
-                  </span>
+                  {stretchDollarLeft <= 0 && stretchTimeLeft <= 0 && (
+                    <span className="text-xs font-medium text-green-400">✓ Complete</span>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <div className="text-xs text-zinc-600">$ left</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{fmtMoney(stretchDollarLeft)}</div>
+                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">${Math.round(stretchDollarLeft)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-zinc-600">orders</div>
@@ -727,37 +758,6 @@ export default function GigTracker() {
               <div className="border-t border-zinc-800 pt-3 text-center">
                 <div className="text-xs text-zinc-500">Recommended</div>
                 <div className="text-lg font-bold text-zinc-200">{orderType}</div>
-              </div>
-            </div>
-
-            {/* Three-Strike tracker */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 font-medium">Strikes</span>
-                  <div className="flex gap-2">
-                    {[0, 1, 2].map(i => (
-                      <div
-                        key={i}
-                        className={`w-5 h-5 rounded-full ${i < strikes ? 'bg-red-500' : 'bg-zinc-700'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => update({ strikes: Math.min(3, strikes + 1) })}
-                    className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
-                  >
-                    + Strike
-                  </button>
-                  <button
-                    onClick={() => update({ strikes: 0 })}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
-                  >
-                    Clear
-                  </button>
-                </div>
               </div>
             </div>
 
