@@ -67,7 +67,7 @@ function getDefaultState() {
     stretchGoalDollars: 156,
     orderLog: [],
     ephElapsedMinutes: 0,
-    etaElapsedMinutes: 0,
+    etaAnchorMs: 0,
     strikes: 0,
     setupCollapsed: false,
     statsCollapsed: true,
@@ -188,15 +188,15 @@ export default function GigTracker() {
     const id = setInterval(() => {
       const s = stateRef.current;
       if (s.shiftStarted && s.startTime) {
-        const elapsed = computeElapsedMinutes(s.startTime, s.breakLength);
-        setState(prev => ({ ...prev, etaElapsedMinutes: elapsed }));
+        setState(prev => ({ ...prev, etaAnchorMs: Date.now() }));
       }
     }, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Persist every state change
+  // Persist every state change (only while a shift is active)
   useEffect(() => {
+    if (!state.shiftStarted) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
@@ -206,7 +206,7 @@ export default function GigTracker() {
 
   function startShift() {
     const elapsed = computeElapsedMinutes(state.startTime, state.breakLength);
-    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaElapsedMinutes: elapsed });
+    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now() });
     if (supabase) {
       supabase.from('gig_tracker_prefs').upsert({
         id:                   'default',
@@ -248,7 +248,7 @@ export default function GigTracker() {
       ...s,
       orderLog: newLog,
       ephElapsedMinutes: currentElapsed,
-      etaElapsedMinutes: currentElapsed,
+      etaAnchorMs: Date.now(),
       strikes: newStrikes,
       lastOrderEph: capturedEph,
     }));
@@ -268,7 +268,7 @@ export default function GigTracker() {
       ...s,
       orderLog: s.orderLog.filter(o => o.id !== id),
       ephElapsedMinutes: currentElapsed,
-      etaElapsedMinutes: currentElapsed,
+      etaAnchorMs: Date.now(),
       lastOrderEph: capturedEph,
     }));
   }
@@ -287,7 +287,7 @@ export default function GigTracker() {
       ...s,
       orderLog: s.orderLog.map(o => o.id === id ? { ...o, amount: newAmount } : o),
       ephElapsedMinutes: currentElapsed,
-      etaElapsedMinutes: currentElapsed,
+      etaAnchorMs: Date.now(),
       lastOrderEph: capturedEph,
     }));
     setEditingOrderId(null);
@@ -297,7 +297,7 @@ export default function GigTracker() {
   // Destructure for derived calcs
   const {
     shiftStarted, startTime, zone, day, breakLength,
-    orderLog, ephElapsedMinutes, etaElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
+    orderLog, ephElapsedMinutes, etaAnchorMs, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
     lastOrderEph, orderType,
   } = state;
   // Coerce to numbers for calculations; state values may be '' while the user is typing
@@ -359,8 +359,7 @@ export default function GigTracker() {
     shiftStartMs = sd.getTime();
   }
 
-  // ETAs anchored to snapshotted elapsed time — only update on order add/remove or 5-min tick
-  const etaAnchorMs = shiftStartMs + etaElapsedMinutes * 60000;
+  // ETAs anchored to snapshotted wall-clock time — only update on order add/remove or 5-min tick
   const minETA = eph > 0 && minDollarLeft > 0
     ? new Date(etaAnchorMs + (minDollarLeft / eph) * 3600000)
     : null;
@@ -448,7 +447,7 @@ export default function GigTracker() {
               <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
                 <span className="text-zinc-500 text-xs shrink-0">hrs</span>
                 <input
-                  type="number" min="0" step="0.5"
+                  type="number" min="0" step="0.5" inputMode="decimal"
                   value={state.minGoalHours}
                   onChange={e => { const v = e.target.value; update({ minGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
                   className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
@@ -457,7 +456,7 @@ export default function GigTracker() {
               <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
                 <span className="text-zinc-500 text-xs shrink-0">$</span>
                 <input
-                  type="number" min="0"
+                  type="number" min="0" inputMode="decimal"
                   value={state.minGoalDollars}
                   onChange={e => { const v = e.target.value; update({ minGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
                   className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
@@ -472,7 +471,7 @@ export default function GigTracker() {
               <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
                 <span className="text-zinc-500 text-xs shrink-0">hrs</span>
                 <input
-                  type="number" min="0" step="0.5"
+                  type="number" min="0" step="0.5" inputMode="decimal"
                   value={state.stretchGoalHours}
                   onChange={e => { const v = e.target.value; update({ stretchGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
                   className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
@@ -481,7 +480,7 @@ export default function GigTracker() {
               <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
                 <span className="text-zinc-500 text-xs shrink-0">$</span>
                 <input
-                  type="number" min="0"
+                  type="number" min="0" inputMode="decimal"
                   value={state.stretchGoalDollars}
                   onChange={e => { const v = e.target.value; update({ stretchGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
                   className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
@@ -570,6 +569,8 @@ export default function GigTracker() {
                   <div className="text-xs text-zinc-500 mb-1">Done by</div>
                   {eph === 0 ? (
                     <div className="text-2xl font-bold text-zinc-600">—</div>
+                  ) : stretchTimeLeft <= 0 ? (
+                    <div className="text-2xl font-bold text-green-400">Done</div>
                   ) : (
                     <>
                       <div className="text-2xl font-bold text-zinc-100 tabular-nums">
@@ -607,7 +608,7 @@ export default function GigTracker() {
                       <span className="text-xl font-normal text-zinc-500">/hr</span>
                     )}
                   </div>
-                  {lastOrderEph > 0 && ephElapsedHours > 0.01 && (
+                  {lastOrderEph > 0 && ephElapsedHours > 0.01 && safeLog.length > 0 && (
                     <div className={`text-sm mt-1.5 ${eph >= lastOrderEph ? 'text-green-400' : 'text-red-400'}`}>
                       {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
                     </div>
@@ -778,7 +779,7 @@ export default function GigTracker() {
                     <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
                       <span className="text-zinc-400 text-base">$</span>
                       <input
-                        type="number" min="0" step="0.01"
+                        type="number" min="0" step="0.01" inputMode="decimal"
                         value={ueInputValue}
                         onChange={e => setUeInputValue(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addOrder('ue', ueInputValue)}
@@ -818,7 +819,7 @@ export default function GigTracker() {
                     <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
                       <span className="text-zinc-400 text-base">$</span>
                       <input
-                        type="number" min="0" step="0.01"
+                        type="number" min="0" step="0.01" inputMode="decimal"
                         value={ddInputValue}
                         onChange={e => setDdInputValue(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && addOrder('dd', ddInputValue)}
@@ -880,6 +881,7 @@ export default function GigTracker() {
                                   type="number"
                                   min="0"
                                   step="0.01"
+                                  inputMode="decimal"
                                   value={editingValue}
                                   onChange={e => setEditingValue(e.target.value)}
                                   onKeyDown={e => {
@@ -892,13 +894,13 @@ export default function GigTracker() {
                               </div>
                               <button
                                 onClick={() => editOrder(order.id, editingValue)}
-                                className="text-green-400 hover:text-green-300 transition-colors p-1 shrink-0"
+                                className="text-green-400 hover:text-green-300 transition-colors p-2.5 shrink-0"
                               >
                                 <Check size={14} />
                               </button>
                               <button
                                 onClick={() => { setEditingOrderId(null); setEditingValue(''); }}
-                                className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                                className="text-zinc-500 hover:text-zinc-300 transition-colors p-2.5 shrink-0"
                               >
                                 <X size={14} />
                               </button>
@@ -913,13 +915,13 @@ export default function GigTracker() {
                               </span>
                               <button
                                 onClick={() => { setEditingOrderId(order.id); setEditingValue(String(order.amount)); }}
-                                className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                                className="text-zinc-600 hover:text-zinc-300 transition-colors p-2.5 shrink-0"
                               >
                                 <Edit2 size={14} />
                               </button>
                               <button
                                 onClick={() => removeOrder(order.id)}
-                                className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
+                                className="text-zinc-600 hover:text-red-400 transition-colors p-2.5 shrink-0"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -939,6 +941,7 @@ export default function GigTracker() {
               <input
                 type="number"
                 min="0"
+                inputMode="decimal"
                 value={breakLength}
                 onChange={e => update({ breakLength: Number(e.target.value) })}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
