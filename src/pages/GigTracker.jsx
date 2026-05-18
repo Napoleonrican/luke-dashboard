@@ -73,6 +73,8 @@ function getDefaultState() {
     statsCollapsed: true,
     orderLogCollapsed: true,
     shiftDate: todayISO(),
+    lastOrderEph: 0,
+    orderType: 'Hourly',
   };
 }
 
@@ -123,6 +125,7 @@ export default function GigTracker() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
+      // Only prompt when there's a valid active shift saved from today
       if (saved && saved.shiftDate === todayISO() && saved.shiftStarted) {
         setSavedResume(saved);
         setResumePrompt(true);
@@ -139,19 +142,24 @@ export default function GigTracker() {
       if (!supabase) return;
       const { data, error } = await supabase
         .from('gig_tracker_prefs')
-        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time')
+        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time, order_type')
         .eq('id', 'default')
         .single();
       if (cancelled || !data || error) return;
-      setState(s => ({
-        ...s,
-        zone:               data.zone               ?? s.zone,
-        minGoalHours:       Number(data.min_goal_hours)    || s.minGoalHours,
-        minGoalDollars:     Number(data.min_goal_dollars)  || s.minGoalDollars,
-        stretchGoalHours:   Number(data.stretch_goal_hours)   || s.stretchGoalHours,
-        stretchGoalDollars: Number(data.stretch_goal_dollars) || s.stretchGoalDollars,
-        ...(data.start_time != null && { startTime: data.start_time }),
-      }));
+      setState(s => {
+        // Don't overwrite a resumed active shift with stale prefs
+        if (s.shiftStarted) return s;
+        return {
+          ...s,
+          zone:               data.zone               ?? s.zone,
+          minGoalHours:       Number(data.min_goal_hours)    || s.minGoalHours,
+          minGoalDollars:     Number(data.min_goal_dollars)  || s.minGoalDollars,
+          stretchGoalHours:   Number(data.stretch_goal_hours)   || s.stretchGoalHours,
+          stretchGoalDollars: Number(data.stretch_goal_dollars) || s.stretchGoalDollars,
+          ...(data.start_time != null && { startTime: data.start_time }),
+          ...(data.order_type != null && { orderType: data.order_type }),
+        };
+      });
     }
     loadPrefs();
     return () => { cancelled = true; };
@@ -208,6 +216,7 @@ export default function GigTracker() {
         min_goal_dollars:     Number(state.minGoalDollars) || 0,
         stretch_goal_hours:   Number(state.stretchGoalHours) || 0,
         stretch_goal_dollars: Number(state.stretchGoalDollars) || 0,
+        order_type:           state.orderType,
         updated_at:           new Date().toISOString(),
       }).then(({ error }) => {
         if (error) console.error('[Supabase upsert error]', error.message);
@@ -219,12 +228,17 @@ export default function GigTracker() {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
 
+    // Capture EPH before this order changes it
+    const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
+    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const currentElapsedHours = currentElapsed / 60;
+    const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
+
     const platformLabel = platform === 'ue' ? 'UberEats' : 'DoorDash';
     const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString() };
     const newLog = [...state.orderLog, newOrder];
     const newCombined = newLog.reduce((s, o) => s + o.amount, 0);
 
-    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
     const newEph = currentElapsed > 0 ? newCombined / (currentElapsed / 60) : 0;
     const dayIndex = DAYS.indexOf(state.day);
     const dayMax = DAY_MAX_EPH[dayIndex] ?? 22;
@@ -236,6 +250,7 @@ export default function GigTracker() {
       ephElapsedMinutes: currentElapsed,
       etaElapsedMinutes: currentElapsed,
       strikes: newStrikes,
+      lastOrderEph: capturedEph,
     }));
 
     if (platform === 'ue') { setUeInputOpen(false); setUeInputValue(''); }
@@ -243,24 +258,37 @@ export default function GigTracker() {
   }
 
   function removeOrder(id) {
+    // Capture EPH before removal
+    const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
     const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const currentElapsedHours = currentElapsed / 60;
+    const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
+
     setState(s => ({
       ...s,
       orderLog: s.orderLog.filter(o => o.id !== id),
       ephElapsedMinutes: currentElapsed,
       etaElapsedMinutes: currentElapsed,
+      lastOrderEph: capturedEph,
     }));
   }
 
   function editOrder(id, newAmountStr) {
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount <= 0) return;
+
+    // Capture EPH before the edit
+    const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
     const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const currentElapsedHours = currentElapsed / 60;
+    const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
+
     setState(s => ({
       ...s,
       orderLog: s.orderLog.map(o => o.id === id ? { ...o, amount: newAmount } : o),
       ephElapsedMinutes: currentElapsed,
       etaElapsedMinutes: currentElapsed,
+      lastOrderEph: capturedEph,
     }));
     setEditingOrderId(null);
     setEditingValue('');
@@ -270,6 +298,7 @@ export default function GigTracker() {
   const {
     shiftStarted, startTime, zone, day, breakLength,
     orderLog, ephElapsedMinutes, etaElapsedMinutes, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
+    lastOrderEph, orderType,
   } = state;
   // Coerce to numbers for calculations; state values may be '' while the user is typing
   const minGoalHours = Number(state.minGoalHours) || 0;
@@ -365,6 +394,115 @@ export default function GigTracker() {
     }
   }
 
+  // Shift Setup section — rendered at top (pre-shift) or bottom (active shift)
+  const shiftSetupSection = (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <button
+        onClick={() => update({ setupCollapsed: !setupCollapsed })}
+        className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
+      >
+        <span className="text-sm font-semibold text-zinc-200">Shift Setup</span>
+        {setupCollapsed
+          ? <ChevronDown size={16} className="text-zinc-500" />
+          : <ChevronUp size={16} className="text-zinc-500" />}
+      </button>
+
+      {!setupCollapsed && (
+        <div className="px-4 pb-5 space-y-4 border-t border-zinc-800">
+          <div className="grid grid-cols-2 gap-3 pt-4">
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1.5">Start Time</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={e => update({ startTime: e.target.value })}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1.5">Day</label>
+              <select
+                value={day}
+                onChange={e => update({ day: e.target.value })}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
+              >
+                {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1.5">Zone</label>
+            <select
+              value={zone}
+              onChange={e => update({ zone: e.target.value })}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
+            >
+              {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1.5">Min Goal</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
+                <span className="text-zinc-500 text-xs shrink-0">hrs</span>
+                <input
+                  type="number" min="0" step="0.5"
+                  value={state.minGoalHours}
+                  onChange={e => { const v = e.target.value; update({ minGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
+                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
+                <span className="text-zinc-500 text-xs shrink-0">$</span>
+                <input
+                  type="number" min="0"
+                  value={state.minGoalDollars}
+                  onChange={e => { const v = e.target.value; update({ minGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
+                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-zinc-500 mb-1.5">Stretch Goal</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
+                <span className="text-zinc-500 text-xs shrink-0">hrs</span>
+                <input
+                  type="number" min="0" step="0.5"
+                  value={state.stretchGoalHours}
+                  onChange={e => { const v = e.target.value; update({ stretchGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
+                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
+                <span className="text-zinc-500 text-xs shrink-0">$</span>
+                <input
+                  type="number" min="0"
+                  value={state.stretchGoalDollars}
+                  onChange={e => { const v = e.target.value; update({ stretchGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
+                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                />
+              </div>
+            </div>
+          </div>
+
+          {!shiftStarted && (
+            <button
+              onClick={startShift}
+              className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold rounded-xl py-3.5 min-h-[52px] text-sm transition-colors mt-2"
+            >
+              Start Shift
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TopNav />
@@ -382,7 +520,11 @@ export default function GigTracker() {
                 Resume
               </button>
               <button
-                onClick={() => setResumePrompt(false)}
+                onClick={() => {
+                  // Clear localStorage so this prompt doesn't reappear on next load
+                  localStorage.removeItem(STORAGE_KEY);
+                  setResumePrompt(false);
+                }}
                 className="rounded-lg bg-zinc-700 hover:bg-zinc-600 px-4 py-2 text-sm font-medium text-zinc-200 min-h-[40px] transition-colors"
               >
                 Discard
@@ -409,125 +551,10 @@ export default function GigTracker() {
           </div>
         )}
 
-        {/* ── Section 1: Shift Setup ── */}
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-          <button
-            onClick={() => update({ setupCollapsed: !setupCollapsed })}
-            className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
-          >
-            <span className="text-sm font-semibold text-zinc-200">Shift Setup</span>
-            {setupCollapsed
-              ? <ChevronDown size={16} className="text-zinc-500" />
-              : <ChevronUp size={16} className="text-zinc-500" />}
-          </button>
+        {/* Shift Setup — at TOP only when shift not yet started */}
+        {!shiftStarted && shiftSetupSection}
 
-          {!setupCollapsed && (
-            <div className="px-4 pb-5 space-y-4 border-t border-zinc-800">
-              <div className="grid grid-cols-2 gap-3 pt-4">
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-1.5">Start Time</label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={e => update({ startTime: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-1.5">Day</label>
-                  <select
-                    value={day}
-                    onChange={e => update({ day: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
-                  >
-                    {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1.5">Zone</label>
-                <select
-                  value={zone}
-                  onChange={e => update({ zone: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
-                >
-                  {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1.5">Break Length (min)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={breakLength}
-                  onChange={e => update({ breakLength: Number(e.target.value) })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1.5">Min Goal</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
-                    <span className="text-zinc-500 text-xs shrink-0">hrs</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={state.minGoalHours}
-                      onChange={e => { const v = e.target.value; update({ minGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
-                      className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
-                    <span className="text-zinc-500 text-xs shrink-0">$</span>
-                    <input
-                      type="number" min="0"
-                      value={state.minGoalDollars}
-                      onChange={e => { const v = e.target.value; update({ minGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
-                      className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1.5">Stretch Goal</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
-                    <span className="text-zinc-500 text-xs shrink-0">hrs</span>
-                    <input
-                      type="number" min="0" step="0.5"
-                      value={state.stretchGoalHours}
-                      onChange={e => { const v = e.target.value; update({ stretchGoalHours: v === '' ? '' : parseFloat(v) || 0 }); }}
-                      className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 min-h-[44px]">
-                    <span className="text-zinc-500 text-xs shrink-0">$</span>
-                    <input
-                      type="number" min="0"
-                      value={state.stretchGoalDollars}
-                      onChange={e => { const v = e.target.value; update({ stretchGoalDollars: v === '' ? '' : parseFloat(v) || 0 }); }}
-                      className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {!shiftStarted && (
-                <button
-                  onClick={startShift}
-                  className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold rounded-xl py-3.5 min-h-[52px] text-sm transition-colors mt-2"
-                >
-                  Start Shift
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Section 2: Live Dashboard ── */}
+        {/* ── Live Dashboard ── */}
         {shiftStarted && (
           <>
             {/* Time row */}
@@ -554,31 +581,54 @@ export default function GigTracker() {
               </div>
             </div>
 
-            {/* Earnings + EPH */}
+            {/* EPH card */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-xs text-zinc-500 mb-1">UberEats</div>
-                  <div className="text-3xl font-bold text-zinc-100 tabular-nums">{fmtMoney(ueTotal)}</div>
-                  <div className="text-xs text-zinc-600 mt-0.5">{ueOrders.length} order{ueOrders.length !== 1 ? 's' : ''}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-zinc-500 mb-1">DoorDash</div>
-                  <div className="text-3xl font-bold text-zinc-100 tabular-nums">{fmtMoney(ddTotal)}</div>
-                  <div className="text-xs text-zinc-600 mt-0.5">{ddOrders.length} order{ddOrders.length !== 1 ? 's' : ''}</div>
-                </div>
+              <div className="text-xs text-zinc-500 mb-2">Combined EPH</div>
+              <div className={`text-5xl font-bold tabular-nums ${ephElapsedHours > 0.01 ? ephColor : 'text-zinc-600'}`}>
+                {ephElapsedHours > 0.01 ? fmtMoney(eph) : '—'}
+                {ephElapsedHours > 0.01 && (
+                  <span className="text-2xl font-normal text-zinc-500">/hr</span>
+                )}
               </div>
-              <div className="text-center border-t border-zinc-800 pt-4">
-                <div className="text-xs text-zinc-500 mb-1">Combined EPH</div>
-                <div className={`text-5xl font-bold tabular-nums ${ephColor}`}>
-                  {ephElapsedHours > 0.01 ? fmtMoney(eph) : '—'}
-                  {ephElapsedHours > 0.01 && (
-                    <span className="text-2xl font-normal text-zinc-500">/hr</span>
-                  )}
+              {lastOrderEph > 0 && ephElapsedHours > 0.01 && (
+                <div className={`text-sm mt-1.5 ${eph >= lastOrderEph ? 'text-green-400' : 'text-red-400'}`}>
+                  {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
                 </div>
-                <div className="text-xs text-zinc-600 mt-1.5">
-                  Zone avg: ${zoneEPH.toFixed(2)}/hr ({zone}, {day})
+              )}
+              <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center gap-2 flex-wrap text-xs text-zinc-400">
+                <span>Zone avg ${zoneEPH.toFixed(2)}</span>
+                <span className="text-zinc-700">·</span>
+                <span>Max ${dayMax.toFixed(2)}</span>
+                <span className="text-zinc-700">·</span>
+                <span className="text-zinc-200 font-semibold">{fmtMoney(combined)} total</span>
+              </div>
+            </div>
+
+            {/* Orders/hr card */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-zinc-500 mb-1">Orders / hr</div>
+                  <div className={`text-4xl font-bold tabular-nums ${
+                    totalOrders === 0 || elapsedHours === 0
+                      ? 'text-zinc-600'
+                      : ordersPerHour < 2 ? 'text-red-400' : 'text-green-400'
+                  }`}>
+                    {totalOrders === 0 || elapsedHours === 0 ? '—' : ordersPerHour.toFixed(1)}
+                  </div>
                 </div>
+                {totalOrders > 0 && elapsedHours > 0 && (
+                  <div className={`px-3 py-2 rounded-lg text-sm font-semibold text-right ${
+                    ordersPerHour < 2
+                      ? 'bg-red-950 border border-red-800 text-red-300'
+                      : 'bg-green-950 border border-green-800 text-green-300'
+                  }`}>
+                    <div>{ordersPerHour < 2 ? 'Below 2/hr' : 'Above 2/hr'}</div>
+                    <div className="text-xs font-normal mt-0.5">
+                      {ordersPerHour < 2 ? 'Accept next offer' : 'You can decline selectively'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -663,26 +713,20 @@ export default function GigTracker() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <div className="text-xs text-zinc-500">Order Min</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{fmtMoney(orderMin)}</div>
+                  <div className="text-lg font-bold text-zinc-200 tabular-nums">${Math.round(orderMin)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-zinc-500">Miles Max</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{avgMiles.toFixed(1)}</div>
+                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{Math.round(avgMiles)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-zinc-500">Avg Trip</div>
                   <div className="text-lg font-bold text-zinc-200 tabular-nums">{Math.round(avgTripMins)}m</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-center border-t border-zinc-800 pt-3">
-                <div>
-                  <div className="text-xs text-zinc-500">Avg EPH</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{fmtMoney(zoneEPH)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500">Max EPH</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{fmtMoney(dayMax)}</div>
-                </div>
+              <div className="border-t border-zinc-800 pt-3 text-center">
+                <div className="text-xs text-zinc-500">Recommended</div>
+                <div className="text-lg font-bold text-zinc-200">{orderType}</div>
               </div>
             </div>
 
@@ -716,222 +760,231 @@ export default function GigTracker() {
                 </div>
               </div>
             </div>
-          </>
-        )}
 
-        {/* ── Section 3: Order Entry ── */}
-        {shiftStarted && (
-          <div className="mt-3 space-y-3">
-            {/* UberEats */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-              {!ueInputOpen ? (
-                <button
-                  onClick={() => setUeInputOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 py-4 min-h-[60px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
-                >
-                  <Plus size={18} />
-                  UberEats Order
-                </button>
-              ) : (
-                <div className="p-3 flex gap-2 items-stretch">
-                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
-                    <span className="text-zinc-400 text-base">$</span>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={ueInputValue}
-                      onChange={e => setUeInputValue(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addOrder('ue', ueInputValue)}
-                      autoFocus
-                      placeholder="0.00"
-                      className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
-                    />
-                  </div>
+            {/* Order entry — prominent tap cards */}
+            <div className="mt-3 space-y-3">
+              {/* UberEats */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+                {!ueInputOpen ? (
                   <button
-                    onClick={() => addOrder('ue', ueInputValue)}
-                    className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
+                    onClick={() => setUeInputOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-5 min-h-[68px] text-base font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
                   >
-                    Add
+                    <Plus size={20} />
+                    UberEats Order
                   </button>
-                  <button
-                    onClick={() => { setUeInputOpen(false); setUeInputValue(''); }}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* DoorDash */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-              {!ddInputOpen ? (
-                <button
-                  onClick={() => setDdInputOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 py-4 min-h-[60px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
-                >
-                  <Plus size={18} />
-                  DoorDash Order
-                </button>
-              ) : (
-                <div className="p-3 flex gap-2 items-stretch">
-                  <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
-                    <span className="text-zinc-400 text-base">$</span>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={ddInputValue}
-                      onChange={e => setDdInputValue(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addOrder('dd', ddInputValue)}
-                      autoFocus
-                      placeholder="0.00"
-                      className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
-                    />
-                  </div>
-                  <button
-                    onClick={() => addOrder('dd', ddInputValue)}
-                    className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => { setDdInputOpen(false); setDdInputValue(''); }}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Section 4: Order Log ── */}
-        {shiftStarted && safeLog.length > 0 && (
-          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-            <button
-              onClick={() => update({ orderLogCollapsed: !orderLogCollapsed })}
-              className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
-            >
-              <span className="text-sm font-semibold text-zinc-200">
-                Order Log <span className="text-zinc-500 font-normal">({safeLog.length})</span>
-              </span>
-              {orderLogCollapsed
-                ? <ChevronDown size={16} className="text-zinc-500" />
-                : <ChevronUp size={16} className="text-zinc-500" />}
-            </button>
-
-            {!orderLogCollapsed && (
-              <div className="border-t border-zinc-800 divide-y divide-zinc-800 max-h-[400px] overflow-y-auto">
-                {[...safeLog].reverse().map(order => {
-                  const isEditing = editingOrderId === order.id;
-                  return (
-                    <div key={order.id} className="flex items-center gap-3 px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
-                        order.platform === 'UberEats'
-                          ? 'bg-green-900 text-green-300'
-                          : 'bg-red-900 text-red-300'
-                      }`}>
-                        {order.platform === 'UberEats' ? 'UE' : 'DD'}
-                      </span>
-                      {isEditing ? (
-                        <>
-                          <div className="flex items-center gap-1 flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-2 py-1 min-w-0">
-                            <span className="text-zinc-400 text-sm">$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={editingValue}
-                              onChange={e => setEditingValue(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') editOrder(order.id, editingValue);
-                                if (e.key === 'Escape') { setEditingOrderId(null); setEditingValue(''); }
-                              }}
-                              autoFocus
-                              className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
-                            />
-                          </div>
-                          <button
-                            onClick={() => editOrder(order.id, editingValue)}
-                            className="text-green-400 hover:text-green-300 transition-colors p-1 shrink-0"
-                          >
-                            <Check size={14} />
-                          </button>
-                          <button
-                            onClick={() => { setEditingOrderId(null); setEditingValue(''); }}
-                            className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 shrink-0"
-                          >
-                            <X size={14} />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
-                            {fmtMoney(order.amount)}
-                          </span>
-                          <span className="text-xs text-zinc-500">
-                            {fmtTime(new Date(order.timestamp))}
-                          </span>
-                          <button
-                            onClick={() => { setEditingOrderId(order.id); setEditingValue(String(order.amount)); }}
-                            className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 shrink-0"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => removeOrder(order.id)}
-                            className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
-                      )}
+                ) : (
+                  <div className="p-3 flex gap-2 items-stretch">
+                    <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
+                      <span className="text-zinc-400 text-base">$</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={ueInputValue}
+                        onChange={e => setUeInputValue(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addOrder('ue', ueInputValue)}
+                        autoFocus
+                        placeholder="0.00"
+                        className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
+                      />
                     </div>
-                  );
-                })}
+                    <button
+                      onClick={() => addOrder('ue', ueInputValue)}
+                      className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => { setUeInputOpen(false); setUeInputValue(''); }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ── Section 5: Detailed Stats ── */}
-        {shiftStarted && (
-          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-            <button
-              onClick={() => update({ statsCollapsed: !statsCollapsed })}
-              className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
-            >
-              <span className="text-sm font-semibold text-zinc-200">Detailed Stats</span>
-              {statsCollapsed
-                ? <ChevronDown size={16} className="text-zinc-500" />
-                : <ChevronUp size={16} className="text-zinc-500" />}
-            </button>
+              {/* DoorDash */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+                {!ddInputOpen ? (
+                  <button
+                    onClick={() => setDdInputOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-5 min-h-[68px] text-base font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
+                  >
+                    <Plus size={20} />
+                    DoorDash Order
+                  </button>
+                ) : (
+                  <div className="p-3 flex gap-2 items-stretch">
+                    <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
+                      <span className="text-zinc-400 text-base">$</span>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={ddInputValue}
+                        onChange={e => setDdInputValue(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addOrder('dd', ddInputValue)}
+                        autoFocus
+                        placeholder="0.00"
+                        className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
+                      />
+                    </div>
+                    <button
+                      onClick={() => addOrder('dd', ddInputValue)}
+                      className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => { setDdInputOpen(false); setDdInputValue(''); }}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {!statsCollapsed && (
-              <div className="px-4 pb-4 border-t border-zinc-800">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 pt-4">
-                  <StatRow label="Orders/hr" value={elapsedHours > 0 && totalOrders > 0 ? ordersPerHour.toFixed(1) : '—'} />
-                  <StatRow label="Per-order avg" value={totalOrders > 0 ? fmtMoney(perOrderPay) : '—'} />
-                  <StatRow label="UE orders" value={ueOrders.length} />
-                  <StatRow label="DD orders" value={ddOrders.length} />
-                  <StatRow label="Total orders" value={totalOrders} />
-                  <StatRow label="Combined total" value={fmtMoney(combined)} />
-                  <StatRow label="Avg trip time" value={`${Math.round(avgTripMins)} min`} />
-                  <StatRow label="Break length" value={`${breakLength} min`} />
-                </div>
-
+            {/* Order Log */}
+            {safeLog.length > 0 && (
+              <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
                 <button
-                  onClick={() => {
-                    if (window.confirm('Reset shift? This clears all orders and earnings.')) {
-                      setState(getDefaultState());
-                    }
-                  }}
-                  className="mt-5 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
+                  onClick={() => update({ orderLogCollapsed: !orderLogCollapsed })}
+                  className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
                 >
-                  Reset Shift
+                  <span className="text-sm font-semibold text-zinc-200">
+                    Order Log <span className="text-zinc-500 font-normal">({safeLog.length})</span>
+                  </span>
+                  {orderLogCollapsed
+                    ? <ChevronDown size={16} className="text-zinc-500" />
+                    : <ChevronUp size={16} className="text-zinc-500" />}
                 </button>
+
+                {!orderLogCollapsed && (
+                  <div className="border-t border-zinc-800 divide-y divide-zinc-800 max-h-[400px] overflow-y-auto">
+                    {[...safeLog].reverse().map(order => {
+                      const isEditing = editingOrderId === order.id;
+                      return (
+                        <div key={order.id} className="flex items-center gap-3 px-4 py-3">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded shrink-0 ${
+                            order.platform === 'UberEats'
+                              ? 'bg-green-900 text-green-300'
+                              : 'bg-red-900 text-red-300'
+                          }`}>
+                            {order.platform === 'UberEats' ? 'UE' : 'DD'}
+                          </span>
+                          {isEditing ? (
+                            <>
+                              <div className="flex items-center gap-1 flex-1 bg-zinc-800 border border-zinc-600 rounded-lg px-2 py-1 min-w-0">
+                                <span className="text-zinc-400 text-sm">$</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={editingValue}
+                                  onChange={e => setEditingValue(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') editOrder(order.id, editingValue);
+                                    if (e.key === 'Escape') { setEditingOrderId(null); setEditingValue(''); }
+                                  }}
+                                  autoFocus
+                                  className="flex-1 bg-transparent text-sm text-zinc-100 outline-none min-w-0"
+                                />
+                              </div>
+                              <button
+                                onClick={() => editOrder(order.id, editingValue)}
+                                className="text-green-400 hover:text-green-300 transition-colors p-1 shrink-0"
+                              >
+                                <Check size={14} />
+                              </button>
+                              <button
+                                onClick={() => { setEditingOrderId(null); setEditingValue(''); }}
+                                className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                              >
+                                <X size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
+                                {fmtMoney(order.amount)}
+                              </span>
+                              <span className="text-xs text-zinc-500">
+                                {fmtTime(new Date(order.timestamp))}
+                              </span>
+                              <button
+                                onClick={() => { setEditingOrderId(order.id); setEditingValue(String(order.amount)); }}
+                                className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 shrink-0"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => removeOrder(order.id)}
+                                className="text-zinc-600 hover:text-red-400 transition-colors p-1 shrink-0"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+
+            {/* Break taken card */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <label className="block text-xs text-zinc-500 mb-2">Break taken (min)</label>
+              <input
+                type="number"
+                min="0"
+                value={breakLength}
+                onChange={e => update({ breakLength: Number(e.target.value) })}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
+              />
+            </div>
+
+            {/* Detailed Stats */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <button
+                onClick={() => update({ statsCollapsed: !statsCollapsed })}
+                className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
+              >
+                <span className="text-sm font-semibold text-zinc-200">Detailed Stats</span>
+                {statsCollapsed
+                  ? <ChevronDown size={16} className="text-zinc-500" />
+                  : <ChevronUp size={16} className="text-zinc-500" />}
+              </button>
+
+              {!statsCollapsed && (
+                <div className="px-4 pb-4 border-t border-zinc-800">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 pt-4">
+                    <StatRow label="Orders/hr" value={elapsedHours > 0 && totalOrders > 0 ? ordersPerHour.toFixed(1) : '—'} />
+                    <StatRow label="Per-order avg" value={totalOrders > 0 ? fmtMoney(perOrderPay) : '—'} />
+                    <StatRow label="UberEats total" value={`${fmtMoney(ueTotal)} (${ueOrders.length} orders)`} />
+                    <StatRow label="DoorDash total" value={`${fmtMoney(ddTotal)} (${ddOrders.length} orders)`} />
+                    <StatRow label="Total orders" value={totalOrders} />
+                    <StatRow label="Avg trip time" value={`${Math.round(avgTripMins)} min`} />
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Reset shift? This clears all orders and earnings.')) {
+                        setState(getDefaultState());
+                      }
+                    }}
+                    className="mt-5 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
+                  >
+                    Reset Shift
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Shift Setup — at BOTTOM when shift is active */}
+            {shiftSetupSection}
+          </>
         )}
 
       </main>
