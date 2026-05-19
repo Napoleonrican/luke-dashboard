@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 const STORAGE_KEY = 'gig_tracker_state';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ZONES = ['Augusta', 'Brunswick/Bath/Freeport', 'Lewiston', 'Portland'];
+const DOW_FULL = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
 
 // Highest EPH across all 4 zones per day (Sun=0 … Sat=6)
 const DAY_MAX_EPH = [21.93, 21.25, 22.06, 23.04, 23.42, 23.60, 25.15];
@@ -133,6 +134,27 @@ export default function GigTracker() {
   // Always-fresh ref for zoneData (used inside addOrder callback)
   const zoneDataRef = useRef(null);
   useEffect(() => { zoneDataRef.current = zoneData; }, [zoneData]);
+
+  // Auto-populate goal fields from weekly_schedule when schedule loads or is pasted
+  useEffect(() => {
+    if (!weeklySchedule) return;
+    const s = stateRef.current;
+    if (s.shiftStarted) return;
+    const todayFull = DOW_FULL[s.day];
+    const rows = weeklySchedule.rows || [];
+    // Prefer zone+DOW match, fall back to DOW-only
+    const match = rows.find(r => r.dow === todayFull && r.area === s.zone)
+               ?? rows.find(r => r.dow === todayFull);
+    if (!match) return;
+    const patch = {};
+    if (match.min_earnings != null) patch.minGoalDollars   = match.min_earnings;
+    if (match.min_hours    != null) patch.minGoalHours     = match.min_hours;
+    if (match.max_earnings != null) patch.stretchGoalDollars = match.max_earnings;
+    if (match.max_hours    != null) patch.stretchGoalHours   = match.max_hours;
+    if (Object.keys(patch).length > 0) {
+      setState(prev => prev.shiftStarted ? prev : { ...prev, ...patch });
+    }
+  }, [weeklySchedule]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check for resumable shift on mount
   useEffect(() => {
