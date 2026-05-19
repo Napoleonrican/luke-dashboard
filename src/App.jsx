@@ -20,9 +20,7 @@ export default function App() {
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
-        <Route path="/gig-tracker" element={
-          <ProtectedRoute><GigTracker /></ProtectedRoute>
-        } />
+        <Route path="/gig-tracker" element={<GigTracker />} />
       </Routes>
     </div>
   );
