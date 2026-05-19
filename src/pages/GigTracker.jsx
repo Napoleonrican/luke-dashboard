@@ -474,27 +474,55 @@ export default function GigTracker() {
   function parsePastedSchedule(text) {
     const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
     if (lines.length === 0) return null;
-    return lines.map(line => {
-      const cols = line.split('\t');
-      function excelTimeToHHMM(val) {
-        const n = parseFloat(val);
-        if (isNaN(n) || n <= 0) return null;
+
+    function parseTime(val) {
+      if (val == null) return null;
+      const s = String(val).trim();
+      if (!s) return null;
+      // "5:00 PM" / "11:30 AM" (Excel renders times in 12h format on paste)
+      const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (ampm) {
+        let h = parseInt(ampm[1], 10);
+        const m = parseInt(ampm[2], 10);
+        if (/pm/i.test(ampm[3])) { if (h !== 12) h += 12; }
+        else { if (h === 12) h = 0; }
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      }
+      // "17:30" — already 24h
+      const hhmm = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (hhmm) return `${String(parseInt(hhmm[1])).padStart(2,'0')}:${hhmm[2]}`;
+      // Excel time fraction (0–1), e.g. 0.7708 = 18:30
+      const n = parseFloat(s);
+      if (!isNaN(n) && n > 0 && n < 1) {
         const totalMin = Math.round(n * 1440);
         const h = Math.floor(totalMin / 60) % 24;
         const m = totalMin % 60;
         return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
       }
+      return null;
+    }
+
+    function parseMoney(val) {
+      if (val == null) return null;
+      const s = String(val).trim().replace(/[$,]/g, '');
+      if (s === '') return null;
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    }
+
+    return lines.map(line => {
+      const cols = line.split('\t');
       return {
         lob:          cols[0] != null && cols[0] !== '' ? parseFloat(cols[0]) : null,
         dow:          cols[1]?.trim() || null,
         area:         cols[2]?.trim() || null,
-        earliest:     excelTimeToHHMM(cols[3]),
-        latest:       excelTimeToHHMM(cols[4]),
+        earliest:     parseTime(cols[3]),
+        latest:       parseTime(cols[4]),
         type:         cols[5]?.trim() || null,
-        min_earnings: parseFloat(cols[6]) || null,
-        min_hours:    parseFloat(cols[7]) || null,
-        max_earnings: parseFloat(cols[8]) || null,
-        max_hours:    parseFloat(cols[9]) || null,
+        min_earnings: parseMoney(cols[6]),
+        min_hours:    parseMoney(cols[7]),
+        max_earnings: parseMoney(cols[8]),
+        max_hours:    parseMoney(cols[9]),
       };
     });
   }
