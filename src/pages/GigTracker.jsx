@@ -25,6 +25,8 @@ const ZONE_TRIP_MINS = {
   'Portland':                { Sun: 33.93, Mon: 32.36, Tue: 34.42, Wed: 29.42, Thu: 37.07, Fri: 33.37, Sat: 34.51 },
 };
 
+const ORDER_TYPE_MAP = { 'Hourly-Test': 'Hourly', 'Order': 'Per-Order' };
+
 const ZONE_MILES = {
   'Augusta':                 { Sun: 11.30, Mon: 15.23, Tue: 12.44, Wed: 20.50, Thu: 15.28, Fri: 15.79, Sat: 10.67 },
   'Brunswick/Bath/Freeport': { Sun: 10.54, Mon: 11.64, Tue: 11.79, Wed: 10.76, Thu: 10.51, Fri: 12.04, Sat: 10.09 },
@@ -135,7 +137,7 @@ export default function GigTracker() {
   const zoneDataRef = useRef(null);
   useEffect(() => { zoneDataRef.current = zoneData; }, [zoneData]);
 
-  // Auto-populate goal fields from weekly_schedule when schedule loads or is pasted
+  // Auto-populate goal fields + zone + orderType from weekly_schedule when schedule loads or is pasted
   useEffect(() => {
     if (!weeklySchedule) return;
     const s = stateRef.current;
@@ -151,6 +153,8 @@ export default function GigTracker() {
     if (match.min_hours    != null) patch.minGoalHours     = match.min_hours;
     if (match.max_earnings != null) patch.stretchGoalDollars = match.max_earnings;
     if (match.max_hours    != null) patch.stretchGoalHours   = match.max_hours;
+    if (match.area != null)         patch.zone              = match.area;
+    if (match.type != null)         patch.orderType         = ORDER_TYPE_MAP[match.type] ?? match.type;
     if (Object.keys(patch).length > 0) {
       setState(prev => prev.shiftStarted ? prev : { ...prev, ...patch });
     }
@@ -172,20 +176,50 @@ export default function GigTracker() {
     }
   }, []);
 
-  // Load saved setup prefs from Supabase on mount
+  // Load saved setup prefs from Supabase on mount; apply 12h stale check against today's schedule row
   useEffect(() => {
     let cancelled = false;
     async function loadPrefs() {
       if (!supabase) return;
-      const { data, error } = await supabase
-        .from('gig_tracker_prefs')
-        .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time, order_type')
-        .eq('id', 'default')
-        .single();
-      if (cancelled || !data || error) return;
+      const todayFull = DOW_FULL[todayDay()];
+      const [prefsRes, schedRes] = await Promise.all([
+        supabase
+          .from('gig_tracker_prefs')
+          .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time, order_type, updated_at')
+          .eq('id', 'default')
+          .single(),
+        supabase
+          .from('weekly_schedule')
+          .select('*')
+          .order('week_start_date', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const data = prefsRes.data;
+      if (!data || prefsRes.error) return;
+
+      const isStale = !data.updated_at ||
+        (Date.now() - new Date(data.updated_at).getTime()) > 12 * 60 * 60 * 1000;
+
+      let schedMatch = null;
+      if (!schedRes.error && schedRes.data) {
+        const rows = schedRes.data.rows || [];
+        schedMatch = rows.find(r => r.dow === todayFull) ?? null;
+      }
+
       setState(s => {
-        // Don't overwrite a resumed active shift with stale prefs
         if (s.shiftStarted) return s;
+        if (isStale && schedMatch) {
+          const patch = {};
+          if (schedMatch.area != null)         patch.zone              = schedMatch.area;
+          if (schedMatch.min_earnings != null)  patch.minGoalDollars    = schedMatch.min_earnings;
+          if (schedMatch.min_hours != null)     patch.minGoalHours      = schedMatch.min_hours;
+          if (schedMatch.max_earnings != null)  patch.stretchGoalDollars = schedMatch.max_earnings;
+          if (schedMatch.max_hours != null)     patch.stretchGoalHours   = schedMatch.max_hours;
+          if (schedMatch.type != null)          patch.orderType         = ORDER_TYPE_MAP[schedMatch.type] ?? schedMatch.type;
+          return { ...s, ...patch };
+        }
         return {
           ...s,
           zone:               data.zone               ?? s.zone,
@@ -510,7 +544,7 @@ export default function GigTracker() {
       return isNaN(n) ? null : n;
     }
 
-    return lines.map(line => {
+    const parsed = lines.map(line => {
       const cols = line.split('\t');
       return {
         lob:          cols[0] != null && cols[0] !== '' ? parseFloat(cols[0]) : null,
@@ -525,6 +559,14 @@ export default function GigTracker() {
         max_hours:    parseMoney(cols[9]),
       };
     });
+
+    const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return WEEK_DAYS.map(dow =>
+      parsed.find(r => r.dow === dow) ?? {
+        lob: null, dow, area: null, earliest: null, latest: null,
+        type: null, min_earnings: null, min_hours: null, max_earnings: null, max_hours: null,
+      }
+    );
   }
 
   function getThisWeekStart() {
