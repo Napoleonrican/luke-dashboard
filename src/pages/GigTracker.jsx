@@ -728,10 +728,10 @@ export default function GigTracker() {
                             <th className="text-left py-1 pr-2 font-medium">Day</th>
                             <th className="text-left py-1 pr-2 font-medium">Zone</th>
                             <th className="text-left py-1 pr-2 font-medium">Type</th>
-                            <th className="text-left py-1 pr-2 font-medium">Start</th>
-                            <th className="text-left py-1 pr-2 font-medium">End</th>
                             <th className="text-left py-1 pr-2 font-medium">Min$</th>
-                            <th className="text-left py-1 font-medium">Max$</th>
+                            <th className="text-left py-1 pr-2 font-medium">Min hrs</th>
+                            <th className="text-left py-1 pr-2 font-medium">Max$</th>
+                            <th className="text-left py-1 font-medium">Max hrs</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -740,10 +740,10 @@ export default function GigTracker() {
                               <td className="py-1 pr-2 text-zinc-200 font-medium">{row.dow || '—'}</td>
                               <td className="py-1 pr-2 text-zinc-300">{row.area || '—'}</td>
                               <td className="py-1 pr-2 text-zinc-400">{row.type || '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-400 tabular-nums">{row.earliest || '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-400 tabular-nums">{row.latest || '—'}</td>
                               <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}</td>
-                              <td className="py-1 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
+                              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_hours != null ? row.min_hours : '—'}</td>
+                              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
+                              <td className="py-1 text-zinc-300 tabular-nums">{row.max_hours != null ? row.max_hours : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -794,10 +794,10 @@ export default function GigTracker() {
                               <th className="text-left py-1 pr-2">Day</th>
                               <th className="text-left py-1 pr-2">Zone</th>
                               <th className="text-left py-1 pr-2">Type</th>
-                              <th className="text-left py-1 pr-2">Start</th>
-                              <th className="text-left py-1 pr-2">End</th>
                               <th className="text-left py-1 pr-2">Min$</th>
-                              <th className="text-left py-1">Max$</th>
+                              <th className="text-left py-1 pr-2">Min hrs</th>
+                              <th className="text-left py-1 pr-2">Max$</th>
+                              <th className="text-left py-1">Max hrs</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -806,10 +806,10 @@ export default function GigTracker() {
                                 <td className="py-1 pr-2 text-zinc-200">{row.dow || '—'}</td>
                                 <td className="py-1 pr-2 text-zinc-300">{row.area || '—'}</td>
                                 <td className="py-1 pr-2 text-zinc-400">{row.type || '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-400 tabular-nums">{row.earliest || '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-400 tabular-nums">{row.latest || '—'}</td>
                                 <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}</td>
-                                <td className="py-1 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
+                                <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_hours != null ? row.min_hours : '—'}</td>
+                                <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
+                                <td className="py-1 text-zinc-300 tabular-nums">{row.max_hours != null ? row.max_hours : '—'}</td>
                               </tr>
                             ))}
                           </tbody>
