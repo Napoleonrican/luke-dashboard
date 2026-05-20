@@ -442,6 +442,12 @@ export default function GigTracker() {
   const dayMax = zoneData
     ? (Math.max(...ZONES.map(z => zoneData?.[z]?.[day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIndex] ?? 22))
     : (DAY_MAX_EPH[dayIndex] ?? 22);
+  const allZoneEphs = zoneData
+    ? ZONES.map(z => zoneData[z]?.[day]?.eph).filter(Boolean)
+    : ZONES.map(z => ZONE_EPH[z]?.[day]).filter(Boolean);
+  const zoneAvgEph = allZoneEphs.length > 0
+    ? allZoneEphs.reduce((a, b) => a + b, 0) / allZoneEphs.length
+    : 0;
   const midpoint = (zoneEPH + dayMax) / 2;
 
   const avgTripMins = zoneData?.[zone]?.[day]?.tripMins ?? ZONE_TRIP_MINS[zone]?.[day] ?? 30;
@@ -965,7 +971,7 @@ export default function GigTracker() {
                 </div>
               </div>
               <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center gap-2 flex-wrap text-xs text-zinc-400">
-                <span>Zone avg ${zoneEPH.toFixed(2)}</span>
+                <span>Zone avg ${zoneAvgEph.toFixed(2)}</span>
                 <span className="text-zinc-700">·</span>
                 <span>Max ${dayMax.toFixed(2)}</span>
               </div>
