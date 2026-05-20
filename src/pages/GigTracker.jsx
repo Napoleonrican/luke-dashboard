@@ -149,9 +149,9 @@ export default function GigTracker() {
                ?? rows.find(r => r.dow === todayFull);
     if (!match) return;
     const patch = {};
-    if (match.min_earnings != null) patch.minGoalDollars   = match.min_earnings;
+    if (match.min_earnings != null) patch.minGoalDollars   = Math.round(match.min_earnings);
     if (match.min_hours    != null) patch.minGoalHours     = match.min_hours;
-    if (match.max_earnings != null) patch.stretchGoalDollars = match.max_earnings;
+    if (match.max_earnings != null) patch.stretchGoalDollars = Math.round(match.max_earnings);
     if (match.max_hours    != null) patch.stretchGoalHours   = match.max_hours;
     if (match.area != null)         patch.zone              = match.area;
     if (match.type != null)         patch.orderType         = ORDER_TYPE_MAP[match.type] ?? match.type;
@@ -213,9 +213,9 @@ export default function GigTracker() {
         if (isStale && schedMatch) {
           const patch = {};
           if (schedMatch.area != null)         patch.zone              = schedMatch.area;
-          if (schedMatch.min_earnings != null)  patch.minGoalDollars    = schedMatch.min_earnings;
+          if (schedMatch.min_earnings != null)  patch.minGoalDollars    = Math.round(schedMatch.min_earnings);
           if (schedMatch.min_hours != null)     patch.minGoalHours      = schedMatch.min_hours;
-          if (schedMatch.max_earnings != null)  patch.stretchGoalDollars = schedMatch.max_earnings;
+          if (schedMatch.max_earnings != null)  patch.stretchGoalDollars = Math.round(schedMatch.max_earnings);
           if (schedMatch.max_hours != null)     patch.stretchGoalHours   = schedMatch.max_hours;
           if (schedMatch.type != null)          patch.orderType         = ORDER_TYPE_MAP[schedMatch.type] ?? schedMatch.type;
           return { ...s, ...patch };

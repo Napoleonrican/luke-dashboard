@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS weekly_schedule (
   updated_at       timestamptz NOT NULL DEFAULT now()
 );
 
--- Enable RLS (reads allowed by anon; writes require service role)
+-- Enable RLS
 ALTER TABLE weekly_schedule ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "allow_anon_read_weekly_schedule"
@@ -16,7 +16,14 @@ CREATE POLICY "allow_anon_read_weekly_schedule"
   TO anon
   USING (true);
 
--- Allow authenticated users to upsert (for the paste-schedule UI)
+-- Allow anon to write (paste-schedule UI runs as anon in this single-user personal app)
+CREATE POLICY "allow_anon_write_weekly_schedule"
+  ON weekly_schedule FOR ALL
+  TO anon
+  USING (true)
+  WITH CHECK (true);
+
+-- Allow authenticated users to upsert as well
 CREATE POLICY "allow_authenticated_upsert_weekly_schedule"
   ON weekly_schedule FOR ALL
   TO authenticated
