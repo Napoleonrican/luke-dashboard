@@ -63,7 +63,9 @@ function getDefaultState() {
     startTime: nowHHMM(),
     zone: 'Augusta',
     day: todayDay(),
-    breakLength: 0,
+    breakMinutes: 0,
+    breakRunning: false,
+    breakStartMs: null,
     minGoalHours: 4,
     minGoalDollars: 107,
     stretchGoalHours: 6,
@@ -71,6 +73,7 @@ function getDefaultState() {
     orderLog: [],
     ephElapsedMinutes: 0,
     etaAnchorMs: 0,
+    ordersPerHour: 0,
     strikes: 0,
     setupCollapsed: false,
     statsCollapsed: true,
@@ -275,13 +278,21 @@ export default function GigTracker() {
     return () => clearInterval(id);
   }, []);
 
-  // EPH auto-refresh every 15 minutes
+  // EPH + ordersPerHour snapshot — refreshes every 15 minutes
   useEffect(() => {
     const id = setInterval(() => {
       const s = stateRef.current;
       if (s.shiftStarted && s.startTime) {
-        const elapsed = computeElapsedMinutes(s.startTime, s.breakLength);
-        setState(prev => ({ ...prev, ephElapsedMinutes: elapsed }));
+        const totalBreak = s.breakMinutes + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
+        const elapsed = computeElapsedMinutes(s.startTime, totalBreak);
+        const elapsedHrs = elapsed / 60;
+        const log = s.orderLog ?? [];
+        // ordersPerHour is captured here — do NOT update lastOrderEph in this interval
+        setState(prev => ({
+          ...prev,
+          ephElapsedMinutes: elapsed,
+          ordersPerHour: elapsedHrs > 0 && log.length > 0 ? log.length / elapsedHrs : 0,
+        }));
       }
     }, 15 * 60 * 1000);
     return () => clearInterval(id);
@@ -309,7 +320,8 @@ export default function GigTracker() {
   }
 
   function startShift() {
-    const elapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
+    const elapsed = computeElapsedMinutes(state.startTime, totalBreak);
     update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now() });
     if (supabase) {
       supabase.from('gig_tracker_prefs').upsert({
@@ -332,9 +344,10 @@ export default function GigTracker() {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
 
-    // Capture EPH before this order changes it
+    // Capture EPH as it was just before this order changes the totals (live calc, not snapshot)
     const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
-    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
+    const currentElapsed = computeElapsedMinutes(state.startTime, totalBreak);
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
@@ -365,9 +378,10 @@ export default function GigTracker() {
   }
 
   function removeOrder(id) {
-    // Capture EPH before removal
+    // Capture EPH before removal — only this function (and editOrder/addOrder) may update lastOrderEph
     const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
-    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
+    const currentElapsed = computeElapsedMinutes(state.startTime, totalBreak);
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
@@ -384,9 +398,10 @@ export default function GigTracker() {
     const newAmount = parseFloat(newAmountStr);
     if (isNaN(newAmount) || newAmount <= 0) return;
 
-    // Capture EPH before the edit
+    // Capture EPH before the edit — only this function (and removeOrder/addOrder) may update lastOrderEph
     const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
-    const currentElapsed = computeElapsedMinutes(state.startTime, state.breakLength);
+    const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
+    const currentElapsed = computeElapsedMinutes(state.startTime, totalBreak);
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
@@ -403,9 +418,9 @@ export default function GigTracker() {
 
   // Destructure for derived calcs
   const {
-    shiftStarted, startTime, zone, day, breakLength,
+    shiftStarted, startTime, zone, day, breakMinutes, breakRunning, breakStartMs,
     orderLog, ephElapsedMinutes, etaAnchorMs, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
-    lastOrderEph, orderType,
+    lastOrderEph, orderType, ordersPerHour,
   } = state;
   // Coerce to numbers for calculations; state values may be '' while the user is typing
   const minGoalHours = Number(state.minGoalHours) || 0;
@@ -414,13 +429,15 @@ export default function GigTracker() {
   const stretchGoalDollars = Number(state.stretchGoalDollars) || 0;
 
   // Live elapsed time — used for the clock display and goal timing only
+  // Includes any in-progress break so the clock pauses while on break
   let elapsedMinutes = 0;
   if (shiftStarted && startTime) {
     const [h, m] = startTime.split(':').map(Number);
     const startDate = new Date(now);
     startDate.setHours(h, m, 0, 0);
     if (startDate > now) startDate.setDate(startDate.getDate() - 1);
-    elapsedMinutes = Math.max(0, (now - startDate) / 60000 - Number(breakLength));
+    const liveBreak = Number(breakMinutes) + (breakRunning && breakStartMs ? (now.getTime() - breakStartMs) / 60000 : 0);
+    elapsedMinutes = Math.max(0, (now - startDate) / 60000 - liveBreak);
   }
   const elapsedHours = elapsedMinutes / 60;
 
@@ -454,7 +471,6 @@ export default function GigTracker() {
   const avgMiles = zoneData?.[zone]?.[day]?.miles ?? ZONE_MILES[zone]?.[day] ?? 10;
   const orderMin = zoneEPH * (avgTripMins / 60);
 
-  const ordersPerHour = elapsedHours > 0 && totalOrders > 0 ? totalOrders / elapsedHours : 0;
   const perOrderPay = totalOrders > 0 ? combined / totalOrders : 0;
 
   const minDollarLeft = Math.max(0, minGoalDollars - combined);
@@ -508,6 +524,12 @@ export default function GigTracker() {
       warning = { type: 'amber', msg: '⚠ Time goal met but EPH is lagging' };
     }
   }
+
+  // Break stopwatch display (updates via live `now`)
+  const breakElapsedSecs = breakRunning && breakStartMs
+    ? Math.floor((now.getTime() - breakStartMs) / 1000)
+    : 0;
+  const breakTimerDisplay = `${String(Math.floor(breakElapsedSecs / 60)).padStart(2, '0')}:${String(breakElapsedSecs % 60).padStart(2, '0')}`;
 
   // ── Schedule paste helpers ────────────────────────────────────────────────
 
@@ -946,6 +968,41 @@ export default function GigTracker() {
               </div>
             </div>
 
+            {/* Break stopwatch */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              {breakRunning && breakStartMs ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-zinc-500 mb-1">On break</div>
+                    <div className="text-2xl font-bold tabular-nums text-amber-400">
+                      {breakTimerDisplay}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const elapsedBreakMs = Date.now() - breakStartMs;
+                      update({ breakRunning: false, breakStartMs: null, breakMinutes: breakMinutes + elapsedBreakMs / 60000 });
+                    }}
+                    className="bg-amber-900 hover:bg-amber-800 border border-amber-700 text-amber-300 text-sm font-semibold px-5 rounded-lg min-h-[44px] transition-colors"
+                  >
+                    End Break
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => update({ breakRunning: true, breakStartMs: Date.now() })}
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-2.5 min-h-[44px] transition-colors"
+                >
+                  Take Break
+                </button>
+              )}
+              {breakMinutes > 0 && (
+                <div className="text-xs text-zinc-500 mt-2">
+                  Total break: {Math.round(breakMinutes)} min
+                </div>
+              )}
+            </div>
+
             {/* EPH card — split */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
               <div className="grid grid-cols-2 gap-4">
@@ -983,14 +1040,14 @@ export default function GigTracker() {
                 <div>
                   <div className="text-xs text-zinc-500 mb-1">Orders / hr</div>
                   <div className={`text-4xl font-bold tabular-nums ${
-                    totalOrders === 0 || elapsedHours === 0
+                    ordersPerHour === 0
                       ? 'text-zinc-600'
                       : ordersPerHour < 2 ? 'text-red-400' : 'text-green-400'
                   }`}>
-                    {totalOrders === 0 || elapsedHours === 0 ? '—' : ordersPerHour.toFixed(1)}
+                    {ordersPerHour === 0 ? '—' : ordersPerHour.toFixed(1)}
                   </div>
                 </div>
-                {totalOrders > 0 && elapsedHours > 0 && (
+                {ordersPerHour > 0 && (
                   <div className={`px-3 py-2 rounded-lg text-sm font-semibold text-right ${
                     ordersPerHour < 2
                       ? 'bg-red-950 border border-red-800 text-red-300'
@@ -1284,19 +1341,6 @@ export default function GigTracker() {
               </div>
             )}
 
-            {/* Break taken card */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <label className="block text-xs text-zinc-500 mb-2">Break taken (min)</label>
-              <input
-                type="number"
-                min="0"
-                inputMode="decimal"
-                value={breakLength}
-                onChange={e => update({ breakLength: Number(e.target.value) })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 min-h-[44px] outline-none focus:border-zinc-500"
-              />
-            </div>
-
             {/* Detailed Stats */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
               <button
@@ -1312,7 +1356,7 @@ export default function GigTracker() {
               {!statsCollapsed && (
                 <div className="px-4 pb-4 border-t border-zinc-800">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-4 pt-4">
-                    <StatRow label="Orders/hr" value={elapsedHours > 0 && totalOrders > 0 ? ordersPerHour.toFixed(1) : '—'} />
+                    <StatRow label="Orders/hr" value={ordersPerHour > 0 ? ordersPerHour.toFixed(1) : '—'} />
                     <StatRow label="Per-order avg" value={totalOrders > 0 ? fmtMoney(perOrderPay) : '—'} />
                     <StatRow label="UberEats total" value={`${fmtMoney(ueTotal)} (${ueOrders.length} orders)`} />
                     <StatRow label="DoorDash total" value={`${fmtMoney(ddTotal)} (${ddOrders.length} orders)`} />
