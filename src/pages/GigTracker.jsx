@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 
@@ -120,6 +120,8 @@ export default function GigTracker() {
   const [ddInputValue, setDdInputValue] = useState('');
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
+  const [hamburgerOpen, setHamburgerOpen] = useState(false);
+  const [prefsLoadKey, setPrefsLoadKey] = useState(0);
 
   // Supabase-fetched benchmark data; null = not yet loaded (fallback to hardcoded)
   const [zoneData, setZoneData] = useState(null);
@@ -237,7 +239,7 @@ export default function GigTracker() {
     }
     loadPrefs();
     return () => { cancelled = true; };
-  }, []);
+  }, [prefsLoadKey]);
 
   // Fetch zone benchmarks and latest weekly schedule from Supabase on mount
   useEffect(() => {
@@ -876,6 +878,76 @@ export default function GigTracker() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TopNav />
+
+      {/* Hamburger button — fixed in top-right nav area */}
+      <button
+        onClick={() => setHamburgerOpen(true)}
+        className="fixed top-3 right-4 z-40 p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Hamburger panel — slides in from right */}
+      {hamburgerOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/60"
+            onClick={() => setHamburgerOpen(false)}
+          />
+          <div className="fixed top-0 right-0 h-full w-72 z-50 bg-zinc-900 border-l border-zinc-800 flex flex-col rounded-l-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
+              <span className="text-sm font-semibold text-zinc-200">Menu</span>
+              <button
+                onClick={() => setHamburgerOpen(false)}
+                className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-4">
+              <div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Break Timer</div>
+                {!shiftStarted ? (
+                  <p className="text-xs text-zinc-500">Start a shift to use the break timer.</p>
+                ) : breakRunning && breakStartMs ? (
+                  <div className="space-y-3">
+                    <div>
+                      <div className="text-xs text-zinc-500 mb-1">On break</div>
+                      <div className="text-3xl font-bold tabular-nums text-amber-400">{breakTimerDisplay}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const elapsedBreakMs = Date.now() - breakStartMs;
+                        update({ breakRunning: false, breakStartMs: null, breakMinutes: breakMinutes + elapsedBreakMs / 60000 });
+                      }}
+                      className="w-full bg-amber-900 hover:bg-amber-800 border border-amber-700 text-amber-300 text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      End Break
+                    </button>
+                    {breakMinutes > 0 && (
+                      <div className="text-xs text-zinc-500">Total break: {Math.round(breakMinutes)} min</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => update({ breakRunning: true, breakStartMs: Date.now() })}
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-3 min-h-[44px] transition-colors"
+                    >
+                      Take Break
+                    </button>
+                    {breakMinutes > 0 && (
+                      <div className="text-xs text-zinc-500">Total break: {Math.round(breakMinutes)} min</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <main className="max-w-lg mx-auto px-4 pb-10">
 
         {/* Resume banner */}
@@ -966,41 +1038,6 @@ export default function GigTracker() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Break stopwatch */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              {breakRunning && breakStartMs ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-zinc-500 mb-1">On break</div>
-                    <div className="text-2xl font-bold tabular-nums text-amber-400">
-                      {breakTimerDisplay}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const elapsedBreakMs = Date.now() - breakStartMs;
-                      update({ breakRunning: false, breakStartMs: null, breakMinutes: breakMinutes + elapsedBreakMs / 60000 });
-                    }}
-                    className="bg-amber-900 hover:bg-amber-800 border border-amber-700 text-amber-300 text-sm font-semibold px-5 rounded-lg min-h-[44px] transition-colors"
-                  >
-                    End Break
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => update({ breakRunning: true, breakStartMs: Date.now() })}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-2.5 min-h-[44px] transition-colors"
-                >
-                  Take Break
-                </button>
-              )}
-              {breakMinutes > 0 && (
-                <div className="text-xs text-zinc-500 mt-2">
-                  Total break: {Math.round(breakMinutes)} min
-                </div>
-              )}
             </div>
 
             {/* EPH card — split */}
@@ -1367,7 +1404,9 @@ export default function GigTracker() {
                   <button
                     onClick={() => {
                       if (window.confirm('Reset shift? This clears all orders and earnings.')) {
+                        localStorage.removeItem(STORAGE_KEY);
                         setState(getDefaultState());
+                        setPrefsLoadKey(k => k + 1);
                       }
                     }}
                     className="mt-5 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
