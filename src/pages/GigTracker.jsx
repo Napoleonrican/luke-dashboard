@@ -165,24 +165,24 @@ export default function GigTracker() {
     }
   }, [weeklySchedule]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check for resumable shift on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      // Only prompt when there's a valid active shift saved from today
-      if (saved && saved.shiftDate === todayISO() && saved.shiftStarted) {
-        setSavedResume(saved);
-        setResumePrompt(true);
-      }
-    } catch {
-      // ignore corrupt data
-    }
-  }, []);
-
   // Load saved setup prefs from Supabase on mount; apply 12h stale check against today's schedule row
+  // Also checks localStorage for a resumable shift, but only on first mount (prefsLoadKey === 0).
   useEffect(() => {
+    if (prefsLoadKey === 0) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved && saved.shiftDate === todayISO() && saved.shiftStarted) {
+            setSavedResume(saved);
+            setResumePrompt(true);
+          }
+        }
+      } catch {
+        // ignore corrupt data
+      }
+    }
+
     let cancelled = false;
     async function loadPrefs() {
       if (!supabase) return;
@@ -325,6 +325,7 @@ export default function GigTracker() {
     const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
     const elapsed = computeElapsedMinutes(state.startTime, totalBreak);
     update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now() });
+    setResumePrompt(false);
     if (supabase) {
       supabase.from('gig_tracker_prefs').upsert({
         id:                   'default',
