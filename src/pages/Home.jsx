@@ -45,12 +45,10 @@ const tools = [
 const workshop = [
   {
     icon: ListChecks,
-    title: 'Task Manager',
-    description: 'Capture, prioritize, and knock out your to-do list.',
-    to: '/task-manager',
+    title: 'Daily Planner',
+    description: 'Connect your Microsoft To Do and let AI help you plan your day.',
+    href: 'https://daily-planner-zeta-three.vercel.app/',
     accentColor: 'text-blue-400',
-    locked: true,
-    wip: true,
   },
   {
     icon: Mail,
