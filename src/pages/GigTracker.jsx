@@ -944,6 +944,25 @@ export default function GigTracker() {
                   </div>
                 )}
               </div>
+
+              {shiftStarted && (
+                <div className="pb-2">
+                  <div className="text-xs text-zinc-600 mb-2">Danger zone</div>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Reset shift? This clears all orders and earnings.')) {
+                        setHamburgerOpen(false);
+                        localStorage.removeItem(STORAGE_KEY);
+                        setState(getDefaultState());
+                        setPrefsLoadKey(k => k + 1);
+                      }
+                    }}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+                  >
+                    Reset Shift
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -1070,6 +1089,68 @@ export default function GigTracker() {
                 <span className="text-zinc-700">·</span>
                 <span>Max ${dayMax.toFixed(2)}</span>
               </div>
+
+              {stretchGoalDollars > 0 && (
+                <div className="border-t border-zinc-800 mt-3 pt-3">
+                  {(() => {
+                    const fillPct = Math.min(100, (combined / stretchGoalDollars) * 100);
+                    const minTickPct = Math.min(98, (minGoalDollars / stretchGoalDollars) * 100);
+                    const pastMin = combined > minGoalDollars;
+                    const atMin = combined >= minGoalDollars;
+                    return (
+                      <>
+                        <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          {combined > 0 && (
+                            <>
+                              <div
+                                className="absolute top-0 left-0 h-full bg-green-700 transition-all"
+                                style={{ width: `${pastMin ? minTickPct : fillPct}%` }}
+                              />
+                              {pastMin && (
+                                <div
+                                  className="absolute top-0 h-full bg-green-400 transition-all"
+                                  style={{ left: `${minTickPct}%`, width: `${fillPct - minTickPct}%` }}
+                                />
+                              )}
+                            </>
+                          )}
+                          {minGoalDollars > 0 && (
+                            <div
+                              className="absolute top-0 h-full w-0.5 bg-zinc-400"
+                              style={{ left: `${minTickPct}%` }}
+                            />
+                          )}
+                        </div>
+                        <div className="relative mt-1 h-4">
+                          {minGoalDollars > 0 && (
+                            <span
+                              className="absolute text-xs text-zinc-600 -translate-x-1/2"
+                              style={{ left: `${Math.min(80, minTickPct)}%` }}
+                            >
+                              Min ${minGoalDollars}
+                            </span>
+                          )}
+                          <span className="absolute right-0 text-xs text-zinc-600">
+                            Stretch ${stretchGoalDollars}
+                          </span>
+                        </div>
+                        <div className="mt-1 space-y-0.5">
+                          <div className={`text-xs ${atMin ? 'text-green-400' : 'text-amber-400'}`}>
+                            {atMin
+                              ? '✓ Min reached'
+                              : `Min goal: $${(minGoalDollars - combined).toFixed(2)} remaining`}
+                          </div>
+                          <div className={`text-xs ${combined >= stretchGoalDollars ? 'text-green-400' : 'text-zinc-500'}`}>
+                            {combined >= stretchGoalDollars
+                              ? '✓ Stretch reached'
+                              : `Stretch goal: $${(stretchGoalDollars - combined).toFixed(2)} remaining`}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Orders/hr + Strikes card */}
@@ -1206,22 +1287,23 @@ export default function GigTracker() {
               </div>
             </div>
 
-            {/* Order entry — prominent tap cards */}
-            <div className="mt-3 space-y-3">
+            {/* Order entry — side by side */}
+            <div className="mt-3 flex gap-2">
               {/* UberEats */}
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden min-w-0">
                 {!ueInputOpen ? (
                   <button
                     onClick={() => setUeInputOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 py-5 min-h-[68px] text-base font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
+                    className="w-full flex flex-col items-center justify-center gap-1 py-4 min-h-[68px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
                   >
-                    <Plus size={20} />
-                    UberEats Order
+                    <Plus size={18} />
+                    <span>UberEats</span>
+                    <span className="text-xs font-normal text-zinc-500">Order</span>
                   </button>
                 ) : (
-                  <div className="p-3 flex gap-2 items-stretch">
-                    <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
-                      <span className="text-zinc-400 text-base">$</span>
+                  <div className="p-2 flex flex-col gap-2">
+                    <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 min-h-[44px] border border-zinc-600">
+                      <span className="text-zinc-400 text-sm">$</span>
                       <input
                         type="number" min="0" step="0.01" inputMode="decimal"
                         value={ueInputValue}
@@ -1229,39 +1311,42 @@ export default function GigTracker() {
                         onKeyDown={e => e.key === 'Enter' && addOrder('ue', ueInputValue)}
                         autoFocus
                         placeholder="0.00"
-                        className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
+                        className="flex-1 bg-transparent text-zinc-100 outline-none text-lg min-w-0"
                       />
                     </div>
-                    <button
-                      onClick={() => addOrder('ue', ueInputValue)}
-                      className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setUeInputOpen(false); setUeInputValue(''); }}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => addOrder('ue', ueInputValue)}
+                        className="flex-1 bg-green-700 hover:bg-green-600 text-white font-semibold rounded-lg min-h-[40px] text-sm transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => { setUeInputOpen(false); setUeInputValue(''); }}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-2 rounded-lg min-h-[40px] transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* DoorDash */}
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden min-w-0">
                 {!ddInputOpen ? (
                   <button
                     onClick={() => setDdInputOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 py-5 min-h-[68px] text-base font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
+                    className="w-full flex flex-col items-center justify-center gap-1 py-4 min-h-[68px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
                   >
-                    <Plus size={20} />
-                    DoorDash Order
+                    <Plus size={18} />
+                    <span>DoorDash</span>
+                    <span className="text-xs font-normal text-zinc-500">Order</span>
                   </button>
                 ) : (
-                  <div className="p-3 flex gap-2 items-stretch">
-                    <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-lg px-3 min-h-[52px] border border-zinc-600">
-                      <span className="text-zinc-400 text-base">$</span>
+                  <div className="p-2 flex flex-col gap-2">
+                    <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 min-h-[44px] border border-zinc-600">
+                      <span className="text-zinc-400 text-sm">$</span>
                       <input
                         type="number" min="0" step="0.01" inputMode="decimal"
                         value={ddInputValue}
@@ -1269,21 +1354,23 @@ export default function GigTracker() {
                         onKeyDown={e => e.key === 'Enter' && addOrder('dd', ddInputValue)}
                         autoFocus
                         placeholder="0.00"
-                        className="flex-1 bg-transparent text-zinc-100 outline-none text-xl min-w-0"
+                        className="flex-1 bg-transparent text-zinc-100 outline-none text-lg min-w-0"
                       />
                     </div>
-                    <button
-                      onClick={() => addOrder('dd', ddInputValue)}
-                      className="bg-green-700 hover:bg-green-600 text-white font-semibold px-5 rounded-lg min-h-[52px] text-sm transition-colors"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setDdInputOpen(false); setDdInputValue(''); }}
-                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-3 rounded-lg min-h-[52px] transition-colors"
-                    >
-                      <X size={16} />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => addOrder('dd', ddInputValue)}
+                        className="flex-1 bg-green-700 hover:bg-green-600 text-white font-semibold rounded-lg min-h-[40px] text-sm transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => { setDdInputOpen(false); setDdInputValue(''); }}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-2 rounded-lg min-h-[40px] transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1402,18 +1489,6 @@ export default function GigTracker() {
                     <StatRow label="Avg trip time" value={`${Math.round(avgTripMins)} min`} />
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (window.confirm('Reset shift? This clears all orders and earnings.')) {
-                        localStorage.removeItem(STORAGE_KEY);
-                        setState(getDefaultState());
-                        setPrefsLoadKey(k => k + 1);
-                      }
-                    }}
-                    className="mt-5 w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
-                  >
-                    Reset Shift
-                  </button>
                 </div>
               )}
             </div>
