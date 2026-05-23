@@ -355,7 +355,7 @@ export default function GigTracker() {
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
     const platformLabel = platform === 'ue' ? 'UberEats' : 'DoorDash';
-    const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString() };
+    const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString(), eph: Math.round(capturedEph * 100) / 100 };
     const newLog = [...state.orderLog, newOrder];
     const newCombined = newLog.reduce((s, o) => s + o.amount, 0);
 
@@ -455,6 +455,10 @@ export default function GigTracker() {
   // EPH uses snapshotted elapsed time — only updates on order add/remove or 15-min tick
   const ephElapsedHours = ephElapsedMinutes / 60;
   const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
+
+  const ephOrders = safeLog.filter(o => o.eph != null);
+  const lastEphEntry = ephOrders.length > 0 ? ephOrders[ephOrders.length - 1] : null;
+  const prevEphEntry = ephOrders.length > 1 ? ephOrders[ephOrders.length - 2] : null;
 
   const dayIndex = DAYS.indexOf(day);
   // Prefer Supabase-fetched data; fall back to hardcoded constants if fetch failed or pending
@@ -1076,6 +1080,25 @@ export default function GigTracker() {
                       {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
                     </div>
                   )}
+                  {lastEphEntry && (
+                    <div className="text-xs text-zinc-400 mt-1">
+                      {prevEphEntry ? (
+                        <>
+                          {'Last: $'}{lastEphEntry.eph.toFixed(2)}{' '}
+                          <span className={
+                            lastEphEntry.eph > prevEphEntry.eph ? 'text-green-400'
+                            : lastEphEntry.eph < prevEphEntry.eph ? 'text-red-400'
+                            : 'text-zinc-400'
+                          }>
+                            {lastEphEntry.eph > prevEphEntry.eph ? '↑' : lastEphEntry.eph < prevEphEntry.eph ? '↓' : '→'}
+                          </span>
+                          {'  ·  Prev: $'}{prevEphEntry.eph.toFixed(2)}
+                        </>
+                      ) : (
+                        `Last: $${lastEphEntry.eph.toFixed(2)}`
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-zinc-500 mb-2">Total Earnings</div>
@@ -1090,65 +1113,28 @@ export default function GigTracker() {
                 <span>Max ${dayMax.toFixed(2)}</span>
               </div>
 
-              {stretchGoalDollars > 0 && (
-                <div className="border-t border-zinc-800 mt-3 pt-3">
-                  {(() => {
-                    const fillPct = Math.min(100, (combined / stretchGoalDollars) * 100);
-                    const minTickPct = Math.min(98, (minGoalDollars / stretchGoalDollars) * 100);
-                    const pastMin = combined > minGoalDollars;
-                    const atMin = combined >= minGoalDollars;
-                    return (
-                      <>
-                        <div className="relative h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          {combined > 0 && (
-                            <>
-                              <div
-                                className="absolute top-0 left-0 h-full bg-green-700 transition-all"
-                                style={{ width: `${pastMin ? minTickPct : fillPct}%` }}
-                              />
-                              {pastMin && (
-                                <div
-                                  className="absolute top-0 h-full bg-green-400 transition-all"
-                                  style={{ left: `${minTickPct}%`, width: `${fillPct - minTickPct}%` }}
-                                />
-                              )}
-                            </>
-                          )}
-                          {minGoalDollars > 0 && (
-                            <div
-                              className="absolute top-0 h-full w-0.5 bg-zinc-400"
-                              style={{ left: `${minTickPct}%` }}
-                            />
-                          )}
-                        </div>
-                        <div className="relative mt-1 h-4">
-                          {minGoalDollars > 0 && (
-                            <span
-                              className="absolute text-xs text-zinc-600 -translate-x-1/2"
-                              style={{ left: `${Math.min(80, minTickPct)}%` }}
-                            >
-                              Min ${minGoalDollars}
-                            </span>
-                          )}
-                          <span className="absolute right-0 text-xs text-zinc-600">
-                            Stretch ${stretchGoalDollars}
-                          </span>
-                        </div>
-                        <div className="mt-1 space-y-0.5">
-                          <div className={`text-xs ${atMin ? 'text-green-400' : 'text-amber-400'}`}>
-                            {atMin
-                              ? '✓ Min reached'
-                              : `Min goal: $${(minGoalDollars - combined).toFixed(2)} remaining`}
-                          </div>
-                          <div className={`text-xs ${combined >= stretchGoalDollars ? 'text-green-400' : 'text-zinc-500'}`}>
-                            {combined >= stretchGoalDollars
-                              ? '✓ Stretch reached'
-                              : `Stretch goal: $${(stretchGoalDollars - combined).toFixed(2)} remaining`}
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
+              {(minGoalDollars > 0 || stretchGoalDollars > 0) && (
+                <div className="border-t border-zinc-800 mt-3 pt-3 space-y-1">
+                  {minGoalDollars > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-zinc-500 w-16 shrink-0">Min</span>
+                      <span className="text-zinc-400 tabular-nums">${minGoalDollars}</span>
+                      <span className="text-zinc-700">·</span>
+                      {combined >= minGoalDollars
+                        ? <span className="text-green-400">✓ Hit</span>
+                        : <span className="text-amber-400">${minDollarLeft.toFixed(0)} remaining</span>}
+                    </div>
+                  )}
+                  {stretchGoalDollars > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-zinc-500 w-16 shrink-0">Stretch</span>
+                      <span className="text-zinc-400 tabular-nums">${stretchGoalDollars}</span>
+                      <span className="text-zinc-700">·</span>
+                      {combined >= stretchGoalDollars
+                        ? <span className="text-green-400">✓ Hit</span>
+                        : <span className="text-amber-400">${stretchDollarLeft.toFixed(0)} remaining</span>}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1438,10 +1424,15 @@ export default function GigTracker() {
                             </>
                           ) : (
                             <>
-                              <span className="flex-1 text-sm font-semibold text-zinc-200 tabular-nums">
-                                {fmtMoney(order.amount)}
-                              </span>
-                              <span className="text-xs text-zinc-500">
+                              <div className="flex-1 flex flex-col min-w-0">
+                                <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                                  {fmtMoney(order.amount)}
+                                </span>
+                                {order.eph != null && (
+                                  <span className="text-xs text-zinc-400">${order.eph.toFixed(2)}/hr</span>
+                                )}
+                              </div>
+                              <span className="text-xs text-zinc-500 shrink-0">
                                 {fmtTime(new Date(order.timestamp))}
                               </span>
                               <button
