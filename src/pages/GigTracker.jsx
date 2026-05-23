@@ -1112,30 +1112,6 @@ export default function GigTracker() {
                 <span>Max ${dayMax.toFixed(2)}</span>
               </div>
 
-              {(minGoalDollars > 0 || stretchGoalDollars > 0) && (
-                <div className="border-t border-zinc-800 mt-3 pt-3 space-y-1">
-                  {minGoalDollars > 0 && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-zinc-500 w-16 shrink-0">Min</span>
-                      <span className="text-zinc-400 tabular-nums">${minGoalDollars}</span>
-                      <span className="text-zinc-700">·</span>
-                      {combined >= minGoalDollars
-                        ? <span className="text-green-400">✓ Hit</span>
-                        : <span className="text-amber-400">${minDollarLeft.toFixed(0)} remaining</span>}
-                    </div>
-                  )}
-                  {stretchGoalDollars > 0 && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-zinc-500 w-16 shrink-0">Stretch</span>
-                      <span className="text-zinc-400 tabular-nums">${stretchGoalDollars}</span>
-                      <span className="text-zinc-700">·</span>
-                      {combined >= stretchGoalDollars
-                        ? <span className="text-green-400">✓ Hit</span>
-                        : <span className="text-amber-400">${stretchDollarLeft.toFixed(0)} remaining</span>}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Orders/hr + Strikes card */}
