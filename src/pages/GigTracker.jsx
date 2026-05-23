@@ -488,6 +488,10 @@ export default function GigTracker() {
   const minOrdersLeft = orderMin > 0 ? Math.ceil(minDollarLeft / orderMin) : 0;
   const stretchOrdersLeft = orderMin > 0 ? Math.ceil(stretchDollarLeft / orderMin) : 0;
 
+  const avgOrderValue = totalOrders > 0 ? combined / totalOrders : 8;
+  const minOrdersEstimate = minDollarLeft > 0 ? Math.ceil(minDollarLeft / avgOrderValue) : 0;
+  const stretchOrdersEstimate = stretchDollarLeft > 0 ? Math.ceil(stretchDollarLeft / avgOrderValue) : 0;
+
   // Base start timestamp — derived from startTime string, not from the live `now`
   let shiftStartMs = 0;
   if (shiftStarted && startTime) {
@@ -1075,11 +1079,6 @@ export default function GigTracker() {
                       <span className="text-xl font-normal text-zinc-500">/hr</span>
                     )}
                   </div>
-                  {lastOrderEph > 0 && ephElapsedHours > 0.01 && safeLog.length > 0 && (
-                    <div className={`text-sm mt-1.5 ${eph >= lastOrderEph ? 'text-green-400' : 'text-red-400'}`}>
-                      {eph >= lastOrderEph ? '↑' : '↓'} from ${lastOrderEph.toFixed(2)} at last entry
-                    </div>
-                  )}
                   {lastEphEntry && (
                     <div className="text-xs text-zinc-400 mt-1">
                       {prevEphEntry ? (
@@ -1194,62 +1193,45 @@ export default function GigTracker() {
               </div>
             </div>
 
-            {/* Goal progress */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
-              {/* Min goal */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Min Goal</span>
-                  {minDollarLeft <= 0 && minTimeLeft <= 0 && (
-                    <span className="text-xs font-medium text-green-400">✓ Complete</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <div className="text-xs text-zinc-600">$ left</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">${Math.round(minDollarLeft)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-600">orders</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{minOrdersLeft}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-600">ETA</div>
-                    <div className={`font-semibold tabular-nums ${eph === 0 ? 'text-xs text-zinc-500' : 'text-xl text-zinc-200'}`}>
-                      {eph === 0 ? 'Log an order' : fmtTime(minETA)}
+            {/* Goal progress — Option A */}
+            {(minGoalDollars > 0 || stretchGoalDollars > 0) && (
+              <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3">
+                {[
+                  { label: 'Min',     goalDollars: minGoalDollars,     dollarLeft: minDollarLeft,     ordersLeft: minOrdersEstimate,     eta: minETA },
+                  { label: 'Stretch', goalDollars: stretchGoalDollars, dollarLeft: stretchDollarLeft, ordersLeft: stretchOrdersEstimate, eta: stretchETA },
+                ].filter(g => g.goalDollars > 0).map(({ label, goalDollars, dollarLeft, ordersLeft, eta }) => {
+                  const hit = dollarLeft <= 0;
+                  const pct = Math.min(100, (combined / goalDollars) * 100);
+                  return (
+                    <div key={label}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500 w-12 shrink-0">{label}</span>
+                        <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${hit ? 'bg-green-500' : 'bg-amber-500'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-zinc-400 tabular-nums">${goalDollars}</span>
+                      </div>
+                      <div className="pl-14 mt-1 text-xs">
+                        {hit ? (
+                          <span className="text-green-400 font-medium">✓ Hit</span>
+                        ) : (
+                          <span className="text-zinc-400">
+                            <span className="text-amber-400 tabular-nums">${dollarLeft.toFixed(0)} left</span>
+                            <span className="text-zinc-700"> · </span>
+                            <span>~{ordersLeft} orders</span>
+                            <span className="text-zinc-700"> · </span>
+                            <span>{eph > 0 && eta ? fmtTime(eta) : '—'}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-
-              <div className="border-t border-zinc-800" />
-
-              {/* Stretch goal */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Stretch Goal</span>
-                  {stretchDollarLeft <= 0 && stretchTimeLeft <= 0 && (
-                    <span className="text-xs font-medium text-green-400">✓ Complete</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <div className="text-xs text-zinc-600">$ left</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">${Math.round(stretchDollarLeft)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-600">orders</div>
-                    <div className="text-xl font-semibold text-zinc-200 tabular-nums">{stretchOrdersLeft}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-600">ETA</div>
-                    <div className={`font-semibold tabular-nums ${eph === 0 ? 'text-xs text-zinc-500' : 'text-xl text-zinc-200'}`}>
-                      {eph === 0 ? 'Log an order' : fmtTime(stretchETA)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Order guidance strip */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 space-y-3">
