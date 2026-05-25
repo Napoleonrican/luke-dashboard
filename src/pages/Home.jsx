@@ -17,6 +17,13 @@ const tools = [
     accentColor: 'text-orange-400',
   },
   {
+    icon: ListChecks,
+    title: 'Daily Planner',
+    description: 'Connect your Microsoft To Do and let AI help you plan your day.',
+    href: 'https://daily-planner-zeta-three.vercel.app/',
+    accentColor: 'text-blue-400',
+  },
+  {
     icon: Wallet,
     title: 'Debt Payoff Calculator',
     description: 'Model payoff timelines and find the fastest path to zero.',
@@ -43,13 +50,6 @@ const tools = [
 ];
 
 const workshop = [
-  {
-    icon: ListChecks,
-    title: 'Daily Planner',
-    description: 'Connect your Microsoft To Do and let AI help you plan your day.',
-    href: 'https://daily-planner-zeta-three.vercel.app/',
-    accentColor: 'text-blue-400',
-  },
   {
     icon: Mail,
     title: 'Professional Email',
