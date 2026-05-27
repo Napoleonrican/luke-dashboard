@@ -452,8 +452,7 @@ export default function GigTracker() {
   const combined = ueTotal + ddTotal;
   const totalOrders = safeLog.length;
 
-  // EPH uses snapshotted elapsed time — only updates on order add/remove or 15-min tick
-  const ephElapsedHours = ephElapsedMinutes / 60;
+  const ephElapsedHours = elapsedMinutes / 60;
   const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
 
   const ephOrders = safeLog.filter(o => o.eph != null);
