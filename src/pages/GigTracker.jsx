@@ -1084,11 +1084,11 @@ export default function GigTracker() {
                         <>
                           {'Last: $'}{lastEphEntry.eph.toFixed(2)}{' '}
                           <span className={
-                            lastEphEntry.eph > prevEphEntry.eph ? 'text-green-400'
-                            : lastEphEntry.eph < prevEphEntry.eph ? 'text-red-400'
+                            eph > lastEphEntry.eph ? 'text-green-400'
+                            : eph < lastEphEntry.eph ? 'text-red-400'
                             : 'text-zinc-400'
                           }>
-                            {lastEphEntry.eph > prevEphEntry.eph ? '↑' : lastEphEntry.eph < prevEphEntry.eph ? '↓' : '→'}
+                            {eph > lastEphEntry.eph ? '↑' : eph < lastEphEntry.eph ? '↓' : '→'}
                           </span>
                           {'  ·  Prev: $'}{prevEphEntry.eph.toFixed(2)}
                         </>
