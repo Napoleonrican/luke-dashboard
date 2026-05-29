@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KC Itinerary · Jun 1–6, 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1208;
+    --paper: #f5f0e8;
+    --accent: #c8392b;
+    --gold: #b8891a;
+    --muted: #7a6e5f;
+    --border: #d4c9b0;
+    --card: #fffdf7;
+    --work: #1e3a5f;
+    --personal: #0d2b1a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 300; padding: 0 0 80px; }
+
+  .header { background: var(--ink); color: var(--paper); padding: 40px 24px 32px; position: relative; overflow: hidden; }
+  .header::before { content:''; position:absolute; top:-50px; right:-50px; width:200px; height:200px; border-radius:50%; border:30px solid rgba(184,137,26,0.18); }
+  .header-eyebrow { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
+  .header-title { font-family:'Playfair Display',serif; font-size:34px; line-height:1.05; margin-bottom:4px; }
+  .header-subtitle { font-family:'Playfair Display',serif; font-style:italic; font-size:16px; color:rgba(245,240,232,0.6); }
+  .header-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .meta-pill { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1px; background:rgba(255,255,255,0.1); color:rgba(245,240,232,0.85); padding:4px 10px; border-radius:2px; }
+
+  .content { padding:0 20px; max-width:600px; margin:0 auto; }
+
+  /* Info boxes */
+  .info-box { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--gold); padding:14px 16px; margin:20px 0 0; display:flex; gap:12px; align-items:flex-start; }
+  .info-box.amber { border-left-color: #c87414; }
+  .info-icon { font-size:20px; flex-shrink:0; margin-top:2px; }
+  .info-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); margin-bottom:6px; }
+  .info-box.amber .info-title { color:#c87414; }
+  .info-body { font-size:12px; line-height:1.7; color:var(--muted); }
+  .info-body strong { color:var(--ink); font-weight:500; }
+
+  /* Day sections */
+  .section-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin:24px 0 8px; padding-top:4px; border-top:1px solid var(--border); }
+
+  .day { background:var(--card); border:1px solid var(--border); margin-bottom:12px; overflow:hidden; }
+
+  .day-header { display:flex; align-items:center; gap:14px; padding:12px 16px; border-bottom:1px solid var(--border); background:#faf8f3; }
+  .day-num { font-family:'Playfair Display',serif; font-size:32px; font-weight:700; color:var(--border); line-height:1; min-width:42px; }
+  .day-info { flex:1; }
+  .day-name { font-size:15px; font-weight:500; }
+  .day-date { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:2px; }
+  .day-tag { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding:3px 8px; border-radius:2px; flex-shrink:0; }
+  .tag-work { background:#dbeafe; color:#1e40af; }
+  .tag-travel { background:#fef3c7; color:#92400e; }
+  .tag-pto { background:#d1fae5; color:#065f46; }
+  .tag-personal { background:#ede9fe; color:#4c1d95; }
+
+  .event { padding:12px 16px; border-bottom:1px solid var(--border); }
+  .event:last-child { border-bottom:none; }
+  .event.work { border-left:3px solid #1e3a5f; }
+  .event.travel { border-left:3px solid #c87414; }
+  .event.pto { border-left:3px solid #065f46; }
+  .event.personal { border-left:3px solid #6d28d9; }
+  .event.hotel { border-left:3px solid var(--gold); }
+  .event.note { background:#faf8f3; }
+  .event.teambuilder { border-left:3px solid #6d28d9; }
+
+  .event-type { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+  .event-title { font-size:14px; font-weight:500; margin-bottom:4px; }
+  .event-details { font-size:12px; line-height:1.6; color:var(--muted); }
+  .event-details strong { color:var(--ink); font-weight:500; }
+
+  .hotel-dates { display:flex; gap:16px; margin-top:8px; }
+  .hotel-date-block { flex:1; }
+  .hotel-date-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+  .hotel-date-val { font-size:13px; font-weight:500; margin-top:2px; }
+  .divider { border:none; border-top:1px solid var(--border); margin:8px 0; }
+
+  .meeting-list { margin-top:8px; border-top:1px dashed var(--border); padding-top:8px; }
+  .meeting-row { display:flex; gap:10px; align-items:flex-start; margin-bottom:6px; font-size:12px; }
+  .meeting-time { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); min-width:58px; padding-top:1px; flex-shrink:0; }
+  .meeting-name { color:var(--ink); line-height:1.4; }
+
+  .depart-banner { background:#1e3a5f; color:#e0ecff; padding:12px 16px; margin-bottom:10px; display:flex; align-items:center; gap:10px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:0.5px; }
+  .depart-banner .bang { font-size:18px; flex-shrink:0; }
+  .depart-banner strong { color:#fff; }
+
+  .footer { text-align:center; padding:40px 20px 0; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; }
+
+  /* ── Password Gate ── */
+  #_g {
+    position: fixed; inset: 0; background: #1a1208; z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #_g form {
+    width: 100%; max-width: 320px;
+    border: 1px solid #3a2e1e; background: #241a0e;
+    padding: 32px 28px; display: flex; flex-direction: column; gap: 16px;
+  }
+  #_g .g-eye { font-size: 28px; text-align: center; }
+  #_g .g-title {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px;
+    text-transform: uppercase; color: #b8891a; text-align: center;
+  }
+  #_g input {
+    width: 100%; background: #1a1208; border: 1px solid #3a2e1e;
+    color: #f5f0e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    padding: 10px 14px; outline: none; transition: border-color 0.15s;
+  }
+  #_g input:focus { border-color: #b8891a; }
+  #_g input.err { border-color: #c8392b; }
+  #_g button {
+    background: #b8891a; border: none; color: #1a1208;
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; padding: 10px; cursor: pointer; transition: background 0.15s;
+  }
+  #_g button:hover { background: #c89a28; }
+  #_g .g-err {
+    font-family: 'DM Mono', monospace; font-size: 10px; color: #c8392b;
+    text-align: center; letter-spacing: 1px; min-height: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div id="_g">
+  <form id="_gf">
+    <div class="g-eye">🔒</div>
+    <div class="g-title">Private — Enter Access Code</div>
+    <input type="password" id="_gi" placeholder="Access code" autocomplete="off" />
+    <button type="submit">Unlock</button>
+    <div class="g-err" id="_ge"></div>
+  </form>
+</div>
+<script>
+(function(){
+  var _q=[0x48,0x52,0x42,0x32,0x30,0x32,0x36];
+  var _ok=function(s){return s.length===_q.length&&s.split('').every(function(c,i){return c.charCodeAt(0)===_q[i];});};
+  var _sk='kc26';
+  if(localStorage.getItem(_sk)==='1'){document.getElementById('_g').remove();return;}
+  document.getElementById('_gf').addEventListener('submit',function(e){
+    e.preventDefault();
+    var v=document.getElementById('_gi').value;
+    if(_ok(v)){
+      localStorage.setItem(_sk,'1');
+      document.getElementById('_g').remove();
+    } else {
+      var inp=document.getElementById('_gi');
+      var err=document.getElementById('_ge');
+      inp.value='';
+      inp.classList.add('err');
+      err.textContent='Incorrect code.';
+      inp.addEventListener('input',function(){inp.classList.remove('err');err.textContent='';},{once:true});
+    }
+  });
+})();
+</script>
+
+<div class="header">
+  <div class="header-eyebrow">Work Trip · H&amp;R Block HQ</div>
+  <div class="header-title">Kansas City</div>
+  <div class="header-subtitle">June 2026</div>
+  <div class="header-meta">
+    <span class="meta-pill">Jun 1 – Jun 6</span>
+    <span class="meta-pill">Luke Napoleon</span>
+    <span class="meta-pill">Southwest Airlines</span>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- STREETCAR INFO -->
+  <div class="info-box">
+    <div class="info-icon">🚊</div>
+    <div>
+      <div class="info-title">KC Streetcar — Completely Free</div>
+      <div class="info-body">
+        No fare, no tap — just board. Runs the full Main St corridor from River Market to UMKC.<br><br>
+        <strong>Hours:</strong> Mon–Thu 5 AM–Midnight · Fri 5 AM–1 AM · Sat 7 AM–1 AM<br>
+        <strong>Frequency:</strong> Every 10–15 min during peak hours<br><br>
+        <strong>Key stops:</strong> <em>Power &amp; Light (13th &amp; Main)</em> — 1 block from H&amp;R Block HQ · <em>Plaza (Emanuel Cleaver II &amp; Main)</em> — Planet Fitness nearby. Both hotels on the line.
+      </div>
+    </div>
+  </div>
+
+  <!-- AIRPORT INFO -->
+  <div class="info-box amber">
+    <div class="info-icon">✈️</div>
+    <div>
+      <div class="info-title">Airport Road-Time Guide</div>
+      <div class="info-body">
+        <strong>Lisbon Falls → PWM:</strong> ~40 miles, ~45–50 min. For 5:30 AM departure — <strong>leave home by 2:50–3:00 AM</strong>.<br><br>
+        <strong>PWM Parking:</strong> Garage/Green/Blue = $14–15/day. Pink Lot (offsite shuttle) = $9/day. For 5 nights: ~$70–75 on-site, ~$45 Pink Lot.<br><br>
+        <strong>Return to MCI:</strong> Leave hotel area by <strong>3:00 PM CT</strong> for 5:30 PM departure.
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY 1 -->
+  <div class="section-label">Day 1</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">01</div>
+      <div class="day-info">
+        <div class="day-name">Monday</div>
+        <div class="day-date">June 1, 2026</div>
+      </div>
+      <span class="day-tag tag-travel">Travel Day</span>
+    </div>
+    <div class="event travel">
+      <div class="event-type">✈️ Departure · PWM → MCI</div>
+      <div class="event-title">Southwest Airlines — Portland Jetport to Kansas City</div>
+      <div class="event-details"><strong>5:30 AM ET</strong> departure · Arrive ~9:00 AM CT<br>Leave Lisbon Falls by 2:50–3:00 AM · Arrive PWM by 3:45 AM</div>
+    </div>
+    <div class="event hotel">
+      <div class="event-type">🏨 Check-In · Company Paid</div>
+      <div class="event-title">Hotel Kansas City, Unbound Collection by Hyatt</div>
+      <div class="event-details">1228 Baltimore Ave, Kansas City, MO 64105 &nbsp;·&nbsp; <strong>+1 816-685-1228</strong></div>
+      <div class="hotel-dates">
+        <div class="hotel-date-block">
+          <div class="hotel-date-label">Check-in</div>
+          <div class="hotel-date-val">Mon Jun 1 · 3:00 PM</div>
+        </div>
+        <div class="hotel-date-block">
+          <div class="hotel-date-label">Check-out</div>
+          <div class="hotel-date-val">Thu Jun 4 · 12:00 PM</div>
+        </div>
+      </div>
+      <hr class="divider">
+      <div class="event-details">Itinerary #215344270441 · Booked under <strong>Luke Napoleon / H&amp;R Block, Inc.</strong></div>
+    </div>
+    <div class="event note">
+      <div class="event-details">Arrive ~10 AM — afternoon free to settle in, explore the neighborhood, and rest up before the week kicks off.</div>
+    </div>
+  </div>
+
+  <!-- DAY 2 -->
+  <div class="section-label">Day 2</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">02</div>
+      <div class="day-info">
+        <div class="day-name">Tuesday</div>
+        <div class="day-date">June 2, 2026</div>
+      </div>
+      <span class="day-tag tag-work">Required Office Day</span>
+    </div>
+    <div class="event work">
+      <div class="event-type">💼 H&amp;R Block HQ · One H&amp;R Block Way</div>
+      <div class="event-title">In Office — Planning FY27</div>
+      <div class="event-details">All-day block · <strong>9:00 AM CT</strong> onward<br>🚊 Streetcar: Power &amp; Light stop — 1 block north to HQ</div>
+      <div class="meeting-list">
+        <div class="meeting-row">
+          <span class="meeting-time">9:00 AM</span>
+          <span class="meeting-name">In Office – Planning FY27 (all day)</span>
+        </div>
+        <div class="meeting-row">
+          <span class="meeting-time">6:00 PM</span>
+          <span class="meeting-name" style="color:#6d28d9; font-weight:500;">🍺 Team Builder (PEX and QA) — No Other Pub by Sporting KC<br>
+            <span style="font-weight:300; color: var(--muted);">1370 Grand Blvd, Kansas City, MO</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY 3 -->
+  <div class="section-label">Day 3</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">03</div>
+      <div class="day-info">
+        <div class="day-name">Wednesday</div>
+        <div class="day-date">June 3, 2026</div>
+      </div>
+      <span class="day-tag tag-work">Required Office Day</span>
+    </div>
+    <div class="event work">
+      <div class="event-type">💼 H&amp;R Block HQ</div>
+      <div class="event-title">In Office — Team Meetings</div>
+      <div class="event-details">🚊 Streetcar: Power &amp; Light stop</div>
+      <div class="meeting-list">
+        <div class="meeting-row">
+          <span class="meeting-time">9:00 AM</span>
+          <span class="meeting-name">In Office (all day)</span>
+        </div>
+        <div class="meeting-row">
+          <span class="meeting-time">1:00 PM</span>
+          <span class="meeting-name">Field Support L&amp;D</span>
+        </div>
+        <div class="meeting-row">
+          <span class="meeting-time">3:00 PM</span>
+          <span class="meeting-name">Assisted Pod Meeting</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY 4 -->
+  <div class="section-label">Day 4</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">04</div>
+      <div class="day-info">
+        <div class="day-name">Thursday</div>
+        <div class="day-date">June 4, 2026</div>
+      </div>
+      <span class="day-tag tag-personal">Personal Time Starts</span>
+    </div>
+    <div class="event hotel">
+      <div class="event-type">🏨 Hotel Checkout &amp; Check-In</div>
+      <div class="event-title">Check out of Hyatt → Check into Hotel Phillips</div>
+      <div class="event-details">Hotel Phillips · 106 W 12th St, Kansas City, MO 64105<br>Check-out: 12 PM · Phillips check-in: 4 PM (bags held if early)</div>
+      <div class="hotel-dates">
+        <div class="hotel-date-block">
+          <div class="hotel-date-label">Check-in</div>
+          <div class="hotel-date-val">Thu Jun 4 · 4:00 PM</div>
+        </div>
+        <div class="hotel-date-block">
+          <div class="hotel-date-label">Check-out</div>
+          <div class="hotel-date-val">Sat Jun 6 · 11:00 AM</div>
+        </div>
+      </div>
+    </div>
+    <div class="event personal">
+      <div class="event-type">🎒 Personal Time</div>
+      <div class="event-title">Free afternoon — explore at your own pace</div>
+      <div class="event-details">Power &amp; Light District · River Market · Streetcar anywhere on Main St</div>
+    </div>
+  </div>
+
+  <!-- DAY 5 -->
+  <div class="section-label">Day 5</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">05</div>
+      <div class="day-info">
+        <div class="day-name">Friday</div>
+        <div class="day-date">June 5, 2026</div>
+      </div>
+      <span class="day-tag tag-pto">PTO Day</span>
+    </div>
+    <div class="event personal">
+      <div class="event-type">🍳 Breakfast</div>
+      <div class="event-title">Dott Boss — one block from Hotel Phillips</div>
+      <div class="event-details">101 W 11th St (inside Hotel Indigo) · Weekend hours: 7:30 AM–1 PM<br>Try: Breakfast Sandwich, Shrimp &amp; Grits Benedict, Steak &amp; Eggs</div>
+    </div>
+    <div class="event personal">
+      <div class="event-type">🎨 Full Day</div>
+      <div class="event-title">See KC Plans for your three budget options (A, B, or C)</div>
+      <div class="event-details">Nelson-Atkins + Bloch Galleries · WWI Museum · 18th &amp; Vine District · Union Station</div>
+    </div>
+    <div class="event personal">
+      <div class="event-type">🎉 Evening — First Fridays!</div>
+      <div class="event-title">First Fridays — Crossroads Arts District</div>
+      <div class="event-details"><strong>5–9 PM</strong> · 100+ local artists &amp; makers, live music, food trucks<br>Walkable from Hotel Phillips · Entire event is <strong>free</strong></div>
+    </div>
+  </div>
+
+  <!-- DAY 6 -->
+  <div class="section-label">Day 6</div>
+  <div class="day">
+    <div class="day-header">
+      <div class="day-num">06</div>
+      <div class="day-info">
+        <div class="day-name">Saturday</div>
+        <div class="day-date">June 6, 2026</div>
+      </div>
+      <span class="day-tag tag-travel">Travel Day</span>
+    </div>
+    <div class="depart-banner">
+      <span class="bang">⚠️</span>
+      <span>Leave hotel by <strong>3:00 PM CT</strong> · MCI by 3:30 PM · Flight departs 5:30 PM CT · Home ~12:30 AM Sunday</span>
+    </div>
+    <div class="event personal">
+      <div class="event-type">🛍️ Morning</div>
+      <div class="event-title">City Market (River Market)</div>
+      <div class="event-details">20 E 5th St · Opens 8 AM Saturdays · Outdoor farmers market, produce, vendors<br>🚊 Streetcar: River Market stop</div>
+    </div>
+    <div class="event travel">
+      <div class="event-type">✈️ Return · MCI → PWM</div>
+      <div class="event-title">Southwest Airlines — Kansas City to Portland Jetport</div>
+      <div class="event-details"><strong>5:30 PM CT</strong> departure · Arrive Portland ~11:30 PM ET<br><strong>Company-paid return transport</strong> · Leave hotel by 3:00 PM CT</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">Kansas City · Jun 1–6, 2026 · Luke Napoleon</div>
+
+</body>
+</html>

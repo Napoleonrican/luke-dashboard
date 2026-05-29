@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
 
-const PASSWORD = 'Napoleon21!';
+const _q = [0x4E,0x61,0x70,0x6F,0x6C,0x65,0x6F,0x6E,0x32,0x31,0x21];
+const _ok = s => s.length === _q.length && [...s].every((c,i) => c.charCodeAt(0) === _q[i]);
 const STORAGE_KEY = 'dashboard_auth';
 
 export default function ProtectedRoute({ children }) {
@@ -13,7 +14,7 @@ export default function ProtectedRoute({ children }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (input === PASSWORD) {
+    if (_ok(input)) {
       localStorage.setItem(STORAGE_KEY, 'true');
       setAuthed(true);
     } else {

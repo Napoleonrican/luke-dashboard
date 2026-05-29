@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KC Plans · Thu–Sat (v2)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1208;
+    --paper: #f5f0e8;
+    --accent: #c8392b;
+    --gold: #b8891a;
+    --muted: #7a6e5f;
+    --border: #d4c9b0;
+    --card: #fffdf7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 300; padding: 0 0 80px; }
+
+  .header { background: var(--ink); color: var(--paper); padding: 40px 24px 32px; position: relative; overflow: hidden; }
+  .header::before { content:''; position:absolute; top:-50px; right:-50px; width:200px; height:200px; border-radius:50%; border:30px solid rgba(184,137,26,0.18); }
+  .header-eyebrow { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:8px; }
+  .header-title { font-family:'Playfair Display',serif; font-size:34px; line-height:1.05; margin-bottom:4px; }
+  .header-subtitle { font-family:'Playfair Display',serif; font-style:italic; font-size:16px; color:rgba(245,240,232,0.6); }
+
+  .content { padding:0 20px; max-width:600px; margin:0 auto; }
+
+  .intro { font-size:13px; line-height:1.65; color:var(--ink); padding:24px 0 8px; }
+  .intro strong { color:var(--accent); }
+
+  /* Lucky breaks callout */
+  .lucky-note {
+    background:#0d2b1a;
+    color:var(--paper);
+    padding:16px 18px;
+    margin:16px 0 8px;
+    border-radius:2px;
+  }
+  .lucky-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#7dd3a5; margin-bottom:8px; }
+  .lucky-body { font-size:12px; line-height:1.65; color:rgba(245,240,232,0.88); }
+  .lucky-body strong { color:#fff; font-weight:500; }
+
+  /* HRB callout */
+  .hrb-note {
+    background:#fffbeb;
+    border-left:3px solid var(--accent);
+    padding:14px 16px;
+    margin:8px 0 24px;
+    border-radius:2px;
+  }
+  .hrb-note-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+  .hrb-note-body { font-size:12px; line-height:1.6; color:var(--ink); }
+  .hrb-note-body strong { color:var(--accent); font-weight:500; }
+
+  /* Plan section */
+  .plan {
+    background:var(--card);
+    border:1px solid var(--border);
+    margin-bottom:28px;
+    overflow:hidden;
+  }
+  .plan-header {
+    padding:18px 18px 14px;
+    border-bottom:1px solid var(--border);
+    position:relative;
+  }
+  .plan-letter {
+    font-family:'Playfair Display',serif;
+    font-size:54px;
+    font-weight:700;
+    line-height:0.9;
+    color:var(--border);
+    position:absolute;
+    top:14px;
+    right:18px;
+  }
+  .plan-tag { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); margin-bottom:4px; }
+  .plan-title { font-family:'Playfair Display',serif; font-size:22px; line-height:1.15; margin-bottom:6px; padding-right:50px; }
+  .plan-pitch { font-size:12px; color:var(--muted); line-height:1.55; font-style:italic; padding-right:50px; }
+
+  .plan-day { border-bottom:1px solid var(--border); padding:14px 18px 12px; }
+  .plan-day:last-of-type { border-bottom:none; }
+  .day-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px; }
+
+  .activity { display:flex; gap:10px; padding:7px 0; border-bottom:1px dashed var(--border); align-items:flex-start; }
+  .activity:last-of-type { border-bottom:none; }
+  .activity-time { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); min-width:60px; padding-top:2px; flex-shrink:0; }
+  .activity-body { flex:1; }
+  .activity-name { font-size:13px; font-weight:500; color:var(--ink); line-height:1.3; margin-bottom:2px; }
+  .activity-detail { font-size:11px; color:var(--muted); line-height:1.5; }
+  .activity-cost { font-family:'DM Mono',monospace; font-size:11px; color:var(--accent); font-weight:500; margin-left:8px; white-space:nowrap; flex-shrink:0; padding-top:2px; }
+  .activity-cost.free { color:#10b981; }
+  .activity-cost.covered { color:#3b82f6; }
+
+  .star { color:var(--accent); }
+  .miranda { background:#fef3c7; padding:1px 5px; border-radius:2px; font-size:10px; font-family:'DM Mono',monospace; letter-spacing:0.5px; color:#92400e; margin-left:4px; }
+
+  .plan-total { background:var(--ink); color:var(--paper); padding:14px 18px; display:flex; justify-content:space-between; align-items:baseline; }
+  .total-label { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); }
+  .total-val { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; }
+  .total-range { font-family:'DM Mono',monospace; font-size:10px; color:rgba(245,240,232,0.65); margin-top:2px; }
+
+  .cost-notes { background:#1a1208; color:var(--paper); padding:18px 20px; margin-top:8px; border-radius:2px; }
+  .cost-notes-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--gold); margin-bottom:10px; }
+  .cost-notes ul { list-style:none; padding:0; }
+  .cost-notes li { font-size:12px; line-height:1.6; color:rgba(245,240,232,0.85); padding:4px 0; padding-left:18px; position:relative; }
+  .cost-notes li::before { content:'•'; position:absolute; left:4px; color:var(--gold); }
+  .cost-notes li strong { color:#fff; font-weight:500; }
+
+  .footer { text-align:center; padding:30px 20px 0; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; }
+
+  /* ── Password Gate ── */
+  #_g {
+    position: fixed; inset: 0; background: #1a1208; z-index: 9999;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #_g form {
+    width: 100%; max-width: 320px;
+    border: 1px solid #3a2e1e; background: #241a0e;
+    padding: 32px 28px; display: flex; flex-direction: column; gap: 16px;
+  }
+  #_g .g-eye { font-size: 28px; text-align: center; }
+  #_g .g-title {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px;
+    text-transform: uppercase; color: #b8891a; text-align: center;
+  }
+  #_g input {
+    width: 100%; background: #1a1208; border: 1px solid #3a2e1e;
+    color: #f5f0e8; font-family: 'DM Mono', monospace; font-size: 13px;
+    padding: 10px 14px; outline: none; transition: border-color 0.15s;
+  }
+  #_g input:focus { border-color: #b8891a; }
+  #_g input.err { border-color: #c8392b; }
+  #_g button {
+    background: #b8891a; border: none; color: #1a1208;
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; padding: 10px; cursor: pointer; transition: background 0.15s;
+  }
+  #_g button:hover { background: #c89a28; }
+  #_g .g-err {
+    font-family: 'DM Mono', monospace; font-size: 10px; color: #c8392b;
+    text-align: center; letter-spacing: 1px; min-height: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div id="_g">
+  <form id="_gf">
+    <div class="g-eye">🔒</div>
+    <div class="g-title">Private — Enter Access Code</div>
+    <input type="password" id="_gi" placeholder="Access code" autocomplete="off" />
+    <button type="submit">Unlock</button>
+    <div class="g-err" id="_ge"></div>
+  </form>
+</div>
+<script>
+(function(){
+  var _q=[0x48,0x52,0x42,0x32,0x30,0x32,0x36];
+  var _ok=function(s){return s.length===_q.length&&s.split('').every(function(c,i){return c.charCodeAt(0)===_q[i];});};
+  var _sk='kc26';
+  if(localStorage.getItem(_sk)==='1'){document.getElementById('_g').remove();return;}
+  document.getElementById('_gf').addEventListener('submit',function(e){
+    e.preventDefault();
+    var v=document.getElementById('_gi').value;
+    if(_ok(v)){
+      localStorage.setItem(_sk,'1');
+      document.getElementById('_g').remove();
+    } else {
+      var inp=document.getElementById('_gi');
+      var err=document.getElementById('_ge');
+      inp.value='';
+      inp.classList.add('err');
+      err.textContent='Incorrect code.';
+      inp.addEventListener('input',function(){inp.classList.remove('err');err.textContent='';},{once:true});
+    }
+  });
+})();
+</script>
+
+<div class="header">
+  <div class="header-eyebrow">Kansas City · Personal Time</div>
+  <div class="header-title">Thursday — Saturday</div>
+  <div class="header-subtitle">June 4 – 6, 2026 · Three Budget Plans</div>
+</div>
+
+<div class="content">
+
+  <div class="intro">
+    Three plans below. Each one includes <strong>Dott Boss</strong> <span class="miranda">★ Miranda's pick</span> and the <strong>Bloch Galleries</strong> (the HRB founders' art). The difference is mostly where you spend the rest of the time and money.
+  </div>
+
+  <!-- LUCKY BREAKS -->
+  <div class="lucky-note">
+    <div class="lucky-title">🎯 Two Lucky Breaks for Your Trip</div>
+    <div class="lucky-body">
+      <strong>1. Your PTO day IS a First Friday.</strong> June 5 is the first Friday of June 2026, so the Crossroads Arts District comes alive 5–9 PM with 100+ local artists, food trucks, live music. Walkable from Hotel Phillips.<br><br>
+      <strong>2. Dott Boss is one block from Hotel Phillips.</strong> 101 W 11th St — Hotel Phillips is at 106 W 12th St. Across the street, basically. Easy walk for breakfast any morning.
+    </div>
+  </div>
+
+  <!-- HRB CONTEXT -->
+  <div class="hrb-note">
+    <div class="hrb-note-title">⭐ The HRB Founders Connection</div>
+    <div class="hrb-note-body">
+      The <strong>Bloch Galleries at the Nelson-Atkins Museum of Art</strong> — opened 2017, features ~30 Impressionist &amp; Post-Impressionist masterpieces (Monet, Van Gogh, Matisse, Manet) donated by Henry and Marion Bloch. <em>Admission is free.</em> This is what your colleagues meant.<br><br>
+      Bonus: There's also an <strong>H&amp;R Block Heritage Wall</strong> in the lobby of HQ at 13th &amp; Main. Free, open 8 AM–5 PM weekdays — pop in during a work day.
+    </div>
+  </div>
+
+
+  <!-- ════ PLAN A — HISTORY & CULTURE ════ -->
+  <div class="plan">
+    <div class="plan-header">
+      <div class="plan-letter">A</div>
+      <div class="plan-tag">Plan A</div>
+      <div class="plan-title">The History &amp; Culture Path</div>
+      <div class="plan-pitch">Hits every landmark your colleagues mentioned. Lighter on the wallet.</div>
+    </div>
+
+    <!-- THURSDAY -->
+    <div class="plan-day">
+      <div class="day-label">Thursday Evening · Jun 4</div>
+
+      <div class="activity">
+        <div class="activity-time">5:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Check into Hotel Phillips · stroll Power &amp; Light</div>
+          <div class="activity-detail">Walk around downtown — right outside your door</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">7:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Dinner · Joe's Kansas City Bar-B-Que (P&amp;L)</div>
+          <div class="activity-detail">Legendary BBQ — Z-Man sandwich, burnt ends. Walkable.</div>
+        </div>
+        <div class="activity-cost">$25</div>
+      </div>
+    </div>
+
+    <!-- FRIDAY -->
+    <div class="plan-day">
+      <div class="day-label">Friday · Jun 5 · PTO &amp; First Friday</div>
+
+      <div class="activity">
+        <div class="activity-time">8:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · Dott Boss <span class="miranda">★ Miranda</span></div>
+          <div class="activity-detail">One block from hotel. Steak &amp; eggs or shrimp &amp; grits benedict.</div>
+        </div>
+        <div class="activity-cost">$22</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">National WWI Museum &amp; Liberty Memorial Tower</div>
+          <div class="activity-detail">Streetcar to Union Station stop. America's official WWI museum + 360° skyline from the tower.</div>
+        </div>
+        <div class="activity-cost">$26</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">1:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Lunch + Union Station self-tour</div>
+          <div class="activity-detail">Walk right over. Building admission is free; eat at one of the station restaurants.</div>
+        </div>
+        <div class="activity-cost">$22</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">3:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Nelson-Atkins + Bloch Galleries <span class="star">⭐</span></div>
+          <div class="activity-detail">Streetcar to Plaza stop. The HRB founders' art collection.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">5:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">First Fridays in the Crossroads 🎨</div>
+          <div class="activity-detail">5–9 PM. 100+ local artists, food trucks, live music. Streetcar back, then walk.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">7:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Dinner from the Food Truck Plaza</div>
+          <div class="activity-detail">19th &amp; Grand parking lot. Variety, casual, local.</div>
+        </div>
+        <div class="activity-cost">$20</div>
+      </div>
+    </div>
+
+    <!-- SATURDAY -->
+    <div class="plan-day">
+      <div class="day-label">Saturday Morning · Jun 6</div>
+
+      <div class="activity">
+        <div class="activity-time">8:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · City Market (River Market) <span class="star">⭐</span></div>
+          <div class="activity-detail">Saturday is THE big market day. Streetcar to River Market stop. Bakeries, coffee, vendors.</div>
+        </div>
+        <div class="activity-cost">$15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Browse the market &amp; River Market neighborhood</div>
+          <div class="activity-detail">Local makers, produce, eclectic shops</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">11:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Check out of Hotel Phillips</div>
+          <div class="activity-detail">Streetcar back. Store bags at front desk.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">12:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Lunch · Arthur Bryant's (KC legend)</div>
+          <div class="activity-detail">Iconic. Every president stops here. Quick rideshare from downtown.</div>
+        </div>
+        <div class="activity-cost">$25 + $12</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">3:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Uber to MCI</div>
+          <div class="activity-detail">Company-paid (would have been a covered expense regardless)</div>
+        </div>
+        <div class="activity-cost covered">COVERED</div>
+      </div>
+    </div>
+
+    <div class="plan-total">
+      <div>
+        <div class="total-label">Plan A Total</div>
+        <div class="total-range">activities + food</div>
+      </div>
+      <div class="total-val">~$167</div>
+    </div>
+  </div>
+
+
+  <!-- ════ PLAN B — BBQ & JAZZ ════ -->
+  <div class="plan">
+    <div class="plan-header">
+      <div class="plan-letter">B</div>
+      <div class="plan-tag">Plan B</div>
+      <div class="plan-title">The BBQ &amp; Jazz Crawl</div>
+      <div class="plan-pitch">Lean into KC's culinary &amp; music heritage. Still hits the major landmarks.</div>
+    </div>
+
+    <!-- THURSDAY -->
+    <div class="plan-day">
+      <div class="day-label">Thursday Evening · Jun 4</div>
+
+      <div class="activity">
+        <div class="activity-time">5:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Settle into Hotel Phillips</div>
+          <div class="activity-detail">Drop bags, refresh</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">7:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Dinner · Jack Stack Barbecue (Freight House)</div>
+          <div class="activity-detail">Beef short rib burnt ends — KC institution since 1957. Streetcar to Union Station stop.</div>
+        </div>
+        <div class="activity-cost">$45</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">9:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Drinks · Power &amp; Light District</div>
+          <div class="activity-detail">Bars, music, walkable from hotel</div>
+        </div>
+        <div class="activity-cost">$25</div>
+      </div>
+    </div>
+
+    <!-- FRIDAY -->
+    <div class="plan-day">
+      <div class="day-label">Friday · Jun 5 · PTO &amp; First Friday</div>
+
+      <div class="activity">
+        <div class="activity-time">8:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · Dott Boss <span class="miranda">★ Miranda</span></div>
+          <div class="activity-detail">One block from hotel</div>
+        </div>
+        <div class="activity-cost">$22</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">18th &amp; Vine Historic Jazz District</div>
+          <div class="activity-detail">Rideshare ~8 min from downtown</div>
+        </div>
+        <div class="activity-cost">$12</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">11:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Negro Leagues Baseball + American Jazz Museums</div>
+          <div class="activity-detail">Combo ticket for both. ~2.5 hrs.</div>
+        </div>
+        <div class="activity-cost">$15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">2:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Lunch · Arthur Bryant's Barbecue</div>
+          <div class="activity-detail">Just a few blocks from 18th &amp; Vine. The original KC BBQ icon.</div>
+        </div>
+        <div class="activity-cost">$25</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">4:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Nelson-Atkins + Bloch Galleries <span class="star">⭐</span></div>
+          <div class="activity-detail">Rideshare or streetcar to Plaza. The HRB founders' collection.</div>
+        </div>
+        <div class="activity-cost">$10 ride</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">6:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">First Fridays in the Crossroads 🎨</div>
+          <div class="activity-detail">Galleries open until 9 PM. Food trucks, live music, 100+ artists.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">8:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Drinks + live jazz · Green Lady Lounge</div>
+          <div class="activity-detail">Crossroads district — iconic KC jazz club</div>
+        </div>
+        <div class="activity-cost">$40</div>
+      </div>
+    </div>
+
+    <!-- SATURDAY -->
+    <div class="plan-day">
+      <div class="day-label">Saturday Morning · Jun 6</div>
+
+      <div class="activity">
+        <div class="activity-time">8:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · City Market <span class="star">⭐</span></div>
+          <div class="activity-detail">Saturday market day. Streetcar to River Market stop.</div>
+        </div>
+        <div class="activity-cost">$15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Browse the market</div>
+          <div class="activity-detail">Local vendors, produce, makers</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">11:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Check out of Hotel Phillips</div>
+          <div class="activity-detail">Store bags at front desk</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">12:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Lunch · Joe's KC (original gas station)</div>
+          <div class="activity-detail">~10 min rideshare. The world-famous Z-Man.</div>
+        </div>
+        <div class="activity-cost">$25 + $15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">3:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Uber to MCI</div>
+          <div class="activity-detail">Company-paid</div>
+        </div>
+        <div class="activity-cost covered">COVERED</div>
+      </div>
+    </div>
+
+    <div class="plan-total">
+      <div>
+        <div class="total-label">Plan B Total</div>
+        <div class="total-range">activities + food</div>
+      </div>
+      <div class="total-val">~$249</div>
+    </div>
+  </div>
+
+
+  <!-- ════ PLAN C — BUDGET FRIENDLY ════ -->
+  <div class="plan">
+    <div class="plan-header">
+      <div class="plan-letter">C</div>
+      <div class="plan-tag">Plan C</div>
+      <div class="plan-title">The Budget-Conscious Walk</div>
+      <div class="plan-pitch">Lean into free museums + streetcar. Same Bloch Galleries visit, half the food spend.</div>
+    </div>
+
+    <!-- THURSDAY -->
+    <div class="plan-day">
+      <div class="day-label">Thursday Evening · Jun 4</div>
+
+      <div class="activity">
+        <div class="activity-time">5:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Check in + self-guided walk</div>
+          <div class="activity-detail">Power &amp; Light District, Crossroads, downtown sculpture &amp; architecture</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">7:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Dinner · LC's Bar-B-Q or food hall</div>
+          <div class="activity-detail">Counter-service KC BBQ. No frills, big flavor.</div>
+        </div>
+        <div class="activity-cost">$20</div>
+      </div>
+    </div>
+
+    <!-- FRIDAY -->
+    <div class="plan-day">
+      <div class="day-label">Friday · Jun 5 · PTO &amp; First Friday</div>
+
+      <div class="activity">
+        <div class="activity-time">8:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · Dott Boss <span class="miranda">★ Miranda</span></div>
+          <div class="activity-detail">One block from hotel. Order the breakfast sandwich (cheaper than steak &amp; eggs).</div>
+        </div>
+        <div class="activity-cost">$18</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Union Station — self-guided tour</div>
+          <div class="activity-detail">Free building admission. Streetcar to Union Station stop.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">11:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">WWI Memorial grounds (exterior only)</div>
+          <div class="activity-detail">Memorial grounds and outside of Liberty Tower — free</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">12:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Lunch · Crown Center area</div>
+          <div class="activity-detail">Food court or casual spot</div>
+        </div>
+        <div class="activity-cost">$15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">2:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Nelson-Atkins + Bloch Galleries <span class="star">⭐</span></div>
+          <div class="activity-detail">Streetcar to Plaza stop. Open until 9 PM. Plus the free Sculpture Park outside.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">5:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">First Fridays in the Crossroads 🎨</div>
+          <div class="activity-detail">5–9 PM. The whole event is free. Walkable from hotel.</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">7:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Dinner from the Food Truck Plaza</div>
+          <div class="activity-detail">19th &amp; Grand. Casual, cheap, local.</div>
+        </div>
+        <div class="activity-cost">$18</div>
+      </div>
+    </div>
+
+    <!-- SATURDAY -->
+    <div class="plan-day">
+      <div class="day-label">Saturday Morning · Jun 6</div>
+
+      <div class="activity">
+        <div class="activity-time">8:30 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Breakfast · City Market <span class="star">⭐</span></div>
+          <div class="activity-detail">Streetcar (free) to River Market stop. Vendors are reasonably priced.</div>
+        </div>
+        <div class="activity-cost">$12</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">10:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Browse the market &amp; River Market shops</div>
+          <div class="activity-detail">Plenty of free exploration here</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">11:00 AM</div>
+        <div class="activity-body">
+          <div class="activity-name">Check out of Hotel Phillips</div>
+          <div class="activity-detail">Store bags</div>
+        </div>
+        <div class="activity-cost free">FREE</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">12:30 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Light lunch · Crossroads</div>
+          <div class="activity-detail">Casual lunch spot or coffeehouse. Galleries free to browse.</div>
+        </div>
+        <div class="activity-cost">$15</div>
+      </div>
+
+      <div class="activity">
+        <div class="activity-time">3:00 PM</div>
+        <div class="activity-body">
+          <div class="activity-name">Uber to MCI</div>
+          <div class="activity-detail">Company-paid</div>
+        </div>
+        <div class="activity-cost covered">COVERED</div>
+      </div>
+    </div>
+
+    <div class="plan-total">
+      <div>
+        <div class="total-label">Plan C Total</div>
+        <div class="total-range">activities + food</div>
+      </div>
+      <div class="total-val">~$98</div>
+    </div>
+  </div>
+
+
+  <!-- COST NOTES -->
+  <div class="cost-notes">
+    <div class="cost-notes-title">📝 Budget Notes</div>
+    <ul>
+      <li><strong>Saturday Uber to MCI is COVERED</strong> by your company — would have been a paid expense regardless. Removed from totals.</li>
+      <li><strong>Streetcar is free</strong> and covers downtown, Crossroads, Union Station, Plaza, River Market. Most plans use it heavily.</li>
+      <li><strong>Rideshares</strong> off the streetcar line (18th &amp; Vine, Arthur Bryant's, Joe's original location): $10–15 each way.</li>
+      <li><strong>All admission costs verified:</strong> Nelson-Atkins free · Union Station free to enter · WWI Museum $18 ($26 with tower) · Negro Leagues + Jazz combo $15.</li>
+      <li><strong>First Friday + your PTO day overlapping</strong> is a great coincidence. Galleries open until 9 PM, food trucks, live music — entire event is free.</li>
+      <li><strong>Personal hotel</strong> (Phillips, Thu &amp; Fri nights) is on top of these totals.</li>
+      <li><strong>Heavier drinking adds $30–50</strong> to any plan.</li>
+    </ul>
+  </div>
+
+  <div class="footer">Personal Time · Jun 4–6, 2026</div>
+</div>
+
+</body>
+</html>

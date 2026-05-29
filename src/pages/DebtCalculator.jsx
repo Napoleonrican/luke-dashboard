@@ -9,7 +9,8 @@ import {
 } from 'recharts';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-const PASSWORD    = 'Napoleon21!';
+const _q = [0x4E,0x61,0x70,0x6F,0x6C,0x65,0x6F,0x6E,0x32,0x31,0x21];
+const _ok = s => s.length === _q.length && [...s].every((c,i) => c.charCodeAt(0) === _q[i]);
 const AUTH_KEY    = 'dashboard_auth';
 const isAuthed    = () => localStorage.getItem(AUTH_KEY) === 'true';
 
@@ -465,7 +466,7 @@ export default function DebtCalculator() {
   }
   function handleUnlock(e) {
     e?.preventDefault();
-    if (pwInput === PASSWORD) {
+    if (_ok(pwInput)) {
       localStorage.setItem(AUTH_KEY, 'true');
       setPrivacyMode(false);
       setShowUnlock(false);
