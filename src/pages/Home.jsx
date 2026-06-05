@@ -79,7 +79,7 @@ export default function Home() {
             <h2 className="text-xl font-semibold text-zinc-100 mb-1">Kansas City Trip</h2>
             <p className="text-sm text-zinc-500">H&R Block HQ work trip + personal time</p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <a
               href="/kc-itinerary.html"
               className="flex flex-col gap-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-700/60 hover:bg-amber-950/30 hover:shadow-lg hover:shadow-black/30"
@@ -104,6 +104,19 @@ export default function Home() {
               <div>
                 <h3 className="text-sm font-semibold text-zinc-100">KC Plans</h3>
                 <p className="mt-1 text-xs leading-relaxed text-zinc-500">Three personal budget options for Thu–Sat: History &amp; Culture (~$167), BBQ &amp; Jazz (~$249), or Budget (~$98).</p>
+              </div>
+            </a>
+            <a
+              href="/kc-souvenirs.html"
+              className="flex flex-col gap-4 rounded-xl border border-amber-900/40 bg-amber-950/20 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-700/60 hover:bg-amber-950/30 hover:shadow-lg hover:shadow-black/30"
+            >
+              <div className="flex items-start justify-between">
+                <div className="rounded-lg bg-zinc-800 p-2.5 text-amber-400 text-lg leading-none">🛍️</div>
+                <ExternalLink size={14} className="text-zinc-600 transition-colors group-hover:text-zinc-400 mt-1" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">KC Souvenir List</h3>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">River Market shopping checklist — tap items as you find them at the City Market.</p>
               </div>
             </a>
           </div>

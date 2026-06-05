@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KC Souvenir List — River Market / City Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c8923a;
+    --gold-soft: #e0b56a;
+    --cream: #fbf6ec;
+    --ink: #2c2419;
+    --muted: #6f6452;
+    --card: #fffdf8;
+    --line: #ece0c9;
+    --brick: #9c4a2f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Outfit', sans-serif;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(200,146,58,0.10), transparent 40%),
+      radial-gradient(circle at 88% 92%, rgba(156,74,47,0.08), transparent 45%),
+      var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 2.5rem 1.25rem 4rem;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .back-link {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font-size: 0.8rem; color: var(--muted); text-decoration: none;
+    margin-bottom: 1.6rem; transition: color 0.15s;
+  }
+  .back-link:hover { color: var(--gold); }
+  .back-link svg { width: 13px; height: 13px; }
+
+  header {
+    border-left: 5px solid var(--gold);
+    padding: 0.4rem 0 0.4rem 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(1.9rem, 5vw, 2.8rem);
+    line-height: 1.05;
+    margin: 0.3rem 0 0.4rem;
+  }
+  .sub { color: var(--muted); font-size: 0.95rem; max-width: 50ch; }
+
+  .progress {
+    margin: 1.6rem 0 2rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .progress b { color: var(--gold); font-family: 'Fraunces', serif; }
+  .progress-bar-wrap {
+    flex: 1; height: 6px; background: var(--line);
+    border-radius: 999px; overflow: hidden; max-width: 200px;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--gold); border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+
+  .person {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--gold);
+    border-radius: 14px;
+    padding: 1.3rem 1.4rem 1.1rem;
+    margin-bottom: 1.1rem;
+    box-shadow: 0 2px 10px rgba(120,90,30,0.05);
+  }
+  .person-head {
+    display: flex; align-items: baseline; gap: 0.7rem;
+    flex-wrap: wrap; margin-bottom: 0.9rem;
+  }
+  .person-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem; font-weight: 600;
+  }
+  .tag {
+    font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--brick); background: rgba(156,74,47,0.08);
+    padding: 0.18rem 0.6rem; border-radius: 999px; font-weight: 500;
+  }
+  ul { list-style: none; }
+  li {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    padding: 0.5rem 0;
+    border-top: 1px dashed var(--line);
+    cursor: pointer;
+    transition: opacity 0.18s;
+  }
+  li:first-child { border-top: none; }
+  .box {
+    flex: 0 0 auto;
+    width: 19px; height: 19px; margin-top: 0.12rem;
+    border: 2px solid var(--gold-soft);
+    border-radius: 5px;
+    display: grid; place-items: center;
+    transition: all 0.18s;
+  }
+  .box::after {
+    content: "✓"; font-size: 0.8rem; color: #fff;
+    opacity: 0; transform: scale(0.5); transition: all 0.18s;
+  }
+  li.done .box { background: var(--gold); border-color: var(--gold); }
+  li.done .box::after { opacity: 1; transform: scale(1); }
+  li.done .txt { text-decoration: line-through; color: var(--muted); }
+  .txt { font-size: 0.95rem; }
+
+  footer {
+    margin-top: 2rem; text-align: center;
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .reset {
+    margin-top: 0.9rem;
+    background: none; border: 1px solid var(--line);
+    color: var(--muted); font-family: 'Outfit', sans-serif;
+    padding: 0.45rem 1.1rem; border-radius: 999px;
+    cursor: pointer; font-size: 0.8rem; transition: all 0.18s;
+  }
+  .reset:hover { border-color: var(--gold); color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back to hub
+  </a>
+
+  <header>
+    <div class="eyebrow">Kansas City Trip · Souvenirs</div>
+    <h1>River Market<br>Souvenir List</h1>
+    <p class="sub">What to keep an eye out for at the City Market for each person. Tap to check things off as you find them.</p>
+  </header>
+
+  <div class="progress">
+    <span><b id="count">0</b> of <b id="total">0</b> found</span>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <footer>
+    Built for the City Market run · tap items to mark them found
+    <br><button class="reset" onclick="resetAll()">Reset list</button>
+  </footer>
+</div>
+
+<script>
+const STORAGE_KEY = 'kc_souvenirs_checked';
+
+const people = [
+  { name: "Eric", tag: "brother", items: [
+    "Local KC craft beer or small-batch bourbon/whiskey",
+    "Regional hot sauce or a BBQ rub sampler",
+    "Local jerky or a snack/popcorn mix"
+  ]},
+  { name: "Sasha", tag: "Eric's wife", items: [
+    "Handmade soap or bath bombs",
+    "Small potted cactus / succulent (or cactus mug, pin, print)",
+    "Jeep / off-road sticker or keychain",
+    "Anything fun pizza-themed",
+    "Dunkin-adjacent coffee treat"
+  ]},
+  { name: "Ava", tag: "niece · under 6", items: [
+    "Small plush or wooden toy",
+    "Kids' picture book from a local maker",
+    "Fun KC-themed tee in her size"
+  ]},
+  { name: "Miranda", tag: "SO · loves to cook", items: [
+    "Spice blend set or single-origin spices",
+    "Local finishing salt or infused oil / vinegar",
+    "Handmade cooking tool or ceramic dish"
+  ]},
+  { name: "Mom", tag: "loves puzzles", items: [
+    "Wooden or artisan jigsaw puzzle",
+    "Brain-teaser / logic puzzle",
+    "KC-skyline jigsaw if you can find one"
+  ]},
+  { name: "Bill", tag: "BBQ · beer · gadgets", items: [
+    "KC BBQ rub or sauce set",
+    "Grilling tool or gadget",
+    "Local craft beer or spirits bottle"
+  ]}
+];
+
+// Load saved state
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
+
+const listEl = document.getElementById('list');
+let total = 0;
+
+people.forEach((p) => {
+  const card = document.createElement('div');
+  card.className = 'person';
+  const head = `<div class="person-head"><h2>${p.name}</h2><span class="tag">${p.tag}</span></div>`;
+  const ul = document.createElement('ul');
+  p.items.forEach((item, ii) => {
+    total++;
+    const key = `${p.name}-${ii}`;
+    const li = document.createElement('li');
+    if (saved[key]) li.classList.add('done');
+    li.innerHTML = `<span class="box"></span><span class="txt">${item}</span>`;
+    li.onclick = () => {
+      li.classList.toggle('done');
+      saveState();
+      updateCount();
+    };
+    ul.appendChild(li);
+  });
+  card.innerHTML = head;
+  card.appendChild(ul);
+  listEl.appendChild(card);
+});
+
+document.getElementById('total').textContent = total;
+updateCount();
+
+function saveState() {
+  const state = {};
+  document.querySelectorAll('li').forEach(li => {
+    const txt = li.querySelector('.txt').textContent;
+    // find person/index key by matching item text
+    people.forEach(p => {
+      p.items.forEach((item, ii) => {
+        if (item === txt) state[`${p.name}-${ii}`] = li.classList.contains('done');
+      });
+    });
+  });
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
+function updateCount() {
+  const found = document.querySelectorAll('li.done').length;
+  document.getElementById('count').textContent = found;
+  document.getElementById('progressBar').style.width = `${(found / total) * 100}%`;
+}
+
+function resetAll() {
+  document.querySelectorAll('li.done').forEach(li => li.classList.remove('done'));
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  updateCount();
+}
+</script>
+</body>
+</html>
