@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, ShoppingBag } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -49,6 +49,16 @@ const tools = [
   },
 ];
 
+const kcTrip = [
+  {
+    icon: ShoppingBag,
+    title: 'KC Souvenir List',
+    description: 'River Market shopping checklist — tap items as you find them.',
+    to: '/kc-souvenirs',
+    accentColor: 'text-amber-400',
+  },
+];
+
 const workshop = [
   {
     icon: Mail,
@@ -74,6 +84,18 @@ export default function Home() {
           {tools.map((tool) => (
             <ToolCard key={tool.title} {...tool} />
           ))}
+        </div>
+
+        <div className="mb-10">
+          <div className="mb-4">
+            <h2 className="text-xs font-semibold text-amber-500/80 uppercase tracking-widest">Kansas City Trip</h2>
+            <p className="text-xs text-zinc-600 mt-0.5">Modules for the KC trip</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {kcTrip.map((tool) => (
+              <ToolCard key={tool.title} {...tool} />
+            ))}
+          </div>
         </div>
 
         <div>
