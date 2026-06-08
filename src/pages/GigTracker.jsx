@@ -347,12 +347,11 @@ export default function GigTracker() {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
 
-    // Capture EPH as it was just before this order changes the totals (live calc, not snapshot)
     const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
     const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
     const currentElapsed = computeElapsedMinutes(state.startTime, totalBreak);
     const currentElapsedHours = currentElapsed / 60;
-    const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
+    const capturedEph = currentElapsedHours > 0 ? (existingCombined + amount) / currentElapsedHours : 0;
 
     const platformLabel = platform === 'ue' ? 'UberEats' : 'DoorDash';
     const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString(), eph: Math.round(capturedEph * 100) / 100 };
@@ -452,8 +451,7 @@ export default function GigTracker() {
   const combined = ueTotal + ddTotal;
   const totalOrders = safeLog.length;
 
-  // EPH uses snapshotted elapsed time — only updates on order add/remove or 15-min tick
-  const ephElapsedHours = ephElapsedMinutes / 60;
+  const ephElapsedHours = elapsedMinutes / 60;
   const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
 
   const ephOrders = safeLog.filter(o => o.eph != null);
@@ -1085,11 +1083,11 @@ export default function GigTracker() {
                         <>
                           {'Last: $'}{lastEphEntry.eph.toFixed(2)}{' '}
                           <span className={
-                            lastEphEntry.eph > prevEphEntry.eph ? 'text-green-400'
-                            : lastEphEntry.eph < prevEphEntry.eph ? 'text-red-400'
+                            eph > lastEphEntry.eph ? 'text-green-400'
+                            : eph < lastEphEntry.eph ? 'text-red-400'
                             : 'text-zinc-400'
                           }>
-                            {lastEphEntry.eph > prevEphEntry.eph ? '↑' : lastEphEntry.eph < prevEphEntry.eph ? '↓' : '→'}
+                            {eph > lastEphEntry.eph ? '↑' : eph < lastEphEntry.eph ? '↓' : '→'}
                           </span>
                           {'  ·  Prev: $'}{prevEphEntry.eph.toFixed(2)}
                         </>
