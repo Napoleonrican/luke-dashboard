@@ -4,6 +4,7 @@ import TaskManager from './pages/TaskManager';
 import DebtCalculator from './pages/DebtCalculator';
 import VersaRepair from './pages/VersaRepair';
 import GigTracker from './pages/GigTracker';
+import Thermometers from './pages/Thermometers';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -21,6 +22,7 @@ export default function App() {
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
         <Route path="/gig-tracker" element={<GigTracker />} />
+        <Route path="/thermometers" element={<Thermometers />} />
       </Routes>
     </div>
   );

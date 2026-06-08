@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -46,6 +46,13 @@ const tools = [
     to: '/gig-tracker',
     accentColor: 'text-green-400',
     locked: true,
+  },
+  {
+    icon: Thermometer,
+    title: 'Thermometers',
+    description: 'Live Govee temperature & humidity readings with history and export.',
+    to: '/thermometers',
+    accentColor: 'text-cyan-400',
   },
 ];
 
