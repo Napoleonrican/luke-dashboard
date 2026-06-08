@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import * as XLSX from 'xlsx';
 import { Thermometer, Droplets, BatteryLow, Pencil, Download, RefreshCw, Sparkles, Cloud, Wind, LoaderCircle } from 'lucide-react';
 import TopNav from '../components/TopNav';
+import AcSchedule from '../components/AcSchedule';
 import { supabase } from '../lib/supabase';
 
 const RANGES = [
@@ -475,6 +476,9 @@ export default function Thermometers() {
                 </div>
               )}
             </div>
+
+            {/* AC schedule (hand-mirrored from SmartHQ) + advisor recommendations */}
+            <AcSchedule />
 
             {/* Chart controls: time range + metric toggle ........ export */}
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
