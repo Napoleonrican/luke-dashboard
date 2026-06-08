@@ -6,10 +6,10 @@ import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 
 const RANGES = [
-  { key: '1h', label: '1H', hours: 1 },
-  { key: '6h', label: '6H', hours: 6 },
-  { key: '24h', label: '24H', hours: 24 },
-  { key: '7d', label: '7D', hours: 24 * 7 },
+  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },       // ~60 points
+  { key: '6h', label: '6H', hours: 6, bucketSecs: 120 },      // ~180 points
+  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },   // ~144 points
+  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 },// ~168 points
 ];
 
 // Distinct line colors assigned per sensor in load order.
@@ -75,19 +75,24 @@ export default function Thermometers() {
       })
     );
 
-    // 3) windowed readings for the chart
-    const { data: readings } = await supabase
-      .from('sensor_readings')
-      .select('mac,ts,temp_c')
-      .gte('ts', since)
-      .order('ts', { ascending: true })
-      .limit(5000);
+    // 3) windowed chart data from the on-device history (sensor_history),
+    //    bucket-averaged server-side so a week of 1-minute data is a few hundred
+    //    points instead of tens of thousands. The live tiles above use the
+    //    collector's sensor_readings; the graph uses the gap-light history pull.
+    const { data: series } = await supabase.rpc('history_series', {
+      since,
+      bucket_seconds: range.bucketSecs ?? 600,
+    });
 
-    // pivot: one row per timestamp, a column per sensor (connectNulls bridges gaps)
-    const rows = (readings ?? []).map((r) => ({
-      ts: new Date(r.ts).getTime(),
-      [`temp_${r.mac}`]: r.temp_c,
-    }));
+    // pivot: one row per time bucket, a column per sensor (connectNulls bridges gaps)
+    const byTs = new Map();
+    for (const r of series ?? []) {
+      const t = new Date(r.bucket).getTime();
+      let row = byTs.get(t);
+      if (!row) { row = { ts: t }; byTs.set(t, row); }
+      row[`temp_${r.mac}`] = r.temp_c == null ? null : Number(r.temp_c);
+    }
+    const rows = Array.from(byTs.values()).sort((a, b) => a.ts - b.ts);
 
     setSensors(sList);
     setLatest(Object.fromEntries(latestEntries));
@@ -114,21 +119,34 @@ export default function Thermometers() {
   async function exportData() {
     const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
     const since = new Date(Date.now() - range.hours * 3600 * 1000).toISOString();
-    const { data } = await supabase
-      .from('sensor_readings')
-      .select('mac,ts,temp_c,humidity,battery,rssi')
-      .gte('ts', since)
-      .order('ts', { ascending: true })
-      .limit(50000);
+
+    // Export the full-resolution history. This project caps each query at 1000
+    // rows, so page through with .range() until a short page comes back.
+    const pageSize = 1000;
+    let from = 0;
+    let data = [];
+    // safety cap of 60 pages (60k rows) to avoid a runaway loop
+    for (let page = 0; page < 60; page++) {
+      const { data: chunk } = await supabase
+        .from('sensor_history')
+        .select('mac,ts,temp_c,humidity,battery')
+        .gte('ts', since)
+        .order('ts', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (!chunk || chunk.length === 0) break;
+      data = data.concat(chunk);
+      if (chunk.length < pageSize) break;
+      from += pageSize;
+    }
+
     const labelOf = Object.fromEntries(sensors.map((s) => [s.mac, s.label || s.name || s.mac]));
-    const rows = (data ?? []).map((r) => ({
+    const rows = data.map((r) => ({
       Time: new Date(r.ts).toLocaleString(),
       Sensor: labelOf[r.mac] ?? r.mac,
       'Temp °C': r.temp_c,
       'Temp °F': r.temp_c == null ? null : Number(cToF(r.temp_c).toFixed(1)),
       'Humidity %': r.humidity,
       'Battery %': r.battery,
-      RSSI: r.rssi,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -351,7 +369,7 @@ export default function Thermometers() {
               <div className="text-xs text-zinc-500 mb-3">Temperature (°{unit})</div>
               {chartData.length === 0 ? (
                 <div className="h-72 flex items-center justify-center text-sm text-zinc-600">
-                  No readings in this range yet.
+                  No history in this range yet. Run the history downloader (history_pull.py) to pull stored readings from the sensors.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
