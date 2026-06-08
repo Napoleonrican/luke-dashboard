@@ -12,7 +12,14 @@ const RANGES = [
   { key: '7d', label: '7D', hours: 24 * 7 },
 ];
 
-// Distinct line colors assigned per sensor in load order.
+const REFRESH_OPTIONS = [
+  { label: '30s', value: 30 },
+  { label: '1m', value: 60 },
+  { label: '5m', value: 300 },
+  { label: '15m', value: 900 },
+  { label: 'Off', value: 0 },
+];
+
 const PALETTE = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185'];
 
 const cToF = (c) => (c == null ? null : c * 9 / 5 + 32);
@@ -29,16 +36,26 @@ function timeAgo(iso) {
 }
 
 export default function Thermometers() {
-  const [sensors, setSensors] = useState([]);          // [{mac,name,label}]
-  const [latest, setLatest] = useState({});            // mac -> {temp_c,humidity,battery,ts,rssi}
-  const [chartData, setChartData] = useState([]);      // [{ts, temp_<mac>: value, ...}]
+  const [sensors, setSensors] = useState([]);
+  const [latest, setLatest] = useState({});
+  const [chartData, setChartData] = useState([]);
   const [rangeKey, setRangeKey] = useState('24h');
   const [unit, setUnit] = useState('F');
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
-  // AI comfort & AC advice (from the /api/insights serverless function)
-  const [insights, setInsights] = useState(null);    // {advice, weather, indoor, generatedAt}
+  const [refreshInterval, setRefreshInterval] = useState(() => {
+    const stored = localStorage.getItem('thermo_refresh_interval');
+    return stored !== null ? parseInt(stored, 10) : 60;
+  });
+
+  const [showTemp, setShowTemp] = useState(true);
+  const [showHumidity, setShowHumidity] = useState(false);
+
+  const [weather, setWeather] = useState(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
+  const [insights, setInsights] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
 
@@ -58,11 +75,9 @@ export default function Thermometers() {
     const range = RANGES.find((r) => r.key === rKey) ?? RANGES[2];
     const since = new Date(Date.now() - range.hours * 3600 * 1000).toISOString();
 
-    // 1) sensor registry
     const sRes = await supabase.from('sensors').select('mac,name,label').order('created_at');
     const sList = sRes.data ?? [];
 
-    // 2) latest reading per sensor (one small query each — only a few sensors)
     const latestEntries = await Promise.all(
       sList.map(async (s) => {
         const { data } = await supabase
@@ -75,18 +90,17 @@ export default function Thermometers() {
       })
     );
 
-    // 3) windowed readings for the chart
     const { data: readings } = await supabase
       .from('sensor_readings')
-      .select('mac,ts,temp_c')
+      .select('mac,ts,temp_c,humidity')
       .gte('ts', since)
       .order('ts', { ascending: true })
       .limit(5000);
 
-    // pivot: one row per timestamp, a column per sensor (connectNulls bridges gaps)
     const rows = (readings ?? []).map((r) => ({
       ts: new Date(r.ts).getTime(),
       [`temp_${r.mac}`]: r.temp_c,
+      [`humidity_${r.mac}`]: r.humidity,
     }));
 
     setSensors(sList);
@@ -98,11 +112,45 @@ export default function Thermometers() {
 
   useEffect(() => { loadAll(rangeKey); }, [rangeKey, loadAll]);
 
-  // auto-refresh every 60s
   useEffect(() => {
-    const id = setInterval(() => loadAll(rangeKey), 60 * 1000);
+    if (refreshInterval === 0) return;
+    const id = setInterval(() => loadAll(rangeKey), refreshInterval * 1000);
     return () => clearInterval(id);
-  }, [rangeKey, loadAll]);
+  }, [rangeKey, loadAll, refreshInterval]);
+
+  // Auto-fetch outdoor weather on mount via Open-Meteo (free, no API key)
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    setWeatherLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,apparent_temperature&wind_speed_unit=mph&forecast_days=1`
+          );
+          const d = await res.json();
+          const c = d.current;
+          setWeather({
+            tempC: c.temperature_2m,
+            feelsLikeC: c.apparent_temperature,
+            humidity: c.relative_humidity_2m,
+            dewPointC: c.dew_point_2m,
+            windMph: c.wind_speed_10m,
+          });
+        } catch {
+          // Silently fail — weather tile stays empty
+        }
+        setWeatherLoading(false);
+      },
+      () => setWeatherLoading(false),
+      { timeout: 10000, maximumAge: 10 * 60 * 1000 }
+    );
+  }, []);
+
+  function handleRefreshIntervalChange(val) {
+    setRefreshInterval(val);
+    localStorage.setItem('thermo_refresh_interval', String(val));
+  }
 
   async function renameSensor(mac, current) {
     const next = window.prompt('Rename this sensor:', current);
@@ -140,7 +188,6 @@ export default function Thermometers() {
     setAiError(null);
     setAiLoading(true);
     try {
-      // Browser-detected location (Luke chose auto-detect); used for outdoor weather.
       const coords = await new Promise((resolve, reject) => {
         if (!('geolocation' in navigator)) {
           reject(new Error('This browser does not support location.'));
@@ -168,6 +215,15 @@ export default function Thermometers() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
       setInsights(data);
+      if (data.weather) {
+        setWeather((prev) => ({
+          ...prev,
+          tempC: data.weather.tempC,
+          feelsLikeC: data.weather.feelsLikeC,
+          humidity: data.weather.humidity,
+          windMph: data.weather.windMph,
+        }));
+      }
     } catch (e) {
       setAiError(e.message || 'Something went wrong.');
     } finally {
@@ -186,7 +242,7 @@ export default function Thermometers() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TopNav />
       <main className="max-w-4xl mx-auto px-4 pb-12">
-        <header className="mt-6 mb-5 flex items-end justify-between gap-3">
+        <header className="mt-6 mb-5 flex items-end justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">Thermometers</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
@@ -194,7 +250,20 @@ export default function Thermometers() {
               {lastRefresh && <span> · updated {lastRefresh.toLocaleTimeString()}</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <RefreshCw size={12} className="text-zinc-500" />
+              <select
+                value={refreshInterval}
+                onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
+                className="bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg px-2 py-2 text-xs min-h-[36px] cursor-pointer hover:bg-zinc-800 transition-colors"
+                title="Auto-refresh interval"
+              >
+                {REFRESH_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
             <button
               onClick={() => setUnit((u) => (u === 'F' ? 'C' : 'F'))}
               className="text-xs px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[36px]"
@@ -218,7 +287,7 @@ export default function Thermometers() {
           </div>
         ) : (
           <>
-            {/* Live tiles */}
+            {/* Live sensor tiles + outdoor weather tile */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
               {sensors.map((s) => {
                 const r = latest[s.mac];
@@ -261,9 +330,49 @@ export default function Thermometers() {
                   </div>
                 );
               })}
+
+              {/* Outdoor weather tile */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Cloud size={14} className="text-sky-400" />
+                  <span className="text-sm font-semibold text-zinc-100">Outdoor</span>
+                </div>
+                {weatherLoading ? (
+                  <div className="flex items-center gap-2 text-zinc-500 text-sm">
+                    <LoaderCircle size={14} className="animate-spin" /> Loading…
+                  </div>
+                ) : weather ? (
+                  <>
+                    <div className="flex items-baseline gap-1 mb-2">
+                      <Cloud size={18} className="text-zinc-500" />
+                      <span className="text-3xl font-bold tabular-nums text-zinc-100">
+                        {fmtTemp(weather.tempC, unit)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 text-xs text-zinc-400">
+                      <span>Feels like {fmtTemp(weather.feelsLikeC, unit)}</span>
+                      <span className="flex items-center gap-1">
+                        <Droplets size={12} className="text-sky-400" />
+                        {weather.humidity}% humidity
+                      </span>
+                      {weather.dewPointC != null && (
+                        <span>Dew point {fmtTemp(weather.dewPointC, unit)}</span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Wind size={12} />
+                        {Math.round(weather.windMph)} mph
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-zinc-500 leading-relaxed">
+                    Allow location access for local weather
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* AI comfort & AC advice + outdoor weather */}
+            {/* AI comfort & AC advice */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 mb-6">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
@@ -323,20 +432,42 @@ export default function Thermometers() {
               )}
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-                {RANGES.map((r) => (
+            {/* Chart controls */}
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Time range selector */}
+                <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+                  {RANGES.map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setRangeKey(r.key)}
+                      className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] ${
+                        rangeKey === r.key ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Metric toggles */}
+                <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
                   <button
-                    key={r.key}
-                    onClick={() => setRangeKey(r.key)}
-                    className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] ${
-                      rangeKey === r.key ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    onClick={() => setShowTemp((v) => !v)}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] flex items-center gap-1.5 ${
+                      showTemp ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    {r.label}
+                    <Thermometer size={12} /> Temp
                   </button>
-                ))}
+                  <button
+                    onClick={() => setShowHumidity((v) => !v)}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] flex items-center gap-1.5 ${
+                      showHumidity ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Droplets size={12} /> Humidity
+                  </button>
+                </div>
               </div>
               <button
                 onClick={exportData}
@@ -348,14 +479,24 @@ export default function Thermometers() {
 
             {/* History chart */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="text-xs text-zinc-500 mb-3">Temperature (°{unit})</div>
+              <div className="text-xs text-zinc-500 mb-3">
+                {showTemp && showHumidity
+                  ? `Temperature (°${unit}) & Humidity (%)`
+                  : showHumidity
+                  ? 'Humidity (%)'
+                  : `Temperature (°${unit})`}
+              </div>
               {chartData.length === 0 ? (
                 <div className="h-72 flex items-center justify-center text-sm text-zinc-600">
                   No readings in this range yet.
                 </div>
+              ) : !showTemp && !showHumidity ? (
+                <div className="h-72 flex items-center justify-center text-sm text-zinc-600">
+                  Select at least one metric above.
+                </div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: showHumidity && showTemp ? 45 : 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                     <XAxis
                       dataKey="ts"
@@ -366,21 +507,38 @@ export default function Thermometers() {
                       stroke="#52525b"
                       fontSize={11}
                     />
-                    <YAxis
-                      stroke="#52525b"
-                      fontSize={11}
-                      tickFormatter={(v) => (unit === 'F' ? Math.round(cToF(v)) : Math.round(v))}
-                      domain={['auto', 'auto']}
-                    />
+                    {showTemp && (
+                      <YAxis
+                        yAxisId="temp"
+                        stroke="#52525b"
+                        fontSize={11}
+                        tickFormatter={(v) => (unit === 'F' ? Math.round(cToF(v)) : Math.round(v))}
+                        domain={['auto', 'auto']}
+                      />
+                    )}
+                    {showHumidity && (
+                      <YAxis
+                        yAxisId="humidity"
+                        orientation={showTemp ? 'right' : 'left'}
+                        stroke="#52525b"
+                        fontSize={11}
+                        domain={[0, 100]}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                    )}
                     <Tooltip
                       contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12 }}
                       labelFormatter={(t) => new Date(t).toLocaleString()}
-                      formatter={(value, name) => [fmtTemp(value, unit), name]}
+                      formatter={(value, name) => {
+                        if (name.endsWith(' (hum)')) return [`${value?.toFixed(1)}%`, name];
+                        return [fmtTemp(value, unit), name];
+                      }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {sensors.map((s) => (
+                    {showTemp && sensors.map((s) => (
                       <Line
-                        key={s.mac}
+                        key={`temp_${s.mac}`}
+                        yAxisId="temp"
                         type="monotone"
                         dataKey={`temp_${s.mac}`}
                         name={s.label || s.name}
@@ -388,6 +546,21 @@ export default function Thermometers() {
                         dot={false}
                         connectNulls
                         strokeWidth={2}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                    {showHumidity && sensors.map((s) => (
+                      <Line
+                        key={`hum_${s.mac}`}
+                        yAxisId="humidity"
+                        type="monotone"
+                        dataKey={`humidity_${s.mac}`}
+                        name={`${s.label || s.name} (hum)`}
+                        stroke={colorFor(s.mac)}
+                        dot={false}
+                        connectNulls
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
                         isAnimationActive={false}
                       />
                     ))}
