@@ -12,6 +12,10 @@ const EVERY_DAY = 127;
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
 const toggleDayBit = (mask, i) => mask ^ (1 << i);
 
+// Defensively strip any stray XML-ish tags from stored recommendation text
+// (older rows may have been saved before the advisor switched to clean JSON).
+const stripTags = (s) => (typeof s === 'string' ? s.replace(/<\/?[a-z_]+>/gi, '').trim() : s);
+
 function fmtTime12(t) {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -91,9 +95,9 @@ export default function AcSchedule() {
       .limit(1);
     if (data?.[0]) {
       setRecs({
-        summary: data[0].summary,
+        summary: stripTags(data[0].summary),
         changes: data[0].changes ?? [],
-        rationale: data[0].rationale,
+        rationale: stripTags(data[0].rationale),
         generatedAt: data[0].generated_at,
       });
     }

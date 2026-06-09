@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 import * as XLSX from 'xlsx';
-import { Thermometer, Droplets, BatteryLow, Pencil, Download, RefreshCw, Sparkles, Cloud, Wind, LoaderCircle } from 'lucide-react';
+import { Thermometer, Droplets, BatteryLow, Pencil, Download, RefreshCw, Sparkles, Cloud, Wind, LoaderCircle, Info, Snowflake } from 'lucide-react';
 import TopNav from '../components/TopNav';
-import AcSchedule from '../components/AcSchedule';
 import { supabase } from '../lib/supabase';
 
 const RANGES = [
@@ -37,12 +37,25 @@ function timeAgo(iso) {
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
+// Tiny localStorage helpers so the graph remembers how Luke left it.
+const lsGet = (key, fallback) => {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : JSON.parse(v);
+  } catch {
+    return fallback;
+  }
+};
+const lsSet = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+};
+
 export default function Thermometers() {
   const [sensors, setSensors] = useState([]);          // [{mac,name,label}]
   const [latest, setLatest] = useState({});            // mac -> {temp_c,humidity,battery,ts,rssi}
   const [chartData, setChartData] = useState([]);      // [{ts, temp_<mac>, humidity_<mac>, ...}]
-  const [rangeKey, setRangeKey] = useState('24h');
-  const [unit, setUnit] = useState('F');
+  const [rangeKey, setRangeKey] = useState(() => lsGet('thermo_range', '24h'));
+  const [unit, setUnit] = useState(() => lsGet('thermo_unit', 'F'));
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
@@ -52,10 +65,10 @@ export default function Thermometers() {
     return stored !== null ? parseInt(stored, 10) : 60;
   });
 
-  // Which metrics to plot, and which sensors to show on the graph.
-  const [showTemp, setShowTemp] = useState(true);
-  const [showHumidity, setShowHumidity] = useState(false);
-  const [hiddenSensors, setHiddenSensors] = useState(() => new Set()); // macs hidden from the graph
+  // Which metrics to plot, and which sensors to show on the graph (all remembered).
+  const [showTemp, setShowTemp] = useState(() => lsGet('thermo_show_temp', true));
+  const [showHumidity, setShowHumidity] = useState(() => lsGet('thermo_show_humidity', false));
+  const [hiddenSensors, setHiddenSensors] = useState(() => new Set(lsGet('thermo_hidden_sensors', []))); // macs hidden from the graph
 
   // Outdoor weather tile (Open-Meteo, no API key).
   const [weather, setWeather] = useState(null);
@@ -130,6 +143,13 @@ export default function Thermometers() {
     const id = setInterval(() => loadAll(rangeKey), refreshInterval * 1000);
     return () => clearInterval(id);
   }, [rangeKey, loadAll, refreshInterval]);
+
+  // Remember the graph configuration between visits.
+  useEffect(() => { lsSet('thermo_range', rangeKey); }, [rangeKey]);
+  useEffect(() => { lsSet('thermo_unit', unit); }, [unit]);
+  useEffect(() => { lsSet('thermo_show_temp', showTemp); }, [showTemp]);
+  useEffect(() => { lsSet('thermo_show_humidity', showHumidity); }, [showHumidity]);
+  useEffect(() => { lsSet('thermo_hidden_sensors', Array.from(hiddenSensors)); }, [hiddenSensors]);
 
   // Fetch outdoor weather once on mount (browser location + Open-Meteo, no key).
   useEffect(() => {
@@ -278,6 +298,26 @@ export default function Thermometers() {
   };
 
   const visibleSensors = sensors.filter((s) => !hiddenSensors.has(s.mac));
+
+  // Per-sensor averages over the visible chart window (for the reference lines).
+  // Temps are stored in °C (the axis converts to the chosen unit on display).
+  const averages = useMemo(() => {
+    const out = {};
+    for (const s of sensors) {
+      let tSum = 0, tN = 0, hSum = 0, hN = 0;
+      for (const row of chartData) {
+        const t = row[`temp_${s.mac}`];
+        if (t != null) { tSum += t; tN += 1; }
+        const h = row[`humidity_${s.mac}`];
+        if (h != null) { hSum += h; hN += 1; }
+      }
+      out[s.mac] = {
+        temp: tN ? tSum / tN : null,
+        humidity: hN ? hSum / hN : null,
+      };
+    }
+    return out;
+  }, [chartData, sensors]);
   const chartTitle = showTemp && showHumidity
     ? `Temperature (°${unit}) & Humidity (%)`
     : showHumidity
@@ -287,7 +327,7 @@ export default function Thermometers() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TopNav />
-      <main className="max-w-4xl mx-auto px-4 pb-12">
+      <main className="max-w-6xl mx-auto px-4 pb-12">
         <header className="mt-6 mb-5 flex items-end justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">Thermometers</h1>
@@ -297,30 +337,50 @@ export default function Thermometers() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Auto-refresh interval">
-              <RefreshCw size={12} className="text-zinc-500" />
-              <select
-                value={refreshInterval}
-                onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
-                className="bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg px-2 py-2 text-xs min-h-[36px] cursor-pointer hover:bg-zinc-800 transition-colors"
-              >
-                {REFRESH_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
+            <Link
+              to="/climate"
+              className="text-xs px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[36px] flex items-center gap-1.5"
+            >
+              <Snowflake size={13} className="text-sky-400" /> Climate
+            </Link>
             <button
               onClick={() => setUnit((u) => (u === 'F' ? 'C' : 'F'))}
               className="text-xs px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[36px]"
             >
               °{unit}
             </button>
-            <button
-              onClick={() => loadAll(rangeKey)}
-              className="text-xs px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 transition-colors min-h-[36px] flex items-center gap-1.5"
-            >
-              <RefreshCw size={13} /> Refresh
-            </button>
+
+            {/* Grouped database-refresh controls. These re-query Supabase for
+                already-stored readings — they do NOT change the sensor read cadence. */}
+            <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-lg pl-2 pr-1 py-1">
+              <span
+                className="text-zinc-500 hover:text-zinc-300 cursor-help flex items-center"
+                title={
+                  'These controls re-query the DATABASE for stored readings.\n' +
+                  'They do NOT change how often the sensors are read — that is set by ' +
+                  'the collector script running on your PC. If the script is running, new ' +
+                  'data is already being saved; Refresh just pulls the latest into this view.'
+                }
+              >
+                <Info size={14} />
+              </span>
+              <select
+                value={refreshInterval}
+                onChange={(e) => handleRefreshIntervalChange(Number(e.target.value))}
+                title="How often this view auto-pulls the latest stored readings"
+                className="bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-md px-1.5 py-1.5 text-xs cursor-pointer hover:bg-zinc-800 transition-colors"
+              >
+                {REFRESH_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => loadAll(rangeKey)}
+                className="text-xs px-2.5 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200 hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
+              >
+                <RefreshCw size={13} /> Refresh
+              </button>
+            </div>
           </div>
         </header>
 
@@ -332,8 +392,8 @@ export default function Thermometers() {
           </div>
         ) : (
           <>
-            {/* Live sensor tiles + outdoor weather tile */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+            {/* Live sensor tiles + outdoor weather tile (3 sensors + outdoor = 4 across) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
               {sensors.map((s) => {
                 const r = latest[s.mac];
                 const color = colorFor(s.mac);
@@ -477,9 +537,6 @@ export default function Thermometers() {
               )}
             </div>
 
-            {/* AC schedule (hand-mirrored from SmartHQ) + advisor recommendations */}
-            <AcSchedule />
-
             {/* Chart controls: time range + metric toggle ........ export */}
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
@@ -607,6 +664,37 @@ export default function Thermometers() {
                       }
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {/* Per-sensor average reference lines for the selected window */}
+                    {showTemp && visibleSensors.map((s) => {
+                      const a = averages[s.mac]?.temp;
+                      if (a == null) return null;
+                      return (
+                        <ReferenceLine
+                          key={`avgT_${s.mac}`}
+                          yAxisId="temp"
+                          y={a}
+                          stroke={colorFor(s.mac)}
+                          strokeDasharray="2 4"
+                          strokeOpacity={0.55}
+                          label={{ value: `avg ${fmtTemp(a, unit)}`, position: 'insideRight', fill: colorFor(s.mac), fontSize: 10 }}
+                        />
+                      );
+                    })}
+                    {showHumidity && visibleSensors.map((s) => {
+                      const a = averages[s.mac]?.humidity;
+                      if (a == null) return null;
+                      return (
+                        <ReferenceLine
+                          key={`avgH_${s.mac}`}
+                          yAxisId="humidity"
+                          y={a}
+                          stroke={colorFor(s.mac)}
+                          strokeDasharray="2 4"
+                          strokeOpacity={0.4}
+                          label={{ value: `avg ${a.toFixed(0)}%`, position: 'insideLeft', fill: colorFor(s.mac), fontSize: 10 }}
+                        />
+                      );
+                    })}
                     {showTemp && visibleSensors.map((s) => (
                       <Line
                         key={`temp_${s.mac}`}

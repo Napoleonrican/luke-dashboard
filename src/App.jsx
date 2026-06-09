@@ -5,6 +5,7 @@ import DebtCalculator from './pages/DebtCalculator';
 import VersaRepair from './pages/VersaRepair';
 import GigTracker from './pages/GigTracker';
 import Thermometers from './pages/Thermometers';
+import Climate from './pages/Climate';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -23,6 +24,7 @@ export default function App() {
         } />
         <Route path="/gig-tracker" element={<GigTracker />} />
         <Route path="/thermometers" element={<Thermometers />} />
+        <Route path="/climate" element={<Climate />} />
       </Routes>
     </div>
   );

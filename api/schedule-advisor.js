@@ -55,33 +55,59 @@ KEY FACTS ABOUT LUKE'S SETUP:
 You receive:
 - His CURRENT schedule (entries he set in the SmartHQ app), each with an id, days, time, action, target temp (F) and mode.
 - His PREFERENCES: an optimization priority and a comfort band (low–high F) plus quiet hours.
+- His GOALS: a free-text description of what he wants (treat this as high-priority intent; weigh it heavily).
 - An OCCUPANCY pattern (fraction of days he's been home, by hour) derived from his phone's geofence.
 - INDOOR history (the "AC room" series is the Bedroom; the advisor also has all-sensor history for the Living Room context).
 - OUTDOOR history + a short forecast.
 
-Your job: recommend concrete EDITS to his existing schedule so it better matches reality, honoring his priority and comfort band. Reason about the thermal response — how fast the bedroom and living room heat up relative to outdoor conditions — to suggest pre-cooling or time shifts. Don't recommend heating (the unit can't). Keep the number of schedule entries manageable (ideally 4–6 total). Respect quiet hours.
+Your job: recommend concrete EDITS to his existing schedule so it better matches reality, honoring his goals, priority, and comfort band. Reason about the thermal response — how fast the bedroom and living room heat up relative to outdoor conditions — to suggest pre-cooling or time shifts. Don't recommend heating (the unit can't). Keep the number of schedule entries manageable (ideally 4–6 total). Respect quiet hours.
 
-You MUST respond with exactly this structure and nothing else:
+IMPORTANT: If your summary describes a change, that change MUST also appear in the "changes" array. Never describe a recommendation in prose without including it as a structured change. If you truly recommend nothing, use an empty array and say so in the summary.
 
-<summary>
-One or two sentences: the headline of what you're suggesting (or "No changes recommended" with why).
-</summary>
+Respond with ONLY a single JSON object (no markdown, no code fences, no commentary before or after) with exactly these keys:
+{
+  "summary": "One or two sentences: the headline of what you're suggesting, or why nothing should change.",
+  "changes": [
+    // zero or more of these shapes:
+    {"entry_id": "<uuid of an existing entry>", "field": "temp_f"|"mode"|"time_local"|"days"|"action", "from": <current value>, "to": <proposed value>, "reason": "<short why>"},
+    {"action": "add", "time_local": "HH:MM", "temp_f": <int>, "mode": "<mode>", "days": <mask 0-127>, "reason": "<short why>"},
+    {"action": "remove", "entry_id": "<uuid>", "reason": "<short why>"}
+  ],
+  "rationale": "A few sentences on the data behind the recommendations (occupancy, thermal behavior, weather, his goals). Plain language."
+}
+Only reference entry_ids that exist in the current schedule. Use [] for changes if you recommend nothing.`;
 
-<changes>
-A JSON array. Each element is one of:
-  {"entry_id": "<uuid of an existing entry>", "field": "temp_f"|"mode"|"time_local"|"days"|"action", "from": <current>, "to": <proposed>, "reason": "<short why>"}
-  {"action": "add", "time_local": "HH:MM", "temp_f": <int>, "mode": "<mode>", "days": <mask 0-127>, "reason": "<short why>"}
-  {"action": "remove", "entry_id": "<uuid>", "reason": "<short why>"}
-Use [] if no changes. Only reference entry_ids that exist in the current schedule.
-</changes>
+// Strip any stray XML-ish tags the model might leak into prose.
+function stripTags(s) {
+  return typeof s === 'string' ? s.replace(/<\/?[a-z_]+>/gi, '').trim() : s;
+}
 
-<rationale>
-A few sentences explaining the data behind the recommendations (occupancy, thermal behavior, weather). Plain language.
-</rationale>`;
+// Pull a single JSON object out of the model's text, tolerant of code fences
+// or surrounding prose. Returns {summary, changes, rationale} (best-effort).
+function parseAdvice(text) {
+  let raw = text.trim();
+  // Drop ```json ... ``` fences if present.
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) raw = fence[1].trim();
+  // Otherwise narrow to the outermost braces.
+  if (raw[0] !== '{') {
+    const first = raw.indexOf('{');
+    const last = raw.lastIndexOf('}');
+    if (first !== -1 && last > first) raw = raw.slice(first, last + 1);
+  }
 
-function extractTag(text, tag) {
-  const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'));
-  return m ? m[1].trim() : '';
+  let obj = null;
+  try { obj = JSON.parse(raw); } catch { obj = null; }
+
+  if (obj && typeof obj === 'object') {
+    return {
+      summary: stripTags(obj.summary) || '',
+      changes: Array.isArray(obj.changes) ? obj.changes : [],
+      rationale: stripTags(obj.rationale) || '',
+    };
+  }
+  // Last resort: surface the cleaned raw text as the summary so nothing is lost.
+  return { summary: stripTags(text), changes: [], rationale: '' };
 }
 
 export default async function handler(req, res) {
@@ -264,6 +290,10 @@ export default async function handler(req, res) {
       ]
     : ['- (no preferences set; assume balanced, comfort band 69–74F, quiet 0:00–6:00)'];
 
+  const goalsBlock = prefs?.goals_text
+    ? `LUKE'S GOALS (his own words — weigh heavily):\n${prefs.goals_text.trim()}`
+    : 'LUKE\'S GOALS: (none provided)';
+
   let occBlock = 'OCCUPANCY: no presence data yet (phone geofence not set up). Assume a typical work-from-elsewhere weekday if unsure.';
   if (occupancyByHour) {
     const parts = occupancyByHour.map((p, h) => (p == null ? null : `${h}:00=${p}%`)).filter(Boolean);
@@ -295,6 +325,7 @@ export default async function handler(req, res) {
     `Current local time: ${new Date().toLocaleString('en-US')}\n\n` +
     `CURRENT SCHEDULE:\n${scheduleLines.join('\n')}\n\n` +
     `PREFERENCES:\n${prefLines.join('\n')}\n\n` +
+    `${goalsBlock}\n\n` +
     `${occBlock}\n\n` +
     `${indoorBlock}\n\n` +
     `${outdoorBlock}\n\n` +
@@ -335,17 +366,10 @@ export default async function handler(req, res) {
       .join('\n')
       .trim();
 
-    summary = extractTag(text, 'summary');
-    rationale = extractTag(text, 'rationale');
-    const changesRaw = extractTag(text, 'changes');
-    try {
-      changes = JSON.parse(changesRaw || '[]');
-      if (!Array.isArray(changes)) changes = [];
-    } catch {
-      changes = [];
-    }
-    // Fallback: if the model didn't use tags, surface the raw text as the summary.
-    if (!summary && !rationale && text) summary = text;
+    const parsed = parseAdvice(text);
+    summary = parsed.summary;
+    changes = parsed.changes;
+    rationale = parsed.rationale;
   } catch (e) {
     res.status(502).json({ error: 'Failed to reach the Claude API.', detail: String(e).slice(0, 300) });
     return;

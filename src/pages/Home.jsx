@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, Snowflake } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -53,6 +53,13 @@ const tools = [
     description: 'Live Govee temperature & humidity readings with history and export.',
     to: '/thermometers',
     accentColor: 'text-cyan-400',
+  },
+  {
+    icon: Snowflake,
+    title: 'Climate',
+    description: 'AC schedule, your goals, and AI-driven recommendations for the GE window unit.',
+    to: '/climate',
+    accentColor: 'text-sky-400',
   },
 ];
 
