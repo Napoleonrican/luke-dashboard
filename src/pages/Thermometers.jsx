@@ -7,10 +7,10 @@ import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 
 const RANGES = [
-  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },       // ~60 points
-  { key: '6h', label: '6H', hours: 6, bucketSecs: 120 },      // ~180 points
-  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },   // ~144 points
-  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 },// ~168 points
+  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },        // ~60 points
+  { key: '12h', label: '12H', hours: 12, bucketSecs: 300 },    // ~144 points
+  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },    // ~144 points
+  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 }, // ~168 points
 ];
 
 const REFRESH_OPTIONS = [
@@ -50,11 +50,44 @@ const lsSet = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 };
 
+// Generate x-axis ticks on ROUND local-clock boundaries spanning the data, so
+// labels read 1:00, 1:15… (not 7:46, 8:02…) and align with the gridlines.
+function makeXTicks(data, rangeKey) {
+  if (!data || data.length === 0) return [];
+  const minMs = data[0].ts;
+  const maxMs = data[data.length - 1].ts;
+  const d = new Date(minMs);
+  let step;
+  if (rangeKey === '1h') {
+    d.setSeconds(0, 0);
+    d.setMinutes(Math.floor(d.getMinutes() / 10) * 10);   // floor to :00/:10/:20…
+    step = 10 * 60 * 1000;                                 // every 10 min
+  } else if (rangeKey === '12h') {
+    d.setMinutes(0, 0, 0);                                 // floor to the hour
+    step = 60 * 60 * 1000;                                 // every 1 h
+  } else if (rangeKey === '24h') {
+    d.setMinutes(0, 0, 0);
+    d.setHours(Math.floor(d.getHours() / 3) * 3);          // floor to 0/3/6/9…
+    step = 3 * 60 * 60 * 1000;                             // every 3 h
+  } else { // 7d
+    d.setHours(0, 0, 0, 0);                                // local midnight
+    step = 24 * 60 * 60 * 1000;                            // every day
+  }
+  const ticks = [];
+  let t = d.getTime();
+  while (t < minMs) t += step;                             // first boundary inside the data
+  for (; t <= maxMs; t += step) ticks.push(t);
+  return ticks;
+}
+
 export default function Thermometers() {
   const [sensors, setSensors] = useState([]);          // [{mac,name,label}]
   const [latest, setLatest] = useState({});            // mac -> {temp_c,humidity,battery,ts,rssi}
   const [chartData, setChartData] = useState([]);      // [{ts, temp_<mac>, humidity_<mac>, ...}]
-  const [rangeKey, setRangeKey] = useState(() => lsGet('thermo_range', '24h'));
+  const [rangeKey, setRangeKey] = useState(() => {
+    const r = lsGet('thermo_range', '24h');
+    return RANGES.some((x) => x.key === r) ? r : '24h';   // ignore a stale key like '6h'
+  });
   const [unit, setUnit] = useState(() => lsGet('thermo_unit', 'F'));
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -298,6 +331,9 @@ export default function Thermometers() {
   };
 
   const visibleSensors = sensors.filter((s) => !hiddenSensors.has(s.mac));
+
+  // Round-number x-axis ticks for the current range (aligned to the gridlines).
+  const xTicks = useMemo(() => makeXTicks(chartData, rangeKey), [chartData, rangeKey]);
 
   // Per-sensor averages over the visible chart window (for the reference lines).
   // Temps are stored in °C (the axis converts to the chosen unit on display).
@@ -631,6 +667,8 @@ export default function Thermometers() {
                       type="number"
                       scale="time"
                       domain={['dataMin', 'dataMax']}
+                      ticks={xTicks}
+                      interval={0}
                       tickFormatter={xTickFmt}
                       stroke="#52525b"
                       fontSize={11}
