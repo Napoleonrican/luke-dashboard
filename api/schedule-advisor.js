@@ -82,32 +82,55 @@ function stripTags(s) {
   return typeof s === 'string' ? s.replace(/<\/?[a-z_]+>/gi, '').trim() : s;
 }
 
-// Pull a single JSON object out of the model's text, tolerant of code fences
-// or surrounding prose. Returns {summary, changes, rationale} (best-effort).
+const unescapeJson = (s) =>
+  typeof s === 'string'
+    ? s.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\')
+    : '';
+
+// Pull a single JSON object out of the model's text, tolerant of code fences,
+// surrounding prose, AND truncation. Returns {summary, changes, rationale}.
 function parseAdvice(text) {
   let raw = text.trim();
   // Drop ```json ... ``` fences if present.
   const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) raw = fence[1].trim();
-  // Otherwise narrow to the outermost braces.
-  if (raw[0] !== '{') {
-    const first = raw.indexOf('{');
-    const last = raw.lastIndexOf('}');
-    if (first !== -1 && last > first) raw = raw.slice(first, last + 1);
+  // Narrow to the first opening brace onward.
+  const firstBrace = raw.indexOf('{');
+  if (firstBrace > 0) raw = raw.slice(firstBrace);
+
+  // 1) Clean parse (trim to the last closing brace).
+  const lastBrace = raw.lastIndexOf('}');
+  if (lastBrace !== -1) {
+    try {
+      const obj = JSON.parse(raw.slice(0, lastBrace + 1));
+      if (obj && typeof obj === 'object') {
+        return {
+          summary: stripTags(obj.summary) || '',
+          changes: Array.isArray(obj.changes) ? obj.changes : [],
+          rationale: stripTags(obj.rationale) || '',
+        };
+      }
+    } catch { /* fall through to salvage */ }
   }
 
-  let obj = null;
-  try { obj = JSON.parse(raw); } catch { obj = null; }
-
-  if (obj && typeof obj === 'object') {
+  // 2) Salvage from a truncated/invalid object by pulling fields individually.
+  const sMatch = raw.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const rMatch = raw.match(/"rationale"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const cMatch = raw.match(/"changes"\s*:\s*(\[[\s\S]*\])/);
+  let changes = [];
+  if (cMatch) {
+    try { const c = JSON.parse(cMatch[1]); if (Array.isArray(c)) changes = c; } catch { /* ignore */ }
+  }
+  if (sMatch) {
     return {
-      summary: stripTags(obj.summary) || '',
-      changes: Array.isArray(obj.changes) ? obj.changes : [],
-      rationale: stripTags(obj.rationale) || '',
+      summary: stripTags(unescapeJson(sMatch[1])),
+      changes,
+      rationale: stripTags(unescapeJson(rMatch?.[1] || '')),
     };
   }
-  // Last resort: surface the cleaned raw text as the summary so nothing is lost.
-  return { summary: stripTags(text), changes: [], rationale: '' };
+
+  // 3) Last resort — never dump raw JSON at the user.
+  return { summary: 'The advisor response could not be parsed. Please try Re-analyze.', changes: [], rationale: '' };
 }
 
 export default async function handler(req, res) {
@@ -345,7 +368,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-opus-4-7',
-        max_tokens: 2048,
+        max_tokens: 8000,
         thinking: { type: 'adaptive' },
         output_config: { effort: 'high' },
         system: [{ type: 'text', text: SYSTEM_PROMPT }],

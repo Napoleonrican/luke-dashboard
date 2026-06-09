@@ -16,6 +16,31 @@ const toggleDayBit = (mask, i) => mask ^ (1 << i);
 // (older rows may have been saved before the advisor switched to clean JSON).
 const stripTags = (s) => (typeof s === 'string' ? s.replace(/<\/?[a-z_]+>/gi, '').trim() : s);
 
+// Older rows may have stored the model's raw JSON blob in the summary column
+// (a truncation/parse bug). Detect that and re-extract clean fields so the UI
+// never shows a wall of JSON, even before the next Re-analyze.
+function normalizeRecs(r) {
+  if (!r) return r;
+  let { summary, changes, rationale } = r;
+  if (typeof summary === 'string' && summary.trim().startsWith('{') && summary.includes('"summary"')) {
+    const blob = summary;
+    try {
+      const obj = JSON.parse(blob.slice(blob.indexOf('{'), blob.lastIndexOf('}') + 1));
+      summary = obj.summary ?? summary;
+      if ((!changes || changes.length === 0) && Array.isArray(obj.changes)) changes = obj.changes;
+      rationale = rationale || obj.rationale || '';
+    } catch {
+      const m = blob.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (m) summary = m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+      const c = blob.match(/"changes"\s*:\s*(\[[\s\S]*\])/);
+      if (c && (!changes || changes.length === 0)) {
+        try { const arr = JSON.parse(c[1]); if (Array.isArray(arr)) changes = arr; } catch { /* ignore */ }
+      }
+    }
+  }
+  return { ...r, summary: stripTags(summary), changes: changes ?? [], rationale: stripTags(rationale) };
+}
+
 function fmtTime12(t) {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -94,12 +119,12 @@ export default function AcSchedule() {
       .order('generated_at', { ascending: false })
       .limit(1);
     if (data?.[0]) {
-      setRecs({
-        summary: stripTags(data[0].summary),
+      setRecs(normalizeRecs({
+        summary: data[0].summary,
         changes: data[0].changes ?? [],
-        rationale: stripTags(data[0].rationale),
+        rationale: data[0].rationale,
         generatedAt: data[0].generated_at,
-      });
+      }));
     }
   }, []);
 
@@ -156,7 +181,7 @@ export default function AcSchedule() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-      setRecs(data);
+      setRecs(normalizeRecs(data));
     } catch (e) {
       setRecError(e.message || 'Something went wrong.');
     } finally {
