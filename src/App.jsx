@@ -6,6 +6,7 @@ import VersaRepair from './pages/VersaRepair';
 import GigTracker from './pages/GigTracker';
 import Thermometers from './pages/Thermometers';
 import Climate from './pages/Climate';
+import AIBacklog from './pages/AIBacklog';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/gig-tracker" element={<GigTracker />} />
         <Route path="/thermometers" element={<Thermometers />} />
         <Route path="/climate" element={<Climate />} />
+        <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
     </div>
   );
