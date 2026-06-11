@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, Snowflake, ListTodo } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -50,16 +50,9 @@ const tools = [
   {
     icon: Thermometer,
     title: 'Thermometers',
-    description: 'Live Govee temperature & humidity readings with history and export.',
+    description: 'Live Govee temperature & humidity readings, history, AC schedule & AI advice.',
     to: '/thermometers',
     accentColor: 'text-cyan-400',
-  },
-  {
-    icon: Snowflake,
-    title: 'Climate',
-    description: 'AC schedule, your goals, and AI-driven recommendations for the GE window unit.',
-    to: '/climate',
-    accentColor: 'text-sky-400',
   },
   {
     icon: ListTodo,
