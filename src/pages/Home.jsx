@@ -1,4 +1,4 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo } from 'lucide-react';
+import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
 const tools = [
@@ -53,13 +53,6 @@ const tools = [
     description: 'Live Govee temperature & humidity readings, history, AC schedule & AI advice.',
     to: '/thermometers',
     accentColor: 'text-cyan-400',
-  },
-  {
-    icon: ListTodo,
-    title: 'AI Sidekick Backlog',
-    description: 'Track and manage the async tasks your Sidekick agent works on overnight.',
-    to: '/ai-backlog',
-    accentColor: 'text-violet-400',
   },
 ];
 
