@@ -7,10 +7,10 @@ import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 
 const RANGES = [
-  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },       // ~60 points
-  { key: '6h', label: '6H', hours: 6, bucketSecs: 120 },      // ~180 points
-  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },   // ~144 points
-  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 },// ~168 points
+  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },        // ~60 points
+  { key: '12h', label: '12H', hours: 12, bucketSecs: 300 },    // ~144 points
+  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },    // ~144 points
+  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 }, // ~168 points
 ];
 
 const REFRESH_OPTIONS = [
@@ -50,11 +50,62 @@ const lsSet = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 };
 
+// Generate x-axis ticks on ROUND local-clock boundaries spanning the data, so
+// labels read 1:00, 1:15… (not 7:46, 8:02…) and align with the gridlines.
+function makeXTicks(data, rangeKey) {
+  if (!data || data.length === 0) return [];
+  const minMs = data[0].ts;
+  const maxMs = data[data.length - 1].ts;
+  const d = new Date(minMs);
+  let step;
+  if (rangeKey === '1h') {
+    d.setSeconds(0, 0);
+    d.setMinutes(Math.floor(d.getMinutes() / 10) * 10);   // floor to :00/:10/:20…
+    step = 10 * 60 * 1000;                                 // every 10 min
+  } else if (rangeKey === '12h') {
+    d.setMinutes(0, 0, 0);                                 // floor to the hour
+    step = 60 * 60 * 1000;                                 // every 1 h
+  } else if (rangeKey === '24h') {
+    d.setMinutes(0, 0, 0);
+    d.setHours(Math.floor(d.getHours() / 3) * 3);          // floor to 0/3/6/9…
+    step = 3 * 60 * 60 * 1000;                             // every 3 h
+  } else { // 7d
+    d.setHours(0, 0, 0, 0);                                // local midnight
+    step = 24 * 60 * 60 * 1000;                            // every day
+  }
+  const ticks = [];
+  let t = d.getTime();
+  while (t < minMs) t += step;                             // first boundary inside the data
+  for (; t <= maxMs; t += step) ticks.push(t);
+  return ticks;
+}
+
+const OUTDOOR_COLOR = '#f59e0b'; // amber — distinct from the sensor palette
+
+// Inject an `outdoor` temp (°C) onto each chart row by matching the nearest
+// hourly Open-Meteo sample. Samples more than ~90 min from a row are left null.
+function mergeOutdoor(rows, outdoor) {
+  if (!outdoor || outdoor.length === 0) return rows;
+  let i = 0;
+  return rows.map((row) => {
+    while (i + 1 < outdoor.length && outdoor[i + 1].ts <= row.ts) i++;
+    let best = outdoor[i];
+    if (i + 1 < outdoor.length && Math.abs(outdoor[i + 1].ts - row.ts) < Math.abs(best.ts - row.ts)) {
+      best = outdoor[i + 1];
+    }
+    const near = best && Math.abs(best.ts - row.ts) <= 90 * 60 * 1000;
+    return { ...row, outdoor: near ? best.tempC : null };
+  });
+}
+
 export default function Thermometers() {
   const [sensors, setSensors] = useState([]);          // [{mac,name,label}]
   const [latest, setLatest] = useState({});            // mac -> {temp_c,humidity,battery,ts,rssi}
   const [chartData, setChartData] = useState([]);      // [{ts, temp_<mac>, humidity_<mac>, ...}]
-  const [rangeKey, setRangeKey] = useState(() => lsGet('thermo_range', '24h'));
+  const [rangeKey, setRangeKey] = useState(() => {
+    const r = lsGet('thermo_range', '24h');
+    return RANGES.some((x) => x.key === r) ? r : '24h';   // ignore a stale key like '6h'
+  });
   const [unit, setUnit] = useState(() => lsGet('thermo_unit', 'F'));
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -68,11 +119,14 @@ export default function Thermometers() {
   // Which metrics to plot, and which sensors to show on the graph (all remembered).
   const [showTemp, setShowTemp] = useState(() => lsGet('thermo_show_temp', true));
   const [showHumidity, setShowHumidity] = useState(() => lsGet('thermo_show_humidity', false));
+  const [showOutdoor, setShowOutdoor] = useState(() => lsGet('thermo_show_outdoor', false));
   const [hiddenSensors, setHiddenSensors] = useState(() => new Set(lsGet('thermo_hidden_sensors', []))); // macs hidden from the graph
 
   // Outdoor weather tile (Open-Meteo, no API key).
   const [weather, setWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
+  const [coords, setCoords] = useState(null);          // {lat, lon} from browser geolocation
+  const [outdoorSeries, setOutdoorSeries] = useState([]); // [{ts, tempC}] hourly outdoor history
 
   // AI comfort & AC advice (from the /api/insights serverless function)
   const [insights, setInsights] = useState(null);    // {advice, weather, indoor, generatedAt}
@@ -149,6 +203,7 @@ export default function Thermometers() {
   useEffect(() => { lsSet('thermo_unit', unit); }, [unit]);
   useEffect(() => { lsSet('thermo_show_temp', showTemp); }, [showTemp]);
   useEffect(() => { lsSet('thermo_show_humidity', showHumidity); }, [showHumidity]);
+  useEffect(() => { lsSet('thermo_show_outdoor', showOutdoor); }, [showOutdoor]);
   useEffect(() => { lsSet('thermo_hidden_sensors', Array.from(hiddenSensors)); }, [hiddenSensors]);
 
   // Fetch outdoor weather once on mount (browser location + Open-Meteo, no key).
@@ -157,6 +212,7 @@ export default function Thermometers() {
     setWeatherLoading(true);
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
+        setCoords({ lat: coords.latitude, lon: coords.longitude }); // reused for the outdoor graph line
         try {
           const res = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}` +
@@ -181,6 +237,32 @@ export default function Thermometers() {
       { timeout: 10000, maximumAge: 10 * 60 * 1000 }
     );
   }, []);
+
+  // When the outdoor line is enabled, pull the last week of hourly outdoor temps
+  // (°C, to match the chart's temp axis). One fetch covers every range; the merge
+  // step picks the nearest hour per bucket.
+  useEffect(() => {
+    if (!showOutdoor || !coords || outdoorSeries.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}` +
+          `&hourly=temperature_2m&past_days=7&forecast_days=1&timezone=auto`
+        );
+        const d = await res.json();
+        const times = d.hourly?.time ?? [];
+        const temps = d.hourly?.temperature_2m ?? [];
+        const series = times
+          .map((t, i) => ({ ts: new Date(t).getTime(), tempC: temps[i] }))
+          .filter((p) => p.tempC != null);
+        if (!cancelled) setOutdoorSeries(series);
+      } catch {
+        /* outdoor line is optional; leave it empty on failure */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showOutdoor, coords, outdoorSeries.length]);
 
   function handleRefreshIntervalChange(val) {
     setRefreshInterval(val);
@@ -298,6 +380,16 @@ export default function Thermometers() {
   };
 
   const visibleSensors = sensors.filter((s) => !hiddenSensors.has(s.mac));
+  const tempAxis = showTemp || showOutdoor; // the temp axis is needed for either
+
+  // Chart rows with the outdoor temp merged in (when the outdoor line is on).
+  const chartRows = useMemo(
+    () => (showOutdoor ? mergeOutdoor(chartData, outdoorSeries) : chartData),
+    [chartData, outdoorSeries, showOutdoor]
+  );
+
+  // Round-number x-axis ticks for the current range (aligned to the gridlines).
+  const xTicks = useMemo(() => makeXTicks(chartData, rangeKey), [chartData, rangeKey]);
 
   // Per-sensor averages over the visible chart window (for the reference lines).
   // Temps are stored in °C (the axis converts to the chosen unit on display).
@@ -316,9 +408,15 @@ export default function Thermometers() {
         humidity: hN ? hSum / hN : null,
       };
     }
+    // Outdoor average over the same window.
+    let oSum = 0, oN = 0;
+    for (const row of chartRows) {
+      if (row.outdoor != null) { oSum += row.outdoor; oN += 1; }
+    }
+    out.outdoor = oN ? oSum / oN : null;
     return out;
-  }, [chartData, sensors]);
-  const chartTitle = showTemp && showHumidity
+  }, [chartData, chartRows, sensors]);
+  const chartTitle = tempAxis && showHumidity
     ? `Temperature (°${unit}) & Humidity (%)`
     : showHumidity
     ? 'Humidity (%)'
@@ -570,6 +668,15 @@ export default function Thermometers() {
                   >
                     <Droplets size={12} /> Humidity
                   </button>
+                  <button
+                    onClick={() => setShowOutdoor((v) => !v)}
+                    title="Overlay outdoor temperature (Open-Meteo, your location)"
+                    className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] flex items-center gap-1.5 ${
+                      showOutdoor ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Cloud size={12} style={{ color: showOutdoor ? OUTDOOR_COLOR : undefined }} /> Outdoor
+                  </button>
                 </div>
               </div>
               <button
@@ -614,28 +721,30 @@ export default function Thermometers() {
                 <div className="h-72 flex items-center justify-center text-sm text-zinc-600 text-center px-4">
                   No history in this range yet. Run the history downloader (history_pull.py) to pull stored readings from the sensors.
                 </div>
-              ) : !showTemp && !showHumidity ? (
+              ) : !showTemp && !showHumidity && !showOutdoor ? (
                 <div className="h-72 flex items-center justify-center text-sm text-zinc-600">
                   Select at least one metric above.
                 </div>
-              ) : visibleSensors.length === 0 ? (
+              ) : visibleSensors.length === 0 && !showOutdoor ? (
                 <div className="h-72 flex items-center justify-center text-sm text-zinc-600">
                   All sensors hidden — click a sensor above to show it.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData} margin={{ top: 5, right: showTemp && showHumidity ? 45 : 10, left: -10, bottom: 0 }}>
+                  <LineChart data={chartRows} margin={{ top: 5, right: tempAxis && showHumidity ? 45 : 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                     <XAxis
                       dataKey="ts"
                       type="number"
                       scale="time"
                       domain={['dataMin', 'dataMax']}
+                      ticks={xTicks}
+                      interval={0}
                       tickFormatter={xTickFmt}
                       stroke="#52525b"
                       fontSize={11}
                     />
-                    {showTemp && (
+                    {tempAxis && (
                       <YAxis
                         yAxisId="temp"
                         stroke="#52525b"
@@ -647,7 +756,7 @@ export default function Thermometers() {
                     {showHumidity && (
                       <YAxis
                         yAxisId="humidity"
-                        orientation={showTemp ? 'right' : 'left'}
+                        orientation={tempAxis ? 'right' : 'left'}
                         stroke="#52525b"
                         fontSize={11}
                         domain={[0, 100]}
@@ -680,6 +789,16 @@ export default function Thermometers() {
                         />
                       );
                     })}
+                    {showOutdoor && averages.outdoor != null && (
+                      <ReferenceLine
+                        yAxisId="temp"
+                        y={averages.outdoor}
+                        stroke={OUTDOOR_COLOR}
+                        strokeDasharray="2 4"
+                        strokeOpacity={0.55}
+                        label={{ value: `avg ${fmtTemp(averages.outdoor, unit)}`, position: 'insideRight', fill: OUTDOOR_COLOR, fontSize: 10 }}
+                      />
+                    )}
                     {showHumidity && visibleSensors.map((s) => {
                       const a = averages[s.mac]?.humidity;
                       if (a == null) return null;
@@ -709,6 +828,20 @@ export default function Thermometers() {
                         isAnimationActive={false}
                       />
                     ))}
+                    {showOutdoor && (
+                      <Line
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey="outdoor"
+                        name="Outdoor"
+                        stroke={OUTDOOR_COLOR}
+                        dot={false}
+                        connectNulls
+                        strokeWidth={2}
+                        strokeDasharray="6 3"
+                        isAnimationActive={false}
+                      />
+                    )}
                     {showHumidity && visibleSensors.map((s) => (
                       <Line
                         key={`hum_${s.mac}`}

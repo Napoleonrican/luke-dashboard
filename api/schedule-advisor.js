@@ -42,6 +42,26 @@ function time12(t) {
   return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
 }
 
+// Build the effective step-function of setpoints across a day, so the model sees
+// what target is ALREADY active before each entry (e.g. 64F holds until 10 AM,
+// then the 69F entry RAISES it — a warm-up, not a pre-cool).
+function buildTimeline(schedule) {
+  const enabled = schedule.filter((s) => s.enabled !== false);
+  if (!enabled.length) return '(no enabled entries)';
+  const toMin = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return h * 60 + (m || 0);
+  };
+  const sorted = [...enabled].sort((a, b) => toMin(a.time_local) - toMin(b.time_local));
+  const segs = sorted.map((cur, i) => {
+    const nxt = sorted[(i + 1) % sorted.length];
+    const state = cur.action === 'on' ? `${cur.temp_f}F ${cur.mode}` : 'AC OFF';
+    return `  ${time12(cur.time_local)} → ${time12(nxt.time_local)}:  ${state}`;
+  });
+  const mixedDays = enabled.some((s) => s.days !== 127);
+  return segs.join('\n') + (mixedDays ? '\n  (note: some entries are not every-day — see the schedule list for per-entry days)' : '');
+}
+
 const SYSTEM_PROMPT = `You are an AC scheduling advisor for Luke's home. He has ONE air conditioner: a GE AWFS12WW — a 12,000 BTU window/room unit that COOLS ONLY (no heat), controlled via the GE SmartHQ app. Available operation modes: Cool, Eco, Energy Saver, Turbo Cool, Dry (no heat, no auto).
 
 KEY FACTS ABOUT LUKE'S SETUP:
@@ -51,6 +71,13 @@ KEY FACTS ABOUT LUKE'S SETUP:
 - DAYTIME goal: he cares about the LIVING ROOM staying around 75°F. The AC is in the bedroom, so it influences the living room indirectly through airflow; the indoor history for both rooms is useful context.
 - EVENING routine: he typically leaves around 5:30 PM for the gym and food-delivery driving, doesn't return until after dark. Only the cats are home. A warmer setpoint during that window (the 75°F entry) is intentional and acceptable — no need to over-cool for the cats.
 - He is open to changes to schedule TIMES, not just temperatures and modes. If the data suggests pre-cooling 30 min earlier, suggest it.
+
+HOW THE SCHEDULE WORKS (read carefully — this is where mistakes happen):
+- The schedule is a STEP FUNCTION, not a set of one-off pulses. Each entry sets a target temperature + mode at its time, and that target STAYS IN EFFECT until the next entry fires. You will be given an explicit "EFFECTIVE DAILY SETPOINT TIMELINE" showing what is active during each span.
+- A LOWER target number = MORE cooling. A HIGHER target number = letting the room WARM UP.
+- Therefore, before proposing any change to an entry, look at what target is ALREADY active just before it. Changing the 10 AM entry to 69°F when 64°F has been running since midnight is a +5°F WARM-UP, and moving it earlier makes the room warm up earlier — that is NOT pre-cooling.
+- "Pre-cool" means LOWERING the target (or adding a lower-target entry) ahead of a heat load. Never describe raising a target, or moving a higher target earlier, as pre-cooling. Be precise about whether each suggestion cools or warms, and at what time relative to the surrounding setpoints.
+- If you want the room cooler during a span, lower that span's target or add a new lower-target entry; if you want to save energy while he's away, raise the target during that span.
 
 You receive:
 - His CURRENT schedule (entries he set in the SmartHQ app), each with an id, days, time, action, target temp (F) and mode.
@@ -346,7 +373,8 @@ export default async function handler(req, res) {
 
   const userText =
     `Current local time: ${new Date().toLocaleString('en-US')}\n\n` +
-    `CURRENT SCHEDULE:\n${scheduleLines.join('\n')}\n\n` +
+    `CURRENT SCHEDULE (raw entries):\n${scheduleLines.join('\n')}\n\n` +
+    `EFFECTIVE DAILY SETPOINT TIMELINE (each target holds until the next entry — use this to judge whether a change cools or warms):\n${buildTimeline(schedule)}\n\n` +
     `PREFERENCES:\n${prefLines.join('\n')}\n\n` +
     `${goalsBlock}\n\n` +
     `${occBlock}\n\n` +
