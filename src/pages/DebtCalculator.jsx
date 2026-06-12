@@ -1085,32 +1085,44 @@ export default function DebtCalculator() {
                         {/* Balance */}
                         <div className="relative">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                          <input type="number" step="0.01" value={loan.balance}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'balance', e.target.value)}
+                          <input type="text" inputMode="decimal" value={loan.balance || ''}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              updateAffirmLoan(loan.id, 'balance', v);
+                            }}
                             onFocus={(e) => e.target.select()}
                             className={`${numCls} pl-4 pr-1`} />
                         </div>
                         {/* Total Due */}
                         <div className="relative">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                          <input type="number" step="0.01" value={loan.original ?? 0}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'original', e.target.value)}
+                          <input type="text" inputMode="decimal" value={loan.original || ''}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              updateAffirmLoan(loan.id, 'original', v);
+                            }}
                             onFocus={(e) => e.target.select()}
                             className={`${numCls} pl-4 pr-1`}
                             title="Original / total amount due" />
                         </div>
                         {/* APR */}
                         <div className="relative">
-                          <input type="number" step="0.01" value={loan.apr}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'apr', e.target.value)}
+                          <input type="text" inputMode="decimal" value={loan.apr || ''}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              updateAffirmLoan(loan.id, 'apr', v);
+                            }}
                             onFocus={(e) => e.target.select()}
                             className={`${numCls} px-1.5`} />
                         </div>
                         {/* Min */}
                         <div className="relative">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
-                          <input type="number" step="0.01" value={loan.min}
-                            onChange={(e) => updateAffirmLoan(loan.id, 'min', e.target.value)}
+                          <input type="text" inputMode="decimal" value={loan.min || ''}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              updateAffirmLoan(loan.id, 'min', v);
+                            }}
                             onFocus={(e) => e.target.select()}
                             className={`${numCls} pl-4 pr-1`} />
                         </div>
