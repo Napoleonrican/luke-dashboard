@@ -1052,11 +1052,11 @@ export default function DebtCalculator() {
                 </p>
 
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 px-1 mb-1">
+                <div className="grid grid-cols-[1fr_80px_80px_48px] sm:grid-cols-[1fr_80px_88px_52px_80px_48px] gap-3 px-1 mb-1">
                   <span className="text-xs text-zinc-600">Loan</span>
                   <span className="text-xs text-zinc-600 text-center">Balance</span>
-                  <span className="text-xs text-zinc-600 text-center">Total Due</span>
-                  <span className="text-xs text-zinc-600 text-center">APR%</span>
+                  <span className="hidden sm:block text-xs text-zinc-600 text-center">Total Due</span>
+                  <span className="hidden sm:block text-xs text-zinc-600 text-center">APR%</span>
                   <span className="text-xs text-zinc-600 text-center">Min/mo</span>
                   <span className="text-xs text-zinc-600 text-center">Progress</span>
                 </div>
@@ -1068,10 +1068,10 @@ export default function DebtCalculator() {
                     const loanPct   = loanOrig > 0
                       ? Math.min(100, Math.max(0, ((loanOrig - loan.balance) / loanOrig) * 100))
                       : 0;
-                    const numCls = `w-full bg-zinc-800 border border-zinc-700 rounded py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`;
+                    const numCls = `w-full bg-zinc-800 border border-zinc-700 rounded py-2 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`;
                     return (
                       <div key={loan.id}
-                        className={`grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 items-center rounded-lg px-1 py-0.5 ${isPaidOff ? 'opacity-40' : ''}`}>
+                        className={`grid grid-cols-[1fr_80px_80px_48px] sm:grid-cols-[1fr_80px_88px_52px_80px_48px] gap-3 items-center rounded-lg px-1 py-1 ${isPaidOff ? 'opacity-40' : ''}`}>
                         {/* Name — editable text input */}
                         <div className="flex items-center gap-1.5 min-w-0">
                           <div className="w-1.5 h-1.5 rounded-full bg-orange-500/60 flex-shrink-0" />
@@ -1093,8 +1093,8 @@ export default function DebtCalculator() {
                             onFocus={(e) => e.target.select()}
                             className={`${numCls} pl-4 pr-1`} />
                         </div>
-                        {/* Total Due */}
-                        <div className="relative">
+                        {/* Total Due — hidden on mobile, visible sm+ */}
+                        <div className="hidden sm:block relative">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.original || ''}
                             onChange={(e) => {
@@ -1105,8 +1105,8 @@ export default function DebtCalculator() {
                             className={`${numCls} pl-4 pr-1`}
                             title="Original / total amount due" />
                         </div>
-                        {/* APR */}
-                        <div className="relative">
+                        {/* APR — hidden on mobile, visible sm+ */}
+                        <div className="hidden sm:block relative">
                           <input type="text" inputMode="decimal" value={loan.apr || ''}
                             onChange={(e) => {
                               const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
@@ -1142,25 +1142,29 @@ export default function DebtCalculator() {
                 </div>
 
                 {/* Totals footer */}
-                <div className="grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 mt-3 pt-3 border-t border-zinc-700 px-1 items-center">
+                <div className="grid grid-cols-[1fr_80px_80px_48px] sm:grid-cols-[1fr_80px_88px_52px_80px_48px] gap-3 mt-3 pt-3 border-t border-zinc-700 px-1 items-center">
                   <span className="text-xs font-semibold text-zinc-400">Totals</span>
                   <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
+                    <span className="text-xs font-semibold text-orange-400 font-mono text-center block">
                       {fmtDec(affirmBalance)}
                     </span>
                   </Redacted>
+                  <div className="hidden sm:block">
+                    <Redacted on={privacyMode}>
+                      <span className="text-xs font-semibold text-zinc-300 font-mono text-center block">
+                        {affirmOriginal > 0 ? fmtDec(affirmOriginal) : '—'}
+                      </span>
+                    </Redacted>
+                  </div>
+                  <div className="hidden sm:block">
+                    <Redacted on={privacyMode}>
+                      <span className="text-xs font-semibold text-zinc-300 text-center block">
+                        {(affirmApr * 100).toFixed(2)}%
+                      </span>
+                    </Redacted>
+                  </div>
                   <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-zinc-300 font-mono text-center">
-                      {affirmOriginal > 0 ? fmtDec(affirmOriginal) : '—'}
-                    </span>
-                  </Redacted>
-                  <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-zinc-300 text-center">
-                      {(affirmApr * 100).toFixed(2)}%
-                    </span>
-                  </Redacted>
-                  <Redacted on={privacyMode}>
-                    <span className="text-xs font-semibold text-orange-400 font-mono text-center">
+                    <span className="text-xs font-semibold text-orange-400 font-mono text-center block">
                       {fmtDec(affirmMin)}
                     </span>
                   </Redacted>
