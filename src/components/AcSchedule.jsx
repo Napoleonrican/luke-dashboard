@@ -6,7 +6,9 @@ import { supabase } from '../lib/supabase';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // bit 0 = Sunday
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MODES = ['Cool', 'Eco', 'Energy Saver', 'Turbo Cool', 'Dry'];
+// Confirmed working on the AWFS12WW (2026-06-13). "Eco" = the SDK's ENERGY_SAVER.
+const MODES = ['Cool', 'Eco', 'Fan', 'Dry', 'Turbo Cool'];
+const FANS = ['Auto', 'Low', 'Medium', 'High'];
 const EVERY_DAY = 127;
 
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
@@ -134,7 +136,7 @@ export default function AcSchedule() {
     const position = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 1;
     const { data } = await supabase
       .from('ac_schedule')
-      .insert({ position, days: EVERY_DAY, time_local: '00:00', action: 'on', temp_f: 72, mode: 'Eco' })
+      .insert({ position, days: EVERY_DAY, time_local: '00:00', action: 'on', temp_f: 72, mode: 'Eco', fan: 'Auto' })
       .select()
       .single();
     if (data) setRows((p) => [...p, data]);
@@ -279,6 +281,16 @@ export default function AcSchedule() {
                     >
                       {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
                     </select>
+
+                    {/* Fan */}
+                    <select
+                      value={r.fan ?? 'Auto'}
+                      onChange={(e) => patch(r.id, 'fan', e.target.value)}
+                      title="Fan speed"
+                      className="bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-lg px-2 py-1.5 text-xs min-h-[34px]"
+                    >
+                      {FANS.map((f) => <option key={f} value={f}>{`Fan: ${f}`}</option>)}
+                    </select>
                   </>
                 )}
 
@@ -314,7 +326,7 @@ export default function AcSchedule() {
               <div className="text-[11px] text-zinc-600 mt-2">
                 {daysLabel(r.days)}
                 {' · '}{fmtTime12(r.time_local)}
-                {' · '}{r.action === 'on' ? `${r.temp_f ?? '—'}°F ${r.mode ?? ''}` : 'Off'}
+                {' · '}{r.action === 'on' ? `${r.temp_f ?? '—'}°F ${r.mode ?? ''}${r.fan ? ` · Fan ${r.fan}` : ''}` : 'Off'}
                 {!r.enabled && ' · (disabled)'}
                 {dirty.has(r.id) && <span className="text-cyan-500"> · unsaved</span>}
               </div>
