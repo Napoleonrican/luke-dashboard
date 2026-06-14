@@ -357,21 +357,21 @@ export default function DebtCalculator() {
 
   // ── Affirm derived totals (source of truth for Affirm debt row) ───────────
   const affirmBalance = useMemo(
-    () => affirmLoans.reduce((s, l) => s + (l.balance || 0), 0),
+    () => affirmLoans.reduce((s, l) => s + (parseFloat(l.balance) || 0), 0),
     [affirmLoans],
   );
   const affirmMin = useMemo(
-    () => affirmLoans.reduce((s, l) => s + (l.balance > 0 ? (l.min || 0) : 0), 0),
+    () => affirmLoans.reduce((s, l) => s + (parseFloat(l.balance) > 0 ? (parseFloat(l.min) || 0) : 0), 0),
     [affirmLoans],
   );
   const affirmApr = useMemo(() => {
     if (affirmBalance < 0.01) return 0.2999;
-    return affirmLoans.reduce((s, l) => s + (l.balance || 0) * (l.apr || 29.99), 0)
+    return affirmLoans.reduce((s, l) => s + (parseFloat(l.balance) || 0) * (parseFloat(l.apr) || 29.99), 0)
       / affirmBalance / 100;
   }, [affirmLoans, affirmBalance]);
 
   const affirmOriginal = useMemo(
-    () => affirmLoans.reduce((s, l) => s + (l.original || 0), 0),
+    () => affirmLoans.reduce((s, l) => s + (parseFloat(l.original) || 0), 0),
     [affirmLoans],
   );
 
@@ -449,11 +449,12 @@ export default function DebtCalculator() {
     stampUpdated();
   }
   function updateAffirmLoan(id, field, raw) {
-    const val = field === 'name' ? raw : Math.max(0, parseFloat(raw) || 0);
+    // Store raw string for numeric fields so an in-progress decimal ("12.") isn't
+    // immediately coerced to 12. All calculations use parseFloat — see affirmBalance,
+    // affirmMin, affirmApr, affirmOriginal above.
     setAffirmLoans((prev) =>
-      prev.map((l) => l.id === id ? { ...l, [field]: val } : l)
+      prev.map((l) => l.id === id ? { ...l, [field]: raw } : l)
     );
-    // Renaming a loan isn't a balance change — don't bump "Last updated"
     if (field !== 'name') stampUpdated();
   }
 
@@ -1063,10 +1064,10 @@ export default function DebtCalculator() {
 
                 <div className="space-y-1.5">
                   {affirmLoans.map((loan) => {
-                    const isPaidOff = loan.balance < 0.01;
-                    const loanOrig  = loan.original || 0;
+                    const isPaidOff = (parseFloat(loan.balance) || 0) < 0.01;
+                    const loanOrig  = parseFloat(loan.original) || 0;
                     const loanPct   = loanOrig > 0
-                      ? Math.min(100, Math.max(0, ((loanOrig - loan.balance) / loanOrig) * 100))
+                      ? Math.min(100, Math.max(0, ((loanOrig - (parseFloat(loan.balance) || 0)) / loanOrig) * 100))
                       : 0;
                     const numCls = `w-full bg-zinc-800 border border-zinc-700 rounded py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors${privacyMode ? ' blur-sm' : ''}`;
                     return (
@@ -1087,7 +1088,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.balance || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'balance', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1098,7 +1099,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.original || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'original', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1109,7 +1110,7 @@ export default function DebtCalculator() {
                         <div className="relative">
                           <input type="text" inputMode="decimal" value={loan.apr || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'apr', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1120,7 +1121,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.min || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'min', v);
                             }}
                             onFocus={(e) => e.target.select()}
