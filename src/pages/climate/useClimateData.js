@@ -130,6 +130,7 @@ export function useClimateData() {
   // The live schedule, for the Overview "AC now / next change" summary.
   const [schedule, setSchedule] = useState([]);        // ac_schedule rows
   const [executorEnabled, setExecutorEnabled] = useState(null);
+  const [lastAcPush, setLastAcPush] = useState(null);  // most recent non-noop ac_change_log row
 
   // Comfort mode override (ac_comfort_mode table — null when not active).
   const [comfortMode, setComfortModeState] = useState(null);
@@ -189,7 +190,7 @@ export function useClimateData() {
     setLoading(false);
   }, []);
 
-  // Load the live schedule + executor kill-switch (for the Overview summary).
+  // Load the live schedule + executor kill-switch + last actual AC push.
   const loadSchedule = useCallback(async () => {
     if (!supabase) return;
     const { data: sched } = await supabase
@@ -203,6 +204,15 @@ export function useClimateData() {
       .eq('id', 1)
       .limit(1);
     setExecutorEnabled(Boolean(prefs?.[0]?.executor_enabled));
+    // Most recent non-noop push to the AC — used by Overview to show actual current state.
+    const { data: pushLog } = await supabase
+      .from('ac_change_log')
+      .select('ts,source,action,detail')
+      .in('source', ['executor', 'comfort_mode'])
+      .neq('action', 'noop')
+      .order('ts', { ascending: false })
+      .limit(1);
+    setLastAcPush(pushLog?.[0] ?? null);
   }, []);
 
   // Load the active comfort mode row (null when off).
@@ -337,7 +347,7 @@ export function useClimateData() {
 
   return {
     // data
-    sensors, latest, chartData, schedule, executorEnabled,
+    sensors, latest, chartData, schedule, executorEnabled, lastAcPush,
     comfortMode, activateComfortMode, clearComfortMode,
     weather, weatherLoading, coords, outdoorSeries,
     loading, lastRefresh,

@@ -62,7 +62,7 @@ function blockSummary(r) {
 export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
-    schedule, executorEnabled, loading,
+    schedule, executorEnabled, lastAcPush, loading,
     comfortMode, activateComfortMode, clearComfortMode,
   } = useOutletContext();
 
@@ -108,45 +108,66 @@ export default function Overview() {
         <div className="flex items-center gap-2 mb-3">
           <Snowflake size={16} className="text-sky-400" />
           <span className="text-sm font-semibold text-zinc-100">AC right now</span>
-          <span
-            className={`ml-auto text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-              executorEnabled
-                ? 'text-emerald-400 border-emerald-500/30'
-                : 'text-zinc-500 border-zinc-600/40'
-            }`}
-            title={executorEnabled
-              ? 'The dashboard schedule is driving the AC.'
-              : 'Manual / SmartHQ control — the executor is not applying this schedule.'}
-          >
-            <Power size={11} /> {executorEnabled ? 'Dashboard control' : 'Manual control'}
-          </span>
-        </div>
-
-        {active ? (
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold tabular-nums text-zinc-100">{blockSummary(active)}</span>
-            <span className="text-xs text-zinc-500">since {fmtTime12(active.time_local)}</span>
-          </div>
-        ) : (
-          <div className="text-sm text-zinc-500">No active schedule block.</div>
-        )}
-
-        <div className="text-xs text-zinc-500 mt-2">
-          {next ? (
-            <>
-              Next: <span className="text-zinc-300">{blockSummary(next.row)}</span> at{' '}
-              {fmtTime12(next.row.time_local)}
-              {!next.today && <span> ({DAY_NAMES[next.dow]})</span>}
-            </>
+          {comfortMode ? (
+            <span className="ml-auto text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border text-violet-400 border-violet-500/30 flex items-center gap-1">
+              <Sparkles size={11} /> Comfort Mode
+            </span>
           ) : (
-            'No upcoming blocks scheduled.'
-          )}
-          {!executorEnabled && (
-            <span className="block text-amber-500/80 mt-1">
-              Executor is off — this is what the schedule <em>would</em> apply if enabled (Settings).
+            <span
+              className={`ml-auto text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                executorEnabled
+                  ? 'text-emerald-400 border-emerald-500/30'
+                  : 'text-zinc-500 border-zinc-600/40'
+              }`}
+              title={executorEnabled
+                ? 'The dashboard schedule is driving the AC.'
+                : 'Manual / SmartHQ control — the executor is not applying this schedule.'}
+            >
+              <Power size={11} /> {executorEnabled ? 'Dashboard control' : 'Manual control'}
             </span>
           )}
         </div>
+
+        {comfortMode && lastAcPush?.source === 'comfort_mode' ? (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums text-zinc-100">
+                {lastAcPush.detail.replace(/^Comfort mode:\s*/i, '')}
+              </span>
+            </div>
+            <div className="text-xs text-zinc-500 mt-2">
+              Last adjusted {new Date(lastAcPush.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} by comfort mode ·{' '}
+              <span className="text-zinc-400">schedule paused</span>
+            </div>
+          </>
+        ) : (
+          <>
+            {active ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold tabular-nums text-zinc-100">{blockSummary(active)}</span>
+                <span className="text-xs text-zinc-500">since {fmtTime12(active.time_local)}</span>
+              </div>
+            ) : (
+              <div className="text-sm text-zinc-500">No active schedule block.</div>
+            )}
+            <div className="text-xs text-zinc-500 mt-2">
+              {next ? (
+                <>
+                  Next: <span className="text-zinc-300">{blockSummary(next.row)}</span> at{' '}
+                  {fmtTime12(next.row.time_local)}
+                  {!next.today && <span> ({DAY_NAMES[next.dow]})</span>}
+                </>
+              ) : (
+                'No upcoming blocks scheduled.'
+              )}
+              {!executorEnabled && (
+                <span className="block text-amber-500/80 mt-1">
+                  Executor is off — this is what the schedule <em>would</em> apply if enabled (Settings).
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Comfort mode panel */}
