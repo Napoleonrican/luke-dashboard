@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Thermometer, Droplets, BatteryLow, Cloud, Wind, LoaderCircle, Power, Snowflake } from 'lucide-react';
+import { Thermometer, Droplets, BatteryLow, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock } from 'lucide-react';
 import { fmtTemp, timeAgo } from './useClimateData';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -63,9 +63,30 @@ export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
     schedule, executorEnabled, loading,
+    comfortMode, activateComfortMode, clearComfortMode,
   } = useOutletContext();
 
   const { active, next } = useMemo(() => computeActiveAndNext(schedule), [schedule]);
+
+  // Comfort mode panel state
+  const [cmExpanded, setCmExpanded] = useState(false);
+  const [intentText, setIntentText] = useState('');
+  const [cmSaving, setCmSaving] = useState(false);
+
+  async function handleActivate() {
+    if (!intentText.trim()) return;
+    setCmSaving(true);
+    await activateComfortMode(intentText.trim());
+    setCmSaving(false);
+    setCmExpanded(false);
+    setIntentText('');
+  }
+
+  async function handleClear() {
+    setCmSaving(true);
+    await clearComfortMode();
+    setCmSaving(false);
+  }
 
   if (loading) {
     return <div className="text-sm text-zinc-500 py-16 text-center">Loading readings…</div>;
@@ -126,6 +147,83 @@ export default function Overview() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Comfort mode panel */}
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        {comfortMode ? (
+          /* Active state */
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles size={14} className="text-violet-400" />
+              <span className="text-sm font-semibold text-violet-300">Comfort Mode Active</span>
+              <button
+                onClick={handleClear}
+                disabled={cmSaving}
+                className="ml-auto text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-40 flex items-center gap-1 border border-zinc-700 hover:border-zinc-500 rounded px-2 py-0.5 transition-colors"
+              >
+                {cmSaving ? <LoaderCircle size={11} className="animate-spin" /> : <X size={11} />}
+                Deactivate
+              </button>
+            </div>
+            <p className="text-sm text-zinc-200 leading-snug">{comfortMode.intent_text}</p>
+            <p className="text-[11px] text-zinc-500 mt-1">
+              Activated {comfortMode.activated_at ? new Date(comfortMode.activated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}
+              {comfortMode.expires_at
+                ? ` · Expires ${new Date(comfortMode.expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                : ' · Active until manually cleared'}
+            </p>
+            <p className="text-[11px] text-zinc-600 mt-1">
+              The hourly agent checks sensors and adjusts the AC — normal schedule is paused.
+            </p>
+          </div>
+        ) : cmExpanded ? (
+          /* Expanded input state */
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles size={14} className="text-violet-400" />
+              <span className="text-sm font-semibold text-zinc-100">Comfort Mode</span>
+              <button
+                onClick={() => { setCmExpanded(false); setIntentText(''); }}
+                className="ml-auto text-zinc-500 hover:text-zinc-300"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <textarea
+              value={intentText}
+              onChange={(e) => setIntentText(e.target.value)}
+              rows={3}
+              placeholder={'e.g. "Keep the bedroom around 68°F tonight from 9pm to 6am" or "Living room comfortable for the day, I\'m home all day"'}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+            />
+            <p className="text-[11px] text-zinc-500 mt-1.5">
+              The agent checks sensors every hour and adjusts the AC toward your intent.
+            </p>
+            <div className="flex justify-end mt-3">
+              <button
+                onClick={handleActivate}
+                disabled={!intentText.trim() || cmSaving}
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+              >
+                {cmSaving && <LoaderCircle size={12} className="animate-spin" />}
+                Activate
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Collapsed state — following schedule */
+          <div className="flex items-center gap-2 px-4 py-3">
+            <CalendarClock size={14} className="text-zinc-500" />
+            <span className="text-sm text-zinc-400">Following Schedule</span>
+            <button
+              onClick={() => setCmExpanded(true)}
+              className="ml-auto text-xs text-violet-400 hover:text-violet-300 border border-zinc-700 hover:border-zinc-600 rounded px-2 py-0.5 transition-colors"
+            >
+              Enable Comfort Mode
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Live sensor tiles + outdoor */}

@@ -131,6 +131,9 @@ export function useClimateData() {
   const [schedule, setSchedule] = useState([]);        // ac_schedule rows
   const [executorEnabled, setExecutorEnabled] = useState(null);
 
+  // Comfort mode override (ac_comfort_mode table — null when not active).
+  const [comfortMode, setComfortModeState] = useState(null);
+
   const colorFor = useCallback(
     (mac) => {
       const i = sensors.findIndex((s) => s.mac === mac);
@@ -202,15 +205,49 @@ export function useClimateData() {
     setExecutorEnabled(Boolean(prefs?.[0]?.executor_enabled));
   }, []);
 
+  // Load the active comfort mode row (null when off).
+  const loadComfortMode = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from('ac_comfort_mode')
+      .select('*')
+      .eq('active', true)
+      .limit(1);
+    setComfortModeState(data?.[0] ?? null);
+  }, []);
+
+  // Activate comfort mode with a natural-language intent string.
+  const activateComfortMode = useCallback(async (intentText, expiresAt = null) => {
+    if (!supabase) return;
+    // Deactivate any existing row first.
+    await supabase.from('ac_comfort_mode').update({ active: false }).eq('active', true);
+    const row = { active: true, intent_text: intentText, activated_by: 'dashboard' };
+    if (expiresAt) row.expires_at = expiresAt;
+    const { data } = await supabase
+      .from('ac_comfort_mode')
+      .insert(row)
+      .select()
+      .single();
+    setComfortModeState(data ?? null);
+  }, []);
+
+  // Deactivate comfort mode (returns to normal schedule).
+  const clearComfortMode = useCallback(async () => {
+    if (!supabase) return;
+    await supabase.from('ac_comfort_mode').update({ active: false }).eq('active', true);
+    setComfortModeState(null);
+  }, []);
+
   useEffect(() => { loadAll(rangeKey); }, [rangeKey, loadAll]);
   useEffect(() => { loadSchedule(); }, [loadSchedule]);
+  useEffect(() => { loadComfortMode(); }, [loadComfortMode]);
 
   // auto-refresh on the chosen interval (0 = off)
   useEffect(() => {
     if (refreshInterval === 0) return;
-    const id = setInterval(() => { loadAll(rangeKey); loadSchedule(); }, refreshInterval * 1000);
+    const id = setInterval(() => { loadAll(rangeKey); loadSchedule(); loadComfortMode(); }, refreshInterval * 1000);
     return () => clearInterval(id);
-  }, [rangeKey, loadAll, loadSchedule, refreshInterval]);
+  }, [rangeKey, loadAll, loadSchedule, loadComfortMode, refreshInterval]);
 
   // Remember the view configuration between visits.
   useEffect(() => { lsSet('thermo_range', rangeKey); }, [rangeKey]);
@@ -301,6 +338,7 @@ export function useClimateData() {
   return {
     // data
     sensors, latest, chartData, schedule, executorEnabled,
+    comfortMode, activateComfortMode, clearComfortMode,
     weather, weatherLoading, coords, outdoorSeries,
     loading, lastRefresh,
     // prefs
@@ -312,7 +350,7 @@ export function useClimateData() {
     showOutdoor, setShowOutdoor,
     hiddenSensors, toggleSensor,
     // actions
-    reload: () => { loadAll(rangeKey); loadSchedule(); },
+    reload: () => { loadAll(rangeKey); loadSchedule(); loadComfortMode(); },
     renameSensor,
     colorFor,
   };
