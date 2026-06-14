@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  CalendarClock, Plus, Trash2, Save, Power, Sparkles, LoaderCircle, ArrowRight,
-} from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Save, Power } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // bit 0 = Sunday
@@ -13,35 +11,6 @@ const EVERY_DAY = 127;
 
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
 const toggleDayBit = (mask, i) => mask ^ (1 << i);
-
-// Defensively strip any stray XML-ish tags from stored recommendation text
-// (older rows may have been saved before the advisor switched to clean JSON).
-const stripTags = (s) => (typeof s === 'string' ? s.replace(/<\/?[a-z_]+>/gi, '').trim() : s);
-
-// Older rows may have stored the model's raw JSON blob in the summary column
-// (a truncation/parse bug). Detect that and re-extract clean fields so the UI
-// never shows a wall of JSON, even before the next Re-analyze.
-function normalizeRecs(r) {
-  if (!r) return r;
-  let { summary, changes, rationale } = r;
-  if (typeof summary === 'string' && summary.trim().startsWith('{') && summary.includes('"summary"')) {
-    const blob = summary;
-    try {
-      const obj = JSON.parse(blob.slice(blob.indexOf('{'), blob.lastIndexOf('}') + 1));
-      summary = obj.summary ?? summary;
-      if ((!changes || changes.length === 0) && Array.isArray(obj.changes)) changes = obj.changes;
-      rationale = rationale || obj.rationale || '';
-    } catch {
-      const m = blob.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      if (m) summary = m[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
-      const c = blob.match(/"changes"\s*:\s*(\[[\s\S]*\])/);
-      if (c && (!changes || changes.length === 0)) {
-        try { const arr = JSON.parse(c[1]); if (Array.isArray(arr)) changes = arr; } catch { /* ignore */ }
-      }
-    }
-  }
-  return { ...r, summary: stripTags(summary), changes: changes ?? [], rationale: stripTags(rationale) };
-}
 
 function fmtTime12(t) {
   if (!t) return '';
@@ -57,48 +26,11 @@ function daysLabel(mask) {
   return on.length ? on.join(' ') : 'No days';
 }
 
-// Render one change from the advisor in plain language.
-function describeChange(c, byId) {
-  if (c.action === 'add') {
-    return {
-      verb: 'Add',
-      text: `${fmtTime12(c.time_local)} · ${c.temp_f != null ? `${c.temp_f}°F ` : ''}${c.mode ?? ''}${
-        c.days != null && c.days !== EVERY_DAY ? ` · ${daysLabel(c.days)}` : ''
-      }`,
-      reason: c.reason,
-    };
-  }
-  if (c.action === 'remove') {
-    const e = byId[c.entry_id];
-    return {
-      verb: 'Remove',
-      text: e ? `${fmtTime12(e.time_local)} · ${e.action === 'on' ? `${e.temp_f}°F ${e.mode}` : 'Off'}` : 'entry',
-      reason: c.reason,
-    };
-  }
-  // field edit
-  const e = byId[c.entry_id];
-  const where = e ? `${fmtTime12(e.time_local)} entry` : 'entry';
-  const fieldLabel = { temp_f: 'temp', mode: 'mode', time_local: 'time', days: 'days', action: 'action' }[c.field] || c.field;
-  const fromTo =
-    c.field === 'time_local'
-      ? `${fmtTime12(c.from)} → ${fmtTime12(c.to)}`
-      : c.field === 'days'
-      ? `${daysLabel(c.from)} → ${daysLabel(c.to)}`
-      : `${c.from}${c.field === 'temp_f' ? '°F' : ''} → ${c.to}${c.field === 'temp_f' ? '°F' : ''}`;
-  return { verb: 'Change', text: `${where} ${fieldLabel}: ${fromTo}`, reason: c.reason };
-}
-
 export default function AcSchedule() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [dirty, setDirty] = useState(() => new Set()); // ids with unsaved edits
-
-  // Advisor recommendations
-  const [recs, setRecs] = useState(null); // {summary, changes, rationale, generatedAt}
-  const [recLoading, setRecLoading] = useState(false);
-  const [recError, setRecError] = useState(null);
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
@@ -112,25 +44,7 @@ export default function AcSchedule() {
     setLoading(false);
   }, []);
 
-  // Load the most recent stored recommendation so advice persists between visits.
-  const loadLatestRec = useCallback(async () => {
-    if (!supabase) return;
-    const { data } = await supabase
-      .from('schedule_recommendations')
-      .select('summary,changes,rationale,generated_at')
-      .order('generated_at', { ascending: false })
-      .limit(1);
-    if (data?.[0]) {
-      setRecs(normalizeRecs({
-        summary: data[0].summary,
-        changes: data[0].changes ?? [],
-        rationale: data[0].rationale,
-        generatedAt: data[0].generated_at,
-      }));
-    }
-  }, []);
-
-  useEffect(() => { load(); loadLatestRec(); }, [load, loadLatestRec]);
+  useEffect(() => { load(); }, [load]);
 
   async function addRow() {
     const position = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 1;
@@ -164,36 +78,6 @@ export default function AcSchedule() {
     setDirty((p) => new Set(p).add(id));
   }
 
-  async function analyze() {
-    setRecError(null);
-    setRecLoading(true);
-    try {
-      const coords = await new Promise((resolve) => {
-        if (!('geolocation' in navigator)) { resolve({ lat: null, lon: null }); return; }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-          () => resolve({ lat: null, lon: null }), // weather is optional; proceed without it
-          { timeout: 10000, maximumAge: 10 * 60 * 1000 }
-        );
-      });
-      const res = await fetch('/api/schedule-advisor', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(coords),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-      setRecs(normalizeRecs(data));
-    } catch (e) {
-      setRecError(e.message || 'Something went wrong.');
-    } finally {
-      setRecLoading(false);
-    }
-  }
-
-  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
-  const hasChanges = recs?.changes && recs.changes.length > 0;
-
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 mb-6">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -210,8 +94,8 @@ export default function AcSchedule() {
       </div>
 
       <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
-        Enter the schedule you have set in the SmartHQ app. This is your baseline — the advisor reads it
-        and recommends changes against it. (SmartHQ schedules can&apos;t be read automatically.)
+        This is the live schedule the executor applies to your AC — each entry takes effect at its
+        time. The agent tunes it automatically toward your goals; you can also edit any block here.
       </p>
 
       {/* ── Current schedule (editable) ── */}
@@ -219,7 +103,7 @@ export default function AcSchedule() {
         <div className="text-sm text-zinc-500 py-6 text-center">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="text-xs text-zinc-500 py-4">
-          No entries yet — click &ldquo;Add entry&rdquo; to mirror your SmartHQ schedule.
+          No entries yet — click &ldquo;Add entry&rdquo; to create your first schedule block.
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -334,84 +218,6 @@ export default function AcSchedule() {
           ))}
         </div>
       )}
-
-      {/* ── Advisor recommendations ── */}
-      <div className="mt-5 pt-4 border-t border-zinc-800">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <Sparkles size={15} className="text-cyan-400" />
-            <span className="text-sm font-semibold text-zinc-100">Recommendations</span>
-          </div>
-          <button
-            onClick={analyze}
-            disabled={recLoading || rows.length === 0}
-            className="text-xs px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition-colors min-h-[36px] flex items-center gap-1.5 disabled:opacity-60"
-          >
-            {recLoading ? (
-              <><LoaderCircle size={13} className="animate-spin" /> Analyzing…</>
-            ) : (
-              <><Sparkles size={13} /> {recs ? 'Re-analyze' : 'Analyze now'}</>
-            )}
-          </button>
-        </div>
-
-        {recError && <div className="text-xs text-red-400 mb-3">{recError}</div>}
-
-        {recs?.summary && (
-          <div className="text-sm text-zinc-200 leading-relaxed mb-3">{recs.summary}</div>
-        )}
-
-        {hasChanges ? (
-          <div className="flex flex-col gap-2 mb-3">
-            {recs.changes.map((c, i) => {
-              const d = describeChange(c, byId);
-              const tone =
-                d.verb === 'Add' ? 'text-emerald-400 border-emerald-500/30'
-                : d.verb === 'Remove' ? 'text-red-400 border-red-500/30'
-                : 'text-amber-400 border-amber-500/30';
-              return (
-                <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
-                  <div className="flex items-center gap-2 flex-wrap text-sm">
-                    <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border ${tone}`}>
-                      {d.verb}
-                    </span>
-                    <ArrowRight size={12} className="text-zinc-600" />
-                    <span className="text-zinc-100">{d.text}</span>
-                  </div>
-                  {d.reason && <div className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{d.reason}</div>}
-                </div>
-              );
-            })}
-          </div>
-        ) : recs && !recError ? (
-          <div className="text-xs text-zinc-500 mb-3">No schedule changes recommended right now.</div>
-        ) : !recLoading && !recError ? (
-          <div className="text-xs text-zinc-500 mb-3">
-            Get data-driven suggestions for your AC schedule from your indoor history, outdoor weather,
-            and presence pattern. You apply any you like in the SmartHQ app.
-          </div>
-        ) : null}
-
-        {recs?.rationale && (
-          <details className="text-xs text-zinc-400 leading-relaxed">
-            <summary className="cursor-pointer text-zinc-500 hover:text-zinc-300 select-none">Why these suggestions</summary>
-            <div className="mt-2 whitespace-pre-wrap">{recs.rationale}</div>
-          </details>
-        )}
-
-        {hasChanges && (
-          <div className="text-[11px] text-amber-500/80 mt-3 flex items-center gap-1.5">
-            <CalendarClock size={12} />
-            Apply changes you accept in the SmartHQ app, then update the schedule above to match.
-          </div>
-        )}
-
-        {recs?.generatedAt && (
-          <div className="text-[11px] text-zinc-600 mt-2">
-            Generated {new Date(recs.generatedAt).toLocaleString()}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

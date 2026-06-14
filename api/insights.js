@@ -1,4 +1,8 @@
 /**
+ * DORMANT (2026-06-14): no caller. The dashboard's "Comfort & AC Advice" UI was removed
+ * when the autonomous schedule agent (GE AC/AGENT.md) took over recommendations. Kept on
+ * disk in case it's repurposed later; nothing in the app or the agent invokes it.
+ *
  * /api/insights — Comfort & AC advice (Vercel serverless function).
  *
  * Runs on Vercel (not in the browser) so the Anthropic API key stays secret.

@@ -1,11 +1,16 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import TaskManager from './pages/TaskManager';
 import DebtCalculator from './pages/DebtCalculator';
 import VersaRepair from './pages/VersaRepair';
 import GigTracker from './pages/GigTracker';
-import Thermometers from './pages/Thermometers';
-import Climate from './pages/Climate';
+import ClimateLayout from './pages/climate/ClimateLayout';
+import Overview from './pages/climate/Overview';
+import History from './pages/climate/History';
+import Schedule from './pages/climate/Schedule';
+import Goals from './pages/climate/Goals';
+import AgentLog from './pages/climate/AgentLog';
+import Settings from './pages/climate/Settings';
 import AIBacklog from './pages/AIBacklog';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
@@ -24,8 +29,17 @@ export default function App() {
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
         <Route path="/gig-tracker" element={<GigTracker />} />
-        <Route path="/thermometers" element={<Thermometers />} />
-        <Route path="/climate" element={<Climate />} />
+        <Route path="/climate" element={<ClimateLayout />}>
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<Overview />} />
+          <Route path="history" element={<History />} />
+          <Route path="schedule" element={<Schedule />} />
+          <Route path="goals" element={<Goals />} />
+          <Route path="log" element={<AgentLog />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+        {/* Old standalone page merged into the Climate shell; keep the URL working. */}
+        <Route path="/thermometers" element={<Navigate to="/climate" replace />} />
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
     </div>

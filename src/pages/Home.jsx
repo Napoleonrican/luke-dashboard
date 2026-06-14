@@ -49,9 +49,9 @@ const tools = [
   },
   {
     icon: Thermometer,
-    title: 'Thermometers',
-    description: 'Live Govee temperature & humidity readings, history, AC schedule & AI advice.',
-    to: '/thermometers',
+    title: 'Climate',
+    description: 'Live Govee readings, history, AC schedule & the agent that manages your AC.',
+    to: '/climate',
     accentColor: 'text-cyan-400',
   },
   {
