@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS ac_preferences (
   priority        text        NOT NULL DEFAULT 'balanced',  -- 'comfort'|'balanced'|'energy'
   comfort_low_f   smallint    NOT NULL DEFAULT 69,
   comfort_high_f  smallint    NOT NULL DEFAULT 74,
-  quiet_start     smallint    NOT NULL DEFAULT 0,           -- no-AC window start hour
-  quiet_end       smallint    NOT NULL DEFAULT 6,           -- no-AC window end hour
+  quiet_start     smallint    NOT NULL DEFAULT 0,           -- no-AC window start hour (beeping disabled; primarily for respecting sleep schedule)
+  quiet_end       smallint    NOT NULL DEFAULT 6,           -- no-AC window end hour (beeping disabled; primarily for respecting sleep schedule)
   room_sensor_mac text,                                     -- Govee sensor in the AC's room
   updated_at      timestamptz NOT NULL DEFAULT now()
 );

@@ -91,7 +91,7 @@ You receive:
 - INDOOR history (the "AC room" series is the Bedroom; the advisor also has all-sensor history for the Living Room context).
 - OUTDOOR history + a short forecast.
 
-Your job: recommend concrete EDITS to his existing schedule so it better matches reality, honoring his goals, priority, and comfort band. Reason about the thermal response — how fast the bedroom and living room heat up relative to outdoor conditions — to suggest pre-cooling or time shifts. Don't recommend heating (the unit can't). Keep the number of schedule entries manageable (ideally 4–6 total). Respect quiet hours.
+Your job: recommend concrete EDITS to his existing schedule so it better matches reality, honoring his goals, priority, and comfort band. Reason about the thermal response — how fast the bedroom and living room heat up relative to outdoor conditions — to suggest pre-cooling or time shifts. Don't recommend heating (the unit can't). Keep the number of schedule entries manageable (ideally 4–6 total). Respect quiet hours (primarily for sleep schedule; beeping is disabled, so noise is no longer a constraint).
 
 IMPORTANT: If your summary describes a change, that change MUST also appear in the "changes" array. Never describe a recommendation in prose without including it as a structured change. If you truly recommend nothing, use an empty array and say so in the summary.
 
