@@ -7,10 +7,10 @@ import { supabase } from '../../lib/supabase';
 // the same unit / range / sensor-visibility prefs.
 
 export const RANGES = [
-  { key: '1h', label: '1H', hours: 1, bucketSecs: 60 },        // ~60 points
-  { key: '12h', label: '12H', hours: 12, bucketSecs: 300 },    // ~144 points
-  { key: '24h', label: '24H', hours: 24, bucketSecs: 600 },    // ~144 points
-  { key: '7d', label: '7D', hours: 24 * 7, bucketSecs: 3600 }, // ~168 points
+  { key: '1h',  label: '1H',  hours: 1,       useLiveTable: true  }, // raw sensor_readings (~12 points @ 5-min cadence)
+  { key: '12h', label: '12H', hours: 12,      bucketSecs: 300  },    // ~144 points from sensor_history
+  { key: '24h', label: '24H', hours: 24,      bucketSecs: 600  },    // ~144 points
+  { key: '7d',  label: '7D',  hours: 24 * 7,  bucketSecs: 3600 },    // ~168 points
 ];
 
 export const REFRESH_OPTIONS = [
@@ -165,16 +165,30 @@ export function useClimateData() {
       })
     );
 
-    // 3) windowed chart data from the on-device history (sensor_history), bucket-
-    //    averaged server-side so a week of 1-minute data is a few hundred points.
-    const { data: series } = await supabase.rpc('history_series', {
-      since,
-      bucket_seconds: range.bucketSecs ?? 600,
-    });
+    // 3) windowed chart data. For the 1H range we read sensor_readings directly
+    //    (live data, 5-min cadence) — sensor_history only refreshes every 6h so
+    //    a 1H window would always be empty from that table. Longer ranges use the
+    //    history_series RPC which bucket-averages sensor_history server-side.
+    let rawSeries;
+    if (range.useLiveTable) {
+      const { data } = await supabase
+        .from('sensor_readings')
+        .select('mac,ts,temp_c,humidity')
+        .gte('ts', since)
+        .order('ts', { ascending: true });
+      // Normalize to the same shape as history_series rows (bucket = ts, no averaging needed).
+      rawSeries = (data ?? []).map((r) => ({ bucket: r.ts, mac: r.mac, temp_c: r.temp_c, humidity: r.humidity }));
+    } else {
+      const { data } = await supabase.rpc('history_series', {
+        since,
+        bucket_seconds: range.bucketSecs ?? 600,
+      });
+      rawSeries = data ?? [];
+    }
 
     // pivot: one row per time bucket, a temp_/humidity_ column per sensor
     const byTs = new Map();
-    for (const r of series ?? []) {
+    for (const r of rawSeries) {
       const t = new Date(r.bucket).getTime();
       let row = byTs.get(t);
       if (!row) { row = { ts: t }; byTs.set(t, row); }
