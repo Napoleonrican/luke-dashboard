@@ -3,10 +3,18 @@ import { ExternalLink, Lock } from 'lucide-react';
 
 export default function ToolCard({
   icon: Icon, title, description, to, href, accentColor, locked, wip,
-  feature = false, stat = null, statLoading = false,
+  feature = false, stat = null, statLoading = false, extra = null, status = null,
 }) {
+  const dot = status?.tone === 'live'
+    ? <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" title="Active now" />
+    : status?.tone === 'stale'
+      ? <span className="h-2 w-2 rounded-full bg-amber-400" title="Readings are stale" />
+      : null;
+
   const inner = (
     <>
+      {/* Accent bar — inherits the tile's accent color via border-current. */}
+      <div className={`${accentColor} -mx-5 -mt-5 mb-1 border-t-2 border-current opacity-70`} />
       <div className="flex items-start justify-between">
         <div className={`rounded-lg bg-zinc-800 p-2.5 ${accentColor}`}>
           <Icon size={feature ? 24 : 20} strokeWidth={1.75} />
@@ -25,13 +33,17 @@ export default function ToolCard({
         ) : null}
       </div>
       <div>
-        <h2 className={`font-semibold text-zinc-100 ${feature ? 'text-base' : 'text-sm'}`}>{title}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className={`font-semibold text-zinc-100 ${feature ? 'text-base' : 'text-sm'}`}>{title}</h2>
+          {dot}
+        </div>
         <p className="mt-1 text-xs leading-relaxed text-zinc-500">{description}</p>
         {(stat || statLoading) && (
           <p className="mt-2 text-xs font-medium text-zinc-300 tabular-nums">
             {statLoading ? <span className="text-zinc-600">—</span> : stat}
           </p>
         )}
+        {extra && <div className="mt-2">{extra}</div>}
       </div>
     </>
   );
