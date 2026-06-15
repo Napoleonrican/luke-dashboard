@@ -1,65 +1,99 @@
-import { Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo,
+  Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip,
+} from 'lucide-react';
 import ToolCard from '../components/ToolCard';
+import { useHomeData } from './useHomeData';
 
-const tools = [
+// Tools grouped into sections so the page reads as a dashboard, not a flat link
+// list. `feature: true` renders a wider tile (for data-rich in-app tools);
+// `statKey` maps a tile to its live mini-stat from useHomeData.
+const SECTIONS = [
   {
-    icon: Inbox,
-    title: 'Personal Email',
-    description: 'Monitor and triage your email threads from a single view. (napoleonrican08@gmail.com)',
-    href: 'https://script.google.com/macros/s/AKfycbwvCSxfyFnZkq35C-i6zHuS9ufnQoTMEBxUE0-_tmyGtiifxHyGFnn_JknEKLsbraE/exec',
-    accentColor: 'text-emerald-400',
+    label: 'Home & Climate',
+    items: [
+      {
+        icon: Thermometer,
+        title: 'Climate',
+        description: 'Live Govee readings, history, AC schedule & the agent that manages your AC.',
+        to: '/climate',
+        accentColor: 'text-cyan-400',
+        feature: true,
+        statKey: 'climate',
+      },
+    ],
   },
   {
-    icon: Fuel,
-    title: 'Gas Forecast',
-    description: "Track local gas prices and see where they're heading this week.",
-    href: 'https://gas-price-forecast.vercel.app',
-    accentColor: 'text-orange-400',
+    label: 'Money',
+    items: [
+      {
+        icon: Truck,
+        title: 'Gig Tracker',
+        description: 'Live shift tracker for DoorDash & UberEats.',
+        to: '/gig-tracker',
+        accentColor: 'text-green-400',
+        locked: true,
+        feature: true,
+        statKey: 'gig',
+      },
+      {
+        icon: Wallet,
+        title: 'Debt Payoff Calculator',
+        description: 'Model payoff timelines and find the fastest path to zero.',
+        to: '/debt-calculator',
+        accentColor: 'text-purple-400',
+        locked: true,
+      },
+    ],
   },
   {
-    icon: ListChecks,
-    title: 'Daily Planner',
-    description: 'Connect your Microsoft To Do and let AI help you plan your day.',
-    href: 'https://daily-planner-zeta-three.vercel.app/',
-    accentColor: 'text-blue-400',
+    label: 'Productivity',
+    items: [
+      {
+        icon: ListTodo,
+        title: 'AI Sidekick Backlog',
+        description: 'Track and manage the async tasks your Sidekick agent works on overnight.',
+        to: '/ai-backlog',
+        accentColor: 'text-violet-400',
+        feature: true,
+        statKey: 'backlog',
+      },
+      {
+        icon: Inbox,
+        title: 'Personal Email',
+        description: 'Monitor and triage your email threads from a single view. (napoleonrican08@gmail.com)',
+        href: 'https://script.google.com/macros/s/AKfycbwvCSxfyFnZkq35C-i6zHuS9ufnQoTMEBxUE0-_tmyGtiifxHyGFnn_JknEKLsbraE/exec',
+        accentColor: 'text-emerald-400',
+      },
+      {
+        icon: ListChecks,
+        title: 'Daily Planner',
+        description: 'Connect your Microsoft To Do and let AI help you plan your day.',
+        href: 'https://daily-planner-zeta-three.vercel.app/',
+        accentColor: 'text-blue-400',
+      },
+      {
+        icon: Fuel,
+        title: 'Gas Forecast',
+        description: "Track local gas prices and see where they're heading this week.",
+        href: 'https://gas-price-forecast.vercel.app',
+        accentColor: 'text-orange-400',
+      },
+    ],
   },
   {
-    icon: Wallet,
-    title: 'Debt Payoff Calculator',
-    description: 'Model payoff timelines and find the fastest path to zero.',
-    to: '/debt-calculator',
-    accentColor: 'text-purple-400',
-    locked: true,
-  },
-  {
-    icon: Wrench,
-    title: 'Versa Repair',
-    description: 'Log jobs, track parts, and manage repair tickets.',
-    to: '/versa-repair',
-    accentColor: 'text-red-400',
-    locked: true,
-  },
-  {
-    icon: Truck,
-    title: 'Gig Tracker',
-    description: 'Live shift tracker for DoorDash & UberEats.',
-    to: '/gig-tracker',
-    accentColor: 'text-green-400',
-    locked: true,
-  },
-  {
-    icon: Thermometer,
-    title: 'Climate',
-    description: 'Live Govee readings, history, AC schedule & the agent that manages your AC.',
-    to: '/climate',
-    accentColor: 'text-cyan-400',
-  },
-  {
-    icon: ListTodo,
-    title: 'AI Sidekick Backlog',
-    description: 'Track and manage the async tasks your Sidekick agent works on overnight.',
-    to: '/ai-backlog',
-    accentColor: 'text-violet-400',
+    label: 'Vehicle',
+    items: [
+      {
+        icon: Wrench,
+        title: 'Versa Repair',
+        description: 'Log jobs, track parts, and manage repair tickets.',
+        to: '/versa-repair',
+        accentColor: 'text-red-400',
+        locked: true,
+      },
+    ],
   },
 ];
 
@@ -73,33 +107,114 @@ const workshop = [
   },
 ];
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const todayLabel = () =>
+  new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+
+// Resolve a tile's live mini-stat string from the home data slices.
+function statFor(key, data) {
+  if (key === 'climate' && data.climate) {
+    const parts = [];
+    if (data.climate.indoorTemp) parts.push(`${data.climate.indoorTemp} indoor`);
+    if (data.climate.acState) parts.push(data.climate.acState);
+    return parts.join(' · ') || null;
+  }
+  if (key === 'backlog' && data.backlog) {
+    return `${data.backlog.pending} pending · ${data.backlog.inProgress} in progress`;
+  }
+  if (key === 'gig' && data.gig?.active) {
+    return `On shift · $${data.gig.earnings.toFixed(2)} · ${data.gig.orders} orders`;
+  }
+  return null;
+}
+
+function SnapshotChip({ to, icon: Icon, label, value, accent }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 transition-colors hover:border-zinc-600 hover:bg-zinc-800/60"
+    >
+      <Icon size={15} className={accent} strokeWidth={1.75} />
+      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="text-xs font-semibold tabular-nums text-zinc-200">{value}</span>
+    </Link>
+  );
+}
+
 export default function Home() {
+  const data = useHomeData();
+
+  const chips = [];
+  if (data.climate?.indoorTemp) {
+    chips.push({ to: '/climate', icon: ThermoChip, label: 'Indoor', value: data.climate.indoorTemp, accent: 'text-cyan-400' });
+  }
+  if (data.outdoor) {
+    chips.push({ to: '/climate', icon: Cloud, label: 'Outdoor', value: data.outdoor, accent: 'text-sky-400' });
+  }
+  if (data.backlog) {
+    chips.push({ to: '/ai-backlog', icon: TaskChip, label: 'Backlog', value: `${data.backlog.pending} pending`, accent: 'text-violet-400' });
+  }
+  if (data.gig?.active) {
+    chips.push({ to: '/gig-tracker', icon: GigChip, label: 'Shift', value: `$${data.gig.earnings.toFixed(2)}`, accent: 'text-green-400' });
+  }
+
   return (
     <div className="min-h-screen px-4 py-16">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-12">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Luke's Dashboards &amp; Tools
           </h1>
-          <p className="mt-3 text-zinc-400">Personal tools, one click away.</p>
+          <p className="mt-3 text-zinc-400">
+            {greeting()} — {todayLabel()}
+          </p>
         </header>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-          {tools.map((tool) => (
-            <ToolCard key={tool.title} {...tool} />
-          ))}
-        </div>
-
-        <div>
-          <div className="mb-4">
-            <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Workshop</h2>
-            <p className="text-xs text-zinc-600 mt-0.5">Tools in development</p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {workshop.map((tool) => (
-              <ToolCard key={tool.title} {...tool} />
+        {/* Live snapshot strip — only renders chips that have data */}
+        {chips.length > 0 && (
+          <div className="mb-10 flex flex-wrap gap-2">
+            {chips.map((c) => (
+              <SnapshotChip key={c.label} {...c} />
             ))}
           </div>
+        )}
+
+        <div className="space-y-10">
+          {SECTIONS.map((section) => (
+            <section key={section.label}>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                {section.label}
+              </h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {section.items.map((tool) => (
+                  <ToolCard
+                    key={tool.title}
+                    {...tool}
+                    stat={statFor(tool.statKey, data)}
+                    statLoading={tool.statKey ? data.loading : false}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+
+          <section>
+            <div className="mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Workshop</h2>
+              <p className="mt-0.5 text-xs text-zinc-600">Tools in development</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {workshop.map((tool) => (
+                <ToolCard key={tool.title} {...tool} />
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>
