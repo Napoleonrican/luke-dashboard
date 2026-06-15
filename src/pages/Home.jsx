@@ -109,6 +109,9 @@ const workshop = [
   },
 ];
 
+// All groups flow into the bento columns (Workshop included).
+const GROUPS = [...SECTIONS, { label: 'Workshop', note: 'Tools in development', items: workshop }];
+
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -215,43 +218,36 @@ export default function Home() {
           </div>
         )}
 
-        <div className="space-y-10">
-          {SECTIONS.map((section, si) => (
-            <section key={section.label}>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                {section.label}
-              </h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {section.items.map((tool, ti) => (
-                  <div
+        {/* Bento columns — groups flow side-by-side and pack tightly to cut
+            scrolling, while keeping the category labels. 3 cols → 2 → 1. */}
+        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
+          {GROUPS.map((group, gi) => (
+            <section
+              key={group.label}
+              className="mb-4 break-inside-avoid animate-enter"
+              style={{ animationDelay: `${120 + gi * 60}ms` }}
+            >
+              <div className="mb-3">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                  {group.label}
+                </h2>
+                {group.note && <p className="mt-0.5 text-xs text-zinc-600">{group.note}</p>}
+              </div>
+              <div className="space-y-3">
+                {group.items.map((tool) => (
+                  <ToolCard
                     key={tool.title}
-                    className={`animate-enter ${tool.feature ? 'sm:col-span-2' : ''}`}
-                    style={{ animationDelay: `${120 + si * 40 + ti * 40}ms` }}
-                  >
-                    <ToolCard
-                      {...tool}
-                      stat={statFor(tool.statKey, data)}
-                      statLoading={tool.statKey ? data.loading : false}
-                      extra={extraFor(tool.statKey)}
-                      status={statusFor(tool.statKey)}
-                    />
-                  </div>
+                    {...tool}
+                    feature={false}
+                    stat={statFor(tool.statKey, data)}
+                    statLoading={tool.statKey ? data.loading : false}
+                    extra={extraFor(tool.statKey)}
+                    status={statusFor(tool.statKey)}
+                  />
                 ))}
               </div>
             </section>
           ))}
-
-          <section>
-            <div className="mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Workshop</h2>
-              <p className="mt-0.5 text-xs text-zinc-600">Tools in development</p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {workshop.map((tool) => (
-                <ToolCard key={tool.title} {...tool} />
-              ))}
-            </div>
-          </section>
         </div>
       </div>
     </div>
