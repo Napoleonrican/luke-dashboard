@@ -25,6 +25,11 @@ export const REFRESH_OPTIONS = [
 export const PALETTE = ['#38bdf8', '#f472b6', '#a3e635', '#fbbf24', '#c084fc', '#fb7185'];
 export const OUTDOOR_COLOR = '#f59e0b'; // amber — distinct from the sensor palette
 
+// Outdoor weather is for the APARTMENT, not the viewing device. Hardwire the
+// coordinates (Lisbon Falls, ME) so the reading is correct wherever Luke opens the
+// dashboard. Same location the agent's daily_brief.py uses.
+export const APARTMENT_COORDS = { lat: 43.9997, lon: -70.0631, label: 'Lisbon Falls, ME' };
+
 export const cToF = (c) => (c == null ? null : c * 9 / 5 + 32);
 export const fmtTemp = (c, unit) =>
   c == null ? '—' : unit === 'F' ? `${cToF(c).toFixed(1)}°F` : `${c.toFixed(1)}°C`;
@@ -124,7 +129,7 @@ export function useClimateData() {
   // Outdoor weather tile (Open-Meteo, no API key).
   const [weather, setWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
-  const [coords, setCoords] = useState(null);          // {lat, lon} from browser geolocation
+  const [coords, setCoords] = useState(null);          // {lat, lon} — fixed apartment location
   const [outdoorSeries, setOutdoorSeries] = useState([]); // [{ts, tempC}] hourly outdoor history
 
   // The live schedule, for the Overview "AC now / next change" summary.
@@ -281,36 +286,34 @@ export function useClimateData() {
   useEffect(() => { lsSet('thermo_show_outdoor', showOutdoor); }, [showOutdoor]);
   useEffect(() => { lsSet('thermo_hidden_sensors', Array.from(hiddenSensors)); }, [hiddenSensors]);
 
-  // Fetch outdoor weather once on mount (browser location + Open-Meteo, no key).
+  // Fetch outdoor weather once on mount, for the APARTMENT's fixed coordinates
+  // (Open-Meteo, no key). Deliberately NOT the browser's geolocation — the reading
+  // should reflect the apartment wherever Luke is viewing from.
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    const { lat, lon } = APARTMENT_COORDS;
+    setCoords({ lat, lon }); // reused for the outdoor graph-line fetch below
     setWeatherLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        setCoords({ lat: coords.latitude, lon: coords.longitude }); // reused for the outdoor graph line
-        try {
-          const res = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}` +
-            `&current=temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,apparent_temperature` +
-            `&wind_speed_unit=mph&forecast_days=1`
-          );
-          const d = await res.json();
-          const c = d.current;
-          setWeather({
-            tempC: c.temperature_2m,
-            feelsLikeC: c.apparent_temperature,
-            humidity: c.relative_humidity_2m,
-            dewPointC: c.dew_point_2m,
-            windMph: c.wind_speed_10m,
-          });
-        } catch {
-          // silently leave the tile empty
-        }
-        setWeatherLoading(false);
-      },
-      () => setWeatherLoading(false),
-      { timeout: 10000, maximumAge: 10 * 60 * 1000 }
-    );
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&current=temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,apparent_temperature` +
+          `&wind_speed_unit=mph&forecast_days=1`
+        );
+        const d = await res.json();
+        const c = d.current;
+        setWeather({
+          tempC: c.temperature_2m,
+          feelsLikeC: c.apparent_temperature,
+          humidity: c.relative_humidity_2m,
+          dewPointC: c.dew_point_2m,
+          windMph: c.wind_speed_10m,
+        });
+      } catch {
+        // silently leave the tile empty
+      }
+      setWeatherLoading(false);
+    })();
   }, []);
 
   // When the outdoor line is enabled, pull the last week of hourly outdoor temps
