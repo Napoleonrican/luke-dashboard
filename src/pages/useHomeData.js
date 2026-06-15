@@ -18,7 +18,7 @@ function readUnit() {
   }
 }
 
-// Climate: latest reading per sensor + the AC's current control mode.
+// Climate: living-room reading (best ambient proxy) + the AC's current control mode.
 async function loadClimate(unit) {
   if (!supabase) return null;
   try {
@@ -37,8 +37,38 @@ async function loadClimate(unit) {
       })
     );
 
+    // Prefer the living-room sensor's reading — most accurate ambient temp.
+    // Fall back to the all-sensor average if it isn't found (e.g. renamed).
+    const livingIdx = sensors.findIndex((s) => /living/i.test(s.label || s.name || ''));
     const temps = latest.map((r) => r?.temp_c).filter((t) => t != null);
     const avgC = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+    const livingReading = livingIdx >= 0 ? latest[livingIdx] : null;
+    const indoorC = livingReading?.temp_c != null ? livingReading.temp_c : avgC;
+
+    // Freshest reading timestamp → staleness flag for the status dot (10-min rule
+    // mirrors Climate Overview).
+    const tsList = latest.map((r) => r?.ts).filter(Boolean).map((t) => new Date(t).getTime());
+    const freshest = tsList.length ? Math.max(...tsList) : null;
+    const stale = freshest != null && Date.now() - freshest > 10 * 60 * 1000;
+
+    // Last 24h of the living-room sensor for the tile sparkline (downsampled).
+    let spark = null;
+    const livingMac = livingIdx >= 0 ? sensors[livingIdx].mac : null;
+    if (livingMac) {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const { data: hist } = await supabase
+        .from('sensor_readings')
+        .select('temp_c,ts')
+        .eq('mac', livingMac)
+        .gte('ts', since)
+        .order('ts', { ascending: true });
+      const vals = (hist ?? []).map((r) => r.temp_c).filter((t) => t != null);
+      if (vals.length >= 2) {
+        // Downsample to ~40 evenly-spaced points.
+        const step = Math.max(1, Math.ceil(vals.length / 40));
+        spark = vals.filter((_, i) => i % step === 0);
+      }
+    }
 
     // Control mode: comfort mode wins, else the executor kill-switch decides.
     const { data: comfort } = await supabase
@@ -59,9 +89,11 @@ async function loadClimate(unit) {
     }
 
     return {
-      indoorTemp: avgC != null ? fmtTemp(avgC, unit) : null,
+      indoorTemp: indoorC != null ? fmtTemp(indoorC, unit) : null,
       sensorCount: sensors.length,
       acState,
+      stale,
+      spark,
     };
   } catch {
     return null;

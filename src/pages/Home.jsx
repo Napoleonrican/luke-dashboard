@@ -4,7 +4,9 @@ import {
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
+import Sparkline from '../components/Sparkline';
 import { useHomeData } from './useHomeData';
+import { useCountUp } from '../utils/useCountUp';
 
 // Tools grouped into sections so the page reads as a dashboard, not a flat link
 // list. `feature: true` renders a wider tile (for data-rich in-app tools);
@@ -134,15 +136,24 @@ function statFor(key, data) {
   return null;
 }
 
-function SnapshotChip({ to, icon: Icon, label, value, accent }) {
+// Counts a number up on mount, then renders it through `format`.
+function CountUpValue({ to: target, format }) {
+  const v = useCountUp(target);
+  return <>{format(v)}</>;
+}
+
+function SnapshotChip({ to, icon: Icon, label, value, countTo, format, accent, delay = 0 }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 transition-colors hover:border-zinc-600 hover:bg-zinc-800/60"
+      style={{ animationDelay: `${delay}ms` }}
+      className="animate-enter flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 transition-colors hover:border-zinc-600 hover:bg-zinc-800/60"
     >
       <Icon size={15} className={accent} strokeWidth={1.75} />
       <span className="text-xs text-zinc-500">{label}</span>
-      <span className="text-xs font-semibold tabular-nums text-zinc-200">{value}</span>
+      <span className="text-xs font-semibold tabular-nums text-zinc-200">
+        {countTo != null ? <CountUpValue to={countTo} format={format} /> : value}
+      </span>
     </Link>
   );
 }
@@ -158,11 +169,30 @@ export default function Home() {
     chips.push({ to: '/climate', icon: Cloud, label: 'Outdoor', value: data.outdoor, accent: 'text-sky-400' });
   }
   if (data.backlog) {
-    chips.push({ to: '/ai-backlog', icon: TaskChip, label: 'Backlog', value: `${data.backlog.pending} pending`, accent: 'text-violet-400' });
+    chips.push({
+      to: '/ai-backlog', icon: TaskChip, label: 'Backlog',
+      countTo: data.backlog.pending, format: (n) => `${Math.round(n)} pending`,
+      accent: 'text-violet-400',
+    });
   }
   if (data.gig?.active) {
-    chips.push({ to: '/gig-tracker', icon: GigChip, label: 'Shift', value: `$${data.gig.earnings.toFixed(2)}`, accent: 'text-green-400' });
+    chips.push({
+      to: '/gig-tracker', icon: GigChip, label: 'Shift',
+      countTo: data.gig.earnings, format: (n) => `$${n.toFixed(2)}`,
+      accent: 'text-green-400',
+    });
   }
+
+  // Per-tile live extras (sparkline) and status dots.
+  const extraFor = (key) =>
+    key === 'climate' && data.climate?.spark
+      ? <Sparkline values={data.climate.spark} color="#22d3ee" />
+      : null;
+  const statusFor = (key) => {
+    if (key === 'climate' && data.climate?.stale) return { tone: 'stale' };
+    if (key === 'gig' && data.gig?.active) return { tone: 'live' };
+    return null;
+  };
 
   return (
     <div className="min-h-screen px-4 py-16">
@@ -179,26 +209,33 @@ export default function Home() {
         {/* Live snapshot strip — only renders chips that have data */}
         {chips.length > 0 && (
           <div className="mb-10 flex flex-wrap gap-2">
-            {chips.map((c) => (
-              <SnapshotChip key={c.label} {...c} />
+            {chips.map((c, i) => (
+              <SnapshotChip key={c.label} {...c} delay={i * 60} />
             ))}
           </div>
         )}
 
         <div className="space-y-10">
-          {SECTIONS.map((section) => (
+          {SECTIONS.map((section, si) => (
             <section key={section.label}>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
                 {section.label}
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {section.items.map((tool) => (
-                  <ToolCard
+                {section.items.map((tool, ti) => (
+                  <div
                     key={tool.title}
-                    {...tool}
-                    stat={statFor(tool.statKey, data)}
-                    statLoading={tool.statKey ? data.loading : false}
-                  />
+                    className={`animate-enter ${tool.feature ? 'sm:col-span-2' : ''}`}
+                    style={{ animationDelay: `${120 + si * 40 + ti * 40}ms` }}
+                  >
+                    <ToolCard
+                      {...tool}
+                      stat={statFor(tool.statKey, data)}
+                      statLoading={tool.statKey ? data.loading : false}
+                      extra={extraFor(tool.statKey)}
+                      status={statusFor(tool.statKey)}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
