@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Thermometer, Droplets, BatteryLow, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock } from 'lucide-react';
-import { fmtTemp, timeAgo } from './useClimateData';
+import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
@@ -289,6 +289,7 @@ export default function Overview() {
           <div className="flex items-center gap-2 mb-3">
             <Cloud size={14} className="text-sky-400" />
             <span className="text-sm font-semibold text-zinc-100">Outdoor</span>
+            <span className="text-xs text-zinc-500">· {APARTMENT_COORDS.label}</span>
           </div>
           {weatherLoading ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
@@ -316,7 +317,7 @@ export default function Overview() {
               </div>
             </>
           ) : (
-            <div className="text-xs text-zinc-500 leading-relaxed">Allow location access for local weather</div>
+            <div className="text-xs text-zinc-500 leading-relaxed">{APARTMENT_COORDS.label} weather unavailable</div>
           )}
         </div>
       </div>
