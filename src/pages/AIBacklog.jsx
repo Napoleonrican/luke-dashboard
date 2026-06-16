@@ -176,7 +176,7 @@ export default function AIBacklog() {
     }
   }
 
-  const activeTasks    = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled');
+  const activeTasks    = tasks.filter(t => t.status !== 'done');
   const completedTasks = tasks.filter(t => t.status === 'done');
 
   const visibleActive = activeTasks.filter(t =>
