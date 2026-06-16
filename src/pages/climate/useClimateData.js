@@ -245,19 +245,12 @@ export function useClimateData() {
     setComfortModeState(data?.[0] ?? null);
   }, []);
 
-  // Activate comfort mode with a structured goal (goalTempF + goalRoom) and optional intent text.
-  const activateComfortMode = useCallback(async ({ goalTempF, goalRoom, intentText }, expiresAt = null) => {
+  // Activate comfort mode with a natural-language instruction the AI interprets (Layer 3 override).
+  const activateComfortMode = useCallback(async (intentText, expiresAt = null) => {
     if (!supabase) return;
+    // Deactivate any existing row first.
     await supabase.from('ac_comfort_mode').update({ active: false }).eq('active', true);
-    const autoIntent = intentText?.trim() ||
-      `${goalRoom === 'bedroom' ? 'Bedroom' : 'Living room'} at ${goalTempF}°F`;
-    const row = {
-      active: true,
-      intent_text: autoIntent,
-      goal_temp_f: goalTempF,
-      goal_room: goalRoom,
-      activated_by: 'dashboard',
-    };
+    const row = { active: true, intent_text: intentText, activated_by: 'dashboard' };
     if (expiresAt) row.expires_at = expiresAt;
     const { data } = await supabase
       .from('ac_comfort_mode')
