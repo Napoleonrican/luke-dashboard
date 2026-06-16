@@ -68,21 +68,18 @@ export default function Overview() {
 
   const { active, next } = useMemo(() => computeActiveAndNext(schedule), [schedule]);
 
-  // Comfort mode panel state
+  // Comfort mode panel state — freeform intent the AI interprets (Layer 3 override)
   const [cmExpanded, setCmExpanded] = useState(false);
-  const [goalRoom, setGoalRoom] = useState('bedroom');
-  const [goalTemp, setGoalTemp] = useState('69');
+  const [intentText, setIntentText] = useState('');
   const [cmSaving, setCmSaving] = useState(false);
 
   async function handleActivate() {
-    const tempF = parseFloat(goalTemp);
-    if (!goalRoom || isNaN(tempF)) return;
+    if (!intentText.trim()) return;
     setCmSaving(true);
-    await activateComfortMode({ goalTempF: tempF, goalRoom });
+    await activateComfortMode(intentText.trim());
     setCmSaving(false);
     setCmExpanded(false);
-    setGoalTemp('69');
-    setGoalRoom('bedroom');
+    setIntentText('');
   }
 
   async function handleClear() {
@@ -190,79 +187,44 @@ export default function Overview() {
                 Deactivate
               </button>
             </div>
-            {comfortMode.goal_temp_f && comfortMode.goal_room ? (
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-2xl font-bold tabular-nums text-zinc-100">
-                  {comfortMode.goal_temp_f}°F
-                </span>
-                <span className="text-sm text-zinc-400">
-                  in {comfortMode.goal_room === 'bedroom' ? 'Bedroom' : 'Living Room'}
-                </span>
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-200 leading-snug mb-1">{comfortMode.intent_text}</p>
-            )}
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-sm text-zinc-200 leading-snug">{comfortMode.intent_text}</p>
+            <p className="text-[11px] text-zinc-500 mt-1">
               Activated {comfortMode.activated_at ? new Date(comfortMode.activated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}
               {comfortMode.expires_at
                 ? ` · Expires ${new Date(comfortMode.expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
                 : ' · Active until manually cleared'}
             </p>
             <p className="text-[11px] text-zinc-600 mt-1">
-              Checks sensors every 5 min · adjusts setpoint ±1°F · max once per 30 min · schedule paused.
+              The agent interprets your instruction and adjusts the AC — normal schedule is paused.
             </p>
           </div>
         ) : cmExpanded ? (
-          /* Expanded input state */
+          /* Expanded input state — freeform instruction the AI interprets */
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={14} className="text-violet-400" />
               <span className="text-sm font-semibold text-zinc-100">Comfort Mode</span>
               <button
-                onClick={() => { setCmExpanded(false); }}
+                onClick={() => { setCmExpanded(false); setIntentText(''); }}
                 className="ml-auto text-zinc-500 hover:text-zinc-300"
               >
                 <X size={14} />
               </button>
             </div>
-            {/* Room selector */}
-            <p className="text-xs text-zinc-500 mb-1.5">Which room?</p>
-            <div className="flex gap-2 mb-4">
-              {[['bedroom', 'Bedroom'], ['living_room', 'Living Room']].map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setGoalRoom(val)}
-                  className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    goalRoom === val
-                      ? 'bg-violet-600 text-white'
-                      : 'border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {/* Target temperature */}
-            <p className="text-xs text-zinc-500 mb-1.5">Target temperature</p>
-            <div className="flex items-center gap-3 mb-4">
-              <input
-                type="number"
-                min={64}
-                max={86}
-                step={1}
-                value={goalTemp}
-                onChange={(e) => setGoalTemp(e.target.value)}
-                className="w-24 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 text-center focus:outline-none focus:border-violet-500"
-              />
-              <span className="text-sm text-zinc-500">°F</span>
-            </div>
-            <p className="text-[11px] text-zinc-500">
-              The executor checks sensors every 5 min and nudges the AC setpoint (±1°F, max once per 30 min) until the goal is met.
+            <textarea
+              value={intentText}
+              onChange={(e) => setIntentText(e.target.value)}
+              rows={3}
+              placeholder={'e.g. "Keep the bedroom around 68°F tonight from 9pm to 6am" or "Turn the AC off for the next 2 hours" or "Guests over — get the living room to 72°F"'}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
+            />
+            <p className="text-[11px] text-zinc-500 mt-1.5">
+              The agent checks sensors hourly and adjusts the AC toward your instruction. Clears manually.
             </p>
             <div className="flex justify-end mt-3">
               <button
                 onClick={handleActivate}
-                disabled={!goalRoom || !goalTemp || cmSaving}
+                disabled={!intentText.trim() || cmSaving}
                 className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-3 py-1.5 text-sm font-medium text-white transition-colors"
               >
                 {cmSaving && <LoaderCircle size={12} className="animate-spin" />}

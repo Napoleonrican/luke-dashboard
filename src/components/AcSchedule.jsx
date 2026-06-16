@@ -7,6 +7,10 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // Confirmed working on the AWFS12WW (2026-06-13). "Eco" = the SDK's ENERGY_SAVER.
 const MODES = ['Cool', 'Eco', 'Fan', 'Dry', 'Turbo Cool'];
 const FANS = ['Auto', 'Low', 'Medium', 'High'];
+// Optional per-block goal: the goal-follower drives this room toward this temp
+// within the block, escalating from the baseline above until it's met.
+const GOAL_ROOMS = [['', 'No goal'], ['bedroom', 'Bedroom'], ['living_room', 'Living Room']];
+const ROOM_LABEL = { bedroom: 'Bedroom', living_room: 'Living Room' };
 const EVERY_DAY = 127;
 
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
@@ -175,6 +179,35 @@ export default function AcSchedule() {
                     >
                       {FANS.map((f) => <option key={f} value={f}>{`Fan: ${f}`}</option>)}
                     </select>
+
+                    {/* Goal (optional) — the goal-follower drives this room to this temp within the block */}
+                    <span className="text-xs text-zinc-600 ml-1">Goal:</span>
+                    <select
+                      value={r.goal_room ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value || null;
+                        patch(r.id, 'goal_room', v);
+                        if (!v) patch(r.id, 'goal_temp_f', null);
+                      }}
+                      title="Goal room"
+                      className="bg-zinc-900 border border-zinc-800 text-violet-300 rounded-lg px-2 py-1.5 text-xs min-h-[34px]"
+                    >
+                      {GOAL_ROOMS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                    </select>
+                    {r.goal_room && (
+                      <>
+                        <input
+                          type="number"
+                          min={60}
+                          max={86}
+                          value={r.goal_temp_f ?? ''}
+                          onChange={(e) => patch(r.id, 'goal_temp_f', e.target.value === '' ? null : Number(e.target.value))}
+                          title="Goal temperature"
+                          className="w-16 bg-zinc-900 border border-zinc-800 text-violet-300 rounded-lg px-2 py-1.5 text-xs min-h-[34px]"
+                        />
+                        <span className="text-xs text-zinc-500">°F</span>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -211,6 +244,9 @@ export default function AcSchedule() {
                 {daysLabel(r.days)}
                 {' · '}{fmtTime12(r.time_local)}
                 {' · '}{r.action === 'on' ? `${r.temp_f ?? '—'}°F ${r.mode ?? ''}${r.fan ? ` · Fan ${r.fan}` : ''}` : 'Off'}
+                {r.action === 'on' && r.goal_room && r.goal_temp_f != null && (
+                  <span className="text-violet-400">{` · Goal: ${ROOM_LABEL[r.goal_room]} ${r.goal_temp_f}°F`}</span>
+                )}
                 {!r.enabled && ' · (disabled)'}
                 {dirty.has(r.id) && <span className="text-cyan-500"> · unsaved</span>}
               </div>
