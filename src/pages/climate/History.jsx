@@ -1,12 +1,14 @@
 import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Thermometer, Droplets, Cloud, Download, RefreshCw, Info } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
-  RANGES, REFRESH_OPTIONS, OUTDOOR_COLOR, cToF, fmtTemp, makeXTicks, mergeOutdoor,
+  RANGES, REFRESH_OPTIONS, OUTDOOR_COLOR, cToF, fToC, fmtTemp, makeXTicks, mergeOutdoor,
 } from './useClimateData';
+
+const ALERT_COLOR = '#ef4444'; // red — temperature alert bounds + out-of-range shading
 
 export default function History() {
   const {
@@ -14,7 +16,7 @@ export default function History() {
     rangeKey, setRangeKey, unit,
     refreshInterval, setRefreshInterval,
     showTemp, setShowTemp, showHumidity, setShowHumidity, showOutdoor, setShowOutdoor,
-    hiddenSensors, toggleSensor, reload, colorFor,
+    hiddenSensors, toggleSensor, reload, colorFor, alerts,
   } = useOutletContext();
 
   const xTickFmt = (t) => {
@@ -53,6 +55,33 @@ export default function History() {
     out.outdoor = oN ? oSum / oN : null;
     return out;
   }, [chartData, chartRows, sensors]);
+
+  // Temperature alert bounds in °C (chart data is °C; thresholds stored in °F).
+  const minC = alerts?.tempMinF != null ? fToC(alerts.tempMinF) : null;
+  const maxC = alerts?.tempMaxF != null ? fToC(alerts.tempMaxF) : null;
+
+  // Contiguous time spans where any visible sensor's temperature exits [min, max].
+  // Rendered as faint red ReferenceAreas behind the lines so excursions stand out.
+  const alertSpans = useMemo(() => {
+    if (!showTemp || (minC == null && maxC == null) || chartData.length === 0) return [];
+    const outAt = (row) => visibleSensors.some((s) => {
+      const t = row[`temp_${s.mac}`];
+      return t != null && ((minC != null && t < minC) || (maxC != null && t > maxC));
+    });
+    const spans = [];
+    let start = null, prevTs = null;
+    for (const row of chartData) {
+      if (outAt(row)) {
+        if (start == null) start = row.ts;
+        prevTs = row.ts;
+      } else if (start != null) {
+        spans.push([start, prevTs]);
+        start = null;
+      }
+    }
+    if (start != null) spans.push([start, prevTs]);
+    return spans;
+  }, [showTemp, minC, maxC, chartData, visibleSensors]);
 
   const chartTitle = tempAxis && showHumidity
     ? `Temperature (°${unit}) & Humidity (%)`
@@ -262,6 +291,39 @@ export default function History() {
                 }
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
+              {/* Shade time spans where a sensor's temperature left the alert range */}
+              {tempAxis && alertSpans.map(([x1, x2]) => (
+                <ReferenceArea
+                  key={`alert_${x1}`}
+                  yAxisId="temp"
+                  x1={x1}
+                  x2={x2}
+                  fill={ALERT_COLOR}
+                  fillOpacity={0.1}
+                  stroke="none"
+                />
+              ))}
+              {/* Temperature alert bounds */}
+              {showTemp && minC != null && (
+                <ReferenceLine
+                  yAxisId="temp"
+                  y={minC}
+                  stroke={ALERT_COLOR}
+                  strokeDasharray="5 4"
+                  strokeOpacity={0.7}
+                  label={{ value: `min ${fmtTemp(minC, unit)}`, position: 'insideLeft', fill: ALERT_COLOR, fontSize: 10 }}
+                />
+              )}
+              {showTemp && maxC != null && (
+                <ReferenceLine
+                  yAxisId="temp"
+                  y={maxC}
+                  stroke={ALERT_COLOR}
+                  strokeDasharray="5 4"
+                  strokeOpacity={0.7}
+                  label={{ value: `max ${fmtTemp(maxC, unit)}`, position: 'insideLeft', fill: ALERT_COLOR, fontSize: 10 }}
+                />
+              )}
               {showTemp && visibleSensors.map((s) => {
                 const a = averages[s.mac]?.temp;
                 if (a == null) return null;
@@ -345,6 +407,15 @@ export default function History() {
                   isAnimationActive={false}
                 />
               ))}
+              {/* Drag the handles to zoom/scrub into a sub-window of the loaded range */}
+              <Brush
+                dataKey="ts"
+                height={22}
+                travellerWidth={8}
+                stroke="#52525b"
+                fill="#18181b"
+                tickFormatter={xTickFmt}
+              />
             </LineChart>
           </ResponsiveContainer>
         )}

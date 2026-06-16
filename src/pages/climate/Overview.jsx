@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Thermometer, Droplets, BatteryLow, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock } from 'lucide-react';
+import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle } from 'lucide-react';
 import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -59,12 +59,29 @@ function blockSummary(r) {
   return `${t} ${r.mode ?? ''}${r.fan ? ` · Fan ${r.fan}` : ''}`.trim();
 }
 
+// Tiered battery indicator: pick the icon + color from the charge level relative to
+// the low-battery alert threshold. Below threshold reads red (warning), then amber,
+// then neutral as it climbs.
+function batteryDisplay(pct, threshold) {
+  if (pct == null) return { Icon: BatteryLow, color: 'text-zinc-500' };
+  if (pct < threshold) return { Icon: BatteryWarning, color: 'text-red-400' };
+  if (pct < 30) return { Icon: BatteryLow, color: 'text-amber-400' };
+  if (pct < 60) return { Icon: BatteryMedium, color: 'text-zinc-400' };
+  return { Icon: BatteryFull, color: 'text-zinc-400' };
+}
+
 export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
     schedule, executorEnabled, lastAcPush, loading,
     comfortMode, activateComfortMode, clearComfortMode,
+    alerts,
   } = useOutletContext();
+
+  // Sensors currently reporting below the low-battery threshold (for the banner).
+  const lowBattery = sensors
+    .map((s) => ({ s, batt: latest[s.mac]?.battery }))
+    .filter(({ batt }) => batt != null && batt < (alerts?.batteryPct ?? 20));
 
   const { active, next } = useMemo(() => computeActiveAndNext(schedule), [schedule]);
 
@@ -103,6 +120,22 @@ export default function Overview() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Low-battery alert banner */}
+      {lowBattery.length > 0 && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 flex items-start gap-2">
+          <AlertTriangle size={15} className="text-red-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-red-300 leading-snug">
+            <span className="font-semibold">Low battery</span> — replace soon:{' '}
+            {lowBattery.map(({ s, batt }, i) => (
+              <span key={s.mac}>
+                {i > 0 && ', '}
+                {s.label || s.name} <span className="text-red-400/80 tabular-nums">({batt}%)</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* AC right now / next change */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -253,8 +286,16 @@ export default function Overview() {
           const r = latest[s.mac];
           const color = colorOf(i);
           const stale = r && Date.now() - new Date(r.ts).getTime() > 10 * 60 * 1000;
+          const battThreshold = alerts?.batteryPct ?? 20;
+          const lowBatt = r?.battery != null && r.battery < battThreshold;
+          const { Icon: BattIcon, color: battColor } = batteryDisplay(r?.battery, battThreshold);
           return (
-            <div key={s.mac} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+            <div
+              key={s.mac}
+              className={`rounded-xl border bg-zinc-900 p-4 ${
+                lowBatt ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-zinc-800'
+              }`}
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: color }} />
@@ -272,8 +313,8 @@ export default function Overview() {
                   <Droplets size={13} className="text-sky-400" />
                   {r?.humidity != null ? `${r.humidity}%` : '—'}
                 </span>
-                <span className="flex items-center gap-1">
-                  <BatteryLow size={13} className={r?.battery != null && r.battery < 20 ? 'text-red-400' : 'text-zinc-500'} />
+                <span className={`flex items-center gap-1 ${lowBatt ? 'text-red-400 font-semibold' : ''}`}>
+                  <BattIcon size={13} className={battColor} />
                   {r?.battery != null ? `${r.battery}%` : '—'}
                 </span>
                 <span className={`ml-auto ${stale ? 'text-amber-400' : 'text-zinc-600'}`}>
