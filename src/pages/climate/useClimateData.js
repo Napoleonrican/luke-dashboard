@@ -31,6 +31,7 @@ export const OUTDOOR_COLOR = '#f59e0b'; // amber — distinct from the sensor pa
 export const APARTMENT_COORDS = { lat: 43.9997, lon: -70.0631, label: 'Lisbon Falls, ME' };
 
 export const cToF = (c) => (c == null ? null : c * 9 / 5 + 32);
+export const fToC = (f) => (f == null ? null : (f - 32) * 5 / 9);
 export const fmtTemp = (c, unit) =>
   c == null ? '—' : unit === 'F' ? `${cToF(c).toFixed(1)}°F` : `${c.toFixed(1)}°C`;
 
@@ -140,6 +141,9 @@ export function useClimateData() {
   // Comfort mode override (ac_comfort_mode table — null when not active).
   const [comfortMode, setComfortModeState] = useState(null);
 
+  // Alert thresholds (global, shared via ac_preferences). Temps in °F; null = no bound.
+  const [alerts, setAlerts] = useState({ tempMinF: null, tempMaxF: null, batteryPct: 20 });
+
   const colorFor = useCallback(
     (mac) => {
       const i = sensors.findIndex((s) => s.mac === mac);
@@ -219,10 +223,15 @@ export function useClimateData() {
     setSchedule(sched ?? []);
     const { data: prefs } = await supabase
       .from('ac_preferences')
-      .select('executor_enabled')
+      .select('executor_enabled,alert_temp_min_f,alert_temp_max_f,alert_battery_pct')
       .eq('id', 1)
       .limit(1);
     setExecutorEnabled(Boolean(prefs?.[0]?.executor_enabled));
+    setAlerts({
+      tempMinF: prefs?.[0]?.alert_temp_min_f ?? null,
+      tempMaxF: prefs?.[0]?.alert_temp_max_f ?? null,
+      batteryPct: prefs?.[0]?.alert_battery_pct ?? 20,
+    });
     // Most recent non-noop push to the AC — used by Overview to show actual current state.
     const { data: pushLog } = await supabase
       .from('ac_change_log')
@@ -265,6 +274,21 @@ export function useClimateData() {
     if (!supabase) return;
     await supabase.from('ac_comfort_mode').update({ active: false }).eq('active', true);
     setComfortModeState(null);
+  }, []);
+
+  // Persist alert thresholds to the shared ac_preferences row (optimistic).
+  const saveAlerts = useCallback(async (next) => {
+    setAlerts(next);
+    if (!supabase) return;
+    await supabase
+      .from('ac_preferences')
+      .update({
+        alert_temp_min_f: next.tempMinF,
+        alert_temp_max_f: next.tempMaxF,
+        alert_battery_pct: next.batteryPct,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', 1);
   }, []);
 
   useEffect(() => { loadAll(rangeKey); }, [rangeKey, loadAll]);
@@ -366,6 +390,7 @@ export function useClimateData() {
     // data
     sensors, latest, chartData, schedule, executorEnabled, lastAcPush,
     comfortMode, activateComfortMode, clearComfortMode,
+    alerts, saveAlerts,
     weather, weatherLoading, coords, outdoorSeries,
     loading, lastRefresh,
     // prefs

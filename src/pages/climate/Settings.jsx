@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Power, AlertTriangle, Thermometer, RefreshCw, Pencil } from 'lucide-react';
+import { Power, AlertTriangle, Thermometer, RefreshCw, Pencil, BatteryWarning } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { REFRESH_OPTIONS } from './useClimateData';
+import { REFRESH_OPTIONS, cToF, fToC } from './useClimateData';
 
 // Master kill-switch: when ON, the Pi executor applies this dashboard schedule to
 // the AC. When OFF (default), the executor does nothing and the AC is under manual /
@@ -78,9 +78,91 @@ function ControlToggle() {
   );
 }
 
+// Global temperature/battery alert thresholds, stored in °F in ac_preferences and
+// shared across devices. Temp inputs display in the user's current unit; we convert
+// to °F on save. Empty temp = no bound. Highlights out-of-range times on History.
+// Inputs are uncontrolled (defaultValue + a key that changes when the shared values
+// or unit change) so a save from another device re-seeds them without sync effects.
+function AlertSettings({ alerts, saveAlerts, unit }) {
+  const toDisplay = (f) => (f == null ? '' : String(Math.round(unit === 'F' ? f : fToC(f))));
+  const seedKey = `${alerts.tempMinF}_${alerts.tempMaxF}_${alerts.batteryPct}_${unit}`;
+
+  const commitTemp = (str, key) => {
+    const trimmed = str.trim();
+    let f = null;
+    if (trimmed !== '') {
+      const n = Number(trimmed);
+      if (Number.isNaN(n)) return;
+      f = unit === 'F' ? n : cToF(n);
+    }
+    if (f === alerts[key]) return;
+    saveAlerts({ ...alerts, [key]: f });
+  };
+
+  const commitBatt = (e) => {
+    const n = Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0)));
+    e.target.value = String(n);
+    if (n === alerts.batteryPct) return;
+    saveAlerts({ ...alerts, batteryPct: n });
+  };
+
+  const tempInput = (defaultVal, key, placeholder) => (
+    <span className="relative">
+      <input
+        type="number"
+        inputMode="decimal"
+        defaultValue={defaultVal}
+        placeholder={placeholder}
+        onBlur={(e) => commitTemp(e.target.value, key)}
+        className="w-20 bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-lg pl-2 pr-6 py-2 text-xs hover:bg-zinc-800 focus:outline-none focus:border-zinc-600 transition-colors min-h-[36px]"
+      />
+      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500 pointer-events-none">°{unit}</span>
+    </span>
+  );
+
+  return (
+    <div key={seedKey} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+      <span className="text-sm font-semibold text-zinc-100">Temperature &amp; battery alerts</span>
+
+      <div className="flex items-center justify-between gap-3 mt-3">
+        <div className="flex items-center gap-2 text-sm text-zinc-300">
+          <Thermometer size={15} className="text-zinc-500" /> Alert when temp is outside
+        </div>
+        <div className="flex items-center gap-1.5">
+          {tempInput(toDisplay(alerts.tempMinF), 'tempMinF', 'low')}
+          <span className="text-zinc-600 text-xs">to</span>
+          {tempInput(toDisplay(alerts.tempMaxF), 'tempMaxF', 'high')}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 mt-3">
+        <div className="flex items-center gap-2 text-sm text-zinc-300">
+          <BatteryWarning size={15} className="text-zinc-500" /> Warn on battery below
+        </div>
+        <span className="relative">
+          <input
+            type="number"
+            inputMode="numeric"
+            defaultValue={String(alerts.batteryPct ?? 20)}
+            onBlur={commitBatt}
+            className="w-20 bg-zinc-900 border border-zinc-800 text-zinc-200 rounded-lg pl-2 pr-6 py-2 text-xs hover:bg-zinc-800 focus:outline-none focus:border-zinc-600 transition-colors min-h-[36px]"
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-zinc-500 pointer-events-none">%</span>
+        </span>
+      </div>
+
+      <p className="text-[11px] text-zinc-600 mt-2 leading-relaxed">
+        Leave a temperature blank for no bound. These alerts are visual only on this dashboard —
+        low batteries show a banner on Overview, and out-of-range periods are shaded on History.
+      </p>
+    </div>
+  );
+}
+
 export default function Settings() {
   const {
     sensors, unit, setUnit, refreshInterval, setRefreshInterval, renameSensor,
+    alerts, saveAlerts,
   } = useOutletContext();
 
   return (
@@ -122,6 +204,8 @@ export default function Settings() {
           often the sensors are read — that&apos;s set by the collector script.
         </p>
       </div>
+
+      <AlertSettings alerts={alerts} saveAlerts={saveAlerts} unit={unit} />
 
       {/* Sensors */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
