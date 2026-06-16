@@ -22,9 +22,11 @@ export default function AgentLog() {
   useEffect(() => { load(); }, [load]);
 
   const tone = {
-    executor: 'text-cyan-400 border-cyan-500/30',
-    agent: 'text-violet-400 border-violet-500/30',
-    manual: 'text-zinc-400 border-zinc-600/40',
+    executor:     'text-cyan-400 border-cyan-500/30',
+    agent:        'text-violet-400 border-violet-500/30',
+    goal_follower:'text-amber-400 border-amber-500/30',
+    comfort_mode: 'text-emerald-400 border-emerald-500/30',
+    manual:       'text-zinc-400 border-zinc-600/40',
   };
 
   return (
