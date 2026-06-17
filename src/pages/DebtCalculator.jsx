@@ -1048,17 +1048,22 @@ export default function DebtCalculator() {
                 )}
 
                 {/* Individual loan table */}
-                <p className="text-xs text-zinc-500 mb-3">
-                  Enter your current balance for each loan from your Affirm account. Zero out any that are fully paid off.
+                <p className="text-xs text-zinc-500 mb-1">
+                  <span className="text-orange-400 font-medium">Balance</span> and{' '}
+                  <span className="text-orange-400 font-medium">Min/mo</span> are enough to estimate payoff.{' '}
+                  APR improves accuracy; Total Due enables progress tracking. Zero out fully paid loans.
+                </p>
+                <p className="text-xs text-zinc-600 mb-3">
+                  <span className="text-orange-400">*</span> required for payoff projections &nbsp;·&nbsp; <span className="text-zinc-500">opt</span> = optional
                 </p>
 
                 {/* Column headers */}
                 <div className="grid grid-cols-[1fr_68px_76px_50px_76px_56px] gap-1.5 px-1 mb-1">
                   <span className="text-xs text-zinc-600">Loan</span>
-                  <span className="text-xs text-zinc-600 text-center">Balance</span>
-                  <span className="text-xs text-zinc-600 text-center">Total Due</span>
-                  <span className="text-xs text-zinc-600 text-center">APR%</span>
-                  <span className="text-xs text-zinc-600 text-center">Min/mo</span>
+                  <span className="text-xs text-zinc-600 text-center">Balance <span className="text-orange-400">*</span></span>
+                  <span className="text-xs text-zinc-600 text-center">Total Due <span className="text-zinc-500 text-[10px]">opt</span></span>
+                  <span className="text-xs text-zinc-600 text-center">APR% <span className="text-zinc-500 text-[10px]">opt</span></span>
+                  <span className="text-xs text-zinc-600 text-center">Min/mo <span className="text-orange-400">*</span></span>
                   <span className="text-xs text-zinc-600 text-center">Progress</span>
                 </div>
 
