@@ -137,6 +137,7 @@ export function useClimateData() {
   const [schedule, setSchedule] = useState([]);        // ac_schedule rows
   const [executorEnabled, setExecutorEnabled] = useState(null);
   const [lastAcPush, setLastAcPush] = useState(null);  // most recent non-noop ac_change_log row
+  const [acLiveState, setAcLiveState] = useState(null); // confirmed AC state from last Pi write
 
   // Comfort mode override (ac_comfort_mode table — null when not active).
   const [comfortMode, setComfortModeState] = useState(null);
@@ -223,16 +224,25 @@ export function useClimateData() {
     setSchedule(sched ?? []);
     const { data: prefs } = await supabase
       .from('ac_preferences')
-      .select('executor_enabled,alert_temp_min_f,alert_temp_max_f,alert_battery_pct')
+      .select('executor_enabled,alert_temp_min_f,alert_temp_max_f,alert_battery_pct,ac_confirmed_power,ac_confirmed_setpoint_f,ac_confirmed_mode,ac_confirmed_fan,ac_confirmed_source,ac_confirmed_at')
       .eq('id', 1)
       .limit(1);
-    setExecutorEnabled(Boolean(prefs?.[0]?.executor_enabled));
+    const prefRow = prefs?.[0] ?? null;
+    setExecutorEnabled(Boolean(prefRow?.executor_enabled));
     setAlerts({
-      tempMinF: prefs?.[0]?.alert_temp_min_f ?? null,
-      tempMaxF: prefs?.[0]?.alert_temp_max_f ?? null,
-      batteryPct: prefs?.[0]?.alert_battery_pct ?? 20,
+      tempMinF:   prefRow?.alert_temp_min_f ?? null,
+      tempMaxF:   prefRow?.alert_temp_max_f ?? null,
+      batteryPct: prefRow?.alert_battery_pct ?? 20,
     });
-    // Most recent non-noop push to the AC — used by Overview to show actual current state.
+    setAcLiveState(prefRow?.ac_confirmed_at ? {
+      power:        prefRow.ac_confirmed_power,
+      setpoint_f:   prefRow.ac_confirmed_setpoint_f,
+      mode:         prefRow.ac_confirmed_mode,
+      fan:          prefRow.ac_confirmed_fan,
+      source:       prefRow.ac_confirmed_source,
+      confirmed_at: prefRow.ac_confirmed_at,
+    } : null);
+    // Most recent non-noop push to the AC — kept for backward compatibility.
     const { data: pushLog } = await supabase
       .from('ac_change_log')
       .select('ts,source,action,detail')
@@ -388,7 +398,7 @@ export function useClimateData() {
 
   return {
     // data
-    sensors, latest, chartData, schedule, executorEnabled, lastAcPush,
+    sensors, latest, chartData, schedule, executorEnabled, lastAcPush, acLiveState,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts, saveAlerts,
     weather, weatherLoading, coords, outdoorSeries,
