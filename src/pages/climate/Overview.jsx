@@ -70,10 +70,30 @@ function batteryDisplay(pct, threshold) {
   return { Icon: BatteryFull, color: 'text-zinc-400' };
 }
 
+const MODE_LABELS = {
+  COOL: 'Cool', ENERGY_SAVER: 'Eco', TURBO_COOL: 'Turbo Cool',
+  FAN_ONLY: 'Fan Only', DRY: 'Dry',
+};
+const FAN_LABELS = { AUTO: 'Auto', LOW: 'Low', MED: 'Med', HIGH: 'High' };
+const SOURCE_LABELS = {
+  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'comfort mode',
+};
+
+function fmtLiveState(s) {
+  if (!s) return null;
+  if (s.power === false) return 'OFF';
+  const parts = [
+    s.setpoint_f != null && `${s.setpoint_f}°F`,
+    MODE_LABELS[s.mode] ?? s.mode,
+    s.fan && `Fan ${FAN_LABELS[s.fan] ?? s.fan}`,
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
 export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
-    schedule, executorEnabled, lastAcPush, loading,
+    schedule, executorEnabled, lastAcPush, acLiveState, loading,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts,
   } = useOutletContext();
@@ -161,7 +181,31 @@ export default function Overview() {
           )}
         </div>
 
-        {comfortMode && lastAcPush?.source === 'comfort_mode' ? (
+        {acLiveState ? (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums text-zinc-100">
+                {fmtLiveState(acLiveState)}
+              </span>
+            </div>
+            <div className="text-xs text-zinc-500 mt-2">
+              Confirmed {timeAgo(acLiveState.confirmed_at)}
+              {acLiveState.source && ` · set by ${SOURCE_LABELS[acLiveState.source] ?? acLiveState.source}`}
+              {next && (
+                <>
+                  {' · '}Next: <span className="text-zinc-300">{blockSummary(next.row)}</span> at{' '}
+                  {fmtTime12(next.row.time_local)}
+                  {!next.today && <span> ({DAY_NAMES[next.dow]})</span>}
+                </>
+              )}
+              {!executorEnabled && (
+                <span className="block text-amber-500/80 mt-1">
+                  Executor is off — schedule not being applied (Settings).
+                </span>
+              )}
+            </div>
+          </>
+        ) : comfortMode && lastAcPush?.source === 'comfort_mode' ? (
           <>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tabular-nums text-zinc-100">
