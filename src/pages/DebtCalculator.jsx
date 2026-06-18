@@ -23,6 +23,9 @@ const WEEKS_PER_MONTH    = 4.33;
 const HOURLY_RATE        = 25.27;
 const HRB_ALL_WEEKS_AVG  = 161;
 const HRB_WORK_WEEKS_AVG = 203;
+// Slider ceiling ≈ 27.7 hrs/wk (≈120 hrs/mo) at HOURLY_RATE. Review against
+// data/0 - Side Gig Tracking.xlsx once uploaded to confirm vs. actual historical max hours.
+const WEEKLY_SLIDER_MAX  = 700;
 
 // ─── Debt list ────────────────────────────────────────────────────────────────
 // Cap One Personal ($2,647.99 @ 30.49%) + Cap One BP ($4,436.49 @ 28.99%)
@@ -631,7 +634,7 @@ export default function DebtCalculator() {
             </div>
           </div>
 
-          <input type="range" min={0} max={450} step={5} value={weeklyGross}
+          <input type="range" min={0} max={WEEKLY_SLIDER_MAX} step={5} value={weeklyGross}
             onChange={(e) => setWeeklyGross(Number(e.target.value))}
             className="w-full accent-purple-500 mb-2" />
 
@@ -640,7 +643,7 @@ export default function DebtCalculator() {
             <Redacted on={privacyMode}>
               <span className="text-amber-500">break-even ≈ {fmt(breakEvenWeekly)}/wk</span>
             </Redacted>
-            <span>$450</span>
+            <span>${WEEKLY_SLIDER_MAX}</span>
           </div>
 
           <div className={`rounded-lg p-3 mb-4 ${isDeficit ? 'bg-red-950/50 border border-red-800/60' : 'bg-emerald-950/50 border border-emerald-800/60'}`}>
@@ -670,7 +673,7 @@ export default function DebtCalculator() {
               const active = weeklyGross === g.weekly;
               return (
                 <button key={g.label + g.weekly}
-                  onClick={() => setWeeklyGross(Math.min(450, g.weekly))}
+                  onClick={() => setWeeklyGross(Math.min(WEEKLY_SLIDER_MAX, g.weekly))}
                   className="rounded-xl p-2 text-center border transition-all hover:opacity-90"
                   style={{
                     borderColor: g.color,
@@ -1093,7 +1096,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.balance || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./,  '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'balance', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1104,7 +1107,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.original || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./,  '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'original', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1115,7 +1118,7 @@ export default function DebtCalculator() {
                         <div className="relative">
                           <input type="text" inputMode="decimal" value={loan.apr || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./,  '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'apr', v);
                             }}
                             onFocus={(e) => e.target.select()}
@@ -1126,7 +1129,7 @@ export default function DebtCalculator() {
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
                           <input type="text" inputMode="decimal" value={loan.min || ''}
                             onChange={(e) => {
-                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./, '$1').replace(/^0+(?=\d)/, '');
+                              const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./,  '$1').replace(/^0+(?=\d)/, '');
                               updateAffirmLoan(loan.id, 'min', v);
                             }}
                             onFocus={(e) => e.target.select()}
