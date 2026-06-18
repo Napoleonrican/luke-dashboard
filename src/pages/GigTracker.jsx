@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu } from 'lucide-react';
 import TopNav from '../components/TopNav';
+import SettingsPanel from '../components/SettingsPanel';
 import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'gig_tracker_state';
+// Last-used platform + strike-tracking prefs persist per-device (separate from shift state)
+const LAST_PLATFORM_KEY = 'gig_tracker_last_platform';
+const STRIKE_MODE_KEY = 'gig_tracker_strike_mode';
+const STRIKE_THRESHOLD_KEY = 'gig_tracker_strike_threshold';
+const PLATFORMS = ['UberEats', 'DoorDash'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ZONES = ['Augusta', 'Brunswick/Bath/Freeport', 'Lewiston', 'Portland'];
 const DOW_FULL = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
@@ -114,14 +120,17 @@ export default function GigTracker() {
   const [now, setNow] = useState(() => new Date());
   const [resumePrompt, setResumePrompt] = useState(false);
   const [savedResume, setSavedResume] = useState(null);
-  const [ueInputOpen, setUeInputOpen] = useState(false);
-  const [ddInputOpen, setDdInputOpen] = useState(false);
-  const [ueInputValue, setUeInputValue] = useState('');
-  const [ddInputValue, setDdInputValue] = useState('');
+  const [orderInputOpen, setOrderInputOpen] = useState(false);
+  const [orderInputValue, setOrderInputValue] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState(() => localStorage.getItem(LAST_PLATFORM_KEY) || 'UberEats');
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
   const [hamburgerOpen, setHamburgerOpen] = useState(false);
   const [prefsLoadKey, setPrefsLoadKey] = useState(0);
+
+  // Strike-tracking behavior: 'manual' | 'hybrid' | 'auto' (persisted per-device)
+  const [strikeMode, setStrikeMode] = useState(() => localStorage.getItem(STRIKE_MODE_KEY) || 'hybrid');
+  const [strikeThreshold, setStrikeThreshold] = useState(() => parseInt(localStorage.getItem(STRIKE_THRESHOLD_KEY) || '3', 10));
 
   // Supabase-fetched benchmark data; null = not yet loaded (fallback to hardcoded)
   const [zoneData, setZoneData] = useState(null);
@@ -317,6 +326,10 @@ export default function GigTracker() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  // Persist strike-tracking prefs whenever they change
+  useEffect(() => { localStorage.setItem(STRIKE_MODE_KEY, strikeMode); }, [strikeMode]);
+  useEffect(() => { localStorage.setItem(STRIKE_THRESHOLD_KEY, String(strikeThreshold)); }, [strikeThreshold]);
+
   function update(partial) {
     setState(s => ({ ...s, ...partial }));
   }
@@ -343,7 +356,7 @@ export default function GigTracker() {
     }
   }
 
-  function addOrder(platform, amountStr) {
+  function addOrder(platformLabel, amountStr) {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
 
@@ -353,7 +366,6 @@ export default function GigTracker() {
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? (existingCombined + amount) / currentElapsedHours : 0;
 
-    const platformLabel = platform === 'ue' ? 'UberEats' : 'DoorDash';
     const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString(), eph: Math.round(capturedEph * 100) / 100 };
     const newLog = [...state.orderLog, newOrder];
     const newCombined = newLog.reduce((s, o) => s + o.amount, 0);
@@ -364,7 +376,22 @@ export default function GigTracker() {
     const dayMax = zd
       ? (Math.max(...ZONES.map(z => zd?.[z]?.[state.day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIndex] ?? 22))
       : (DAY_MAX_EPH[dayIndex] ?? 22);
-    const newStrikes = newEph >= dayMax ? Math.max(0, state.strikes - 1) : state.strikes;
+    const zoneEphs = zd
+      ? ZONES.map(z => zd[z]?.[state.day]?.eph).filter(Boolean)
+      : ZONES.map(z => ZONE_EPH[z]?.[state.day]).filter(Boolean);
+    const zoneAvg = zoneEphs.length > 0 ? zoneEphs.reduce((a, b) => a + b, 0) / zoneEphs.length : 0;
+
+    // Strike adjustment depends on the selected mode:
+    //  manual → no automatic change (driver uses +/− buttons)
+    //  hybrid → auto-clear one strike when EPH hits the daily peak; manual add
+    //  auto   → also auto-add a strike when EPH drops below the zone average
+    let newStrikes = state.strikes;
+    if (strikeMode === 'hybrid') {
+      if (newEph >= dayMax) newStrikes = Math.max(0, state.strikes - 1);
+    } else if (strikeMode === 'auto') {
+      if (newEph >= dayMax) newStrikes = Math.max(0, state.strikes - 1);
+      else if (newEph < zoneAvg) newStrikes = Math.min(strikeThreshold, state.strikes + 1);
+    }
 
     setState(s => ({
       ...s,
@@ -375,8 +402,10 @@ export default function GigTracker() {
       lastOrderEph: capturedEph,
     }));
 
-    if (platform === 'ue') { setUeInputOpen(false); setUeInputValue(''); }
-    else { setDdInputOpen(false); setDdInputValue(''); }
+    localStorage.setItem(LAST_PLATFORM_KEY, platformLabel);
+    setSelectedPlatform(platformLabel);
+    setOrderInputOpen(false);
+    setOrderInputValue('');
   }
 
   function removeOrder(id) {
@@ -525,20 +554,14 @@ export default function GigTracker() {
   // Warning banner — highest priority wins
   let warning = null;
   if (shiftStarted && combined > 0) {
-    if (strikes >= 3 && eph < zoneEPH) {
+    if (strikes >= strikeThreshold && eph < zoneEPH) {
       warning = { type: 'red', msg: '⚠ Stop dashing — business is slow' };
-    } else if (minTimeLeft <= 0 && minDollarLeft <= 0 && strikes >= 3) {
+    } else if (minTimeLeft <= 0 && minDollarLeft <= 0 && strikes >= strikeThreshold) {
       warning = { type: 'amber', msg: '✓ Min goals hit — consider stopping' };
     } else if (minTimeLeft <= 0 && eph < zoneEPH) {
       warning = { type: 'amber', msg: '⚠ Time goal met but EPH is lagging' };
     }
   }
-
-  // Break stopwatch display (updates via live `now`)
-  const breakElapsedSecs = breakRunning && breakStartMs
-    ? Math.floor((now.getTime() - breakStartMs) / 1000)
-    : 0;
-  const breakTimerDisplay = `${String(Math.floor(breakElapsedSecs / 60)).padStart(2, '0')}:${String(breakElapsedSecs % 60).padStart(2, '0')}`;
 
   // ── Schedule paste helpers ────────────────────────────────────────────────
 
@@ -895,84 +918,28 @@ export default function GigTracker() {
         <Menu size={20} />
       </button>
 
-      {/* Hamburger panel — slides in from right */}
-      {hamburgerOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/60"
-            onClick={() => setHamburgerOpen(false)}
-          />
-          <div className="fixed top-0 right-0 h-full w-72 z-50 bg-zinc-900 border-l border-zinc-800 flex flex-col rounded-l-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
-              <span className="text-sm font-semibold text-zinc-200">Menu</span>
-              <button
-                onClick={() => setHamburgerOpen(false)}
-                className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-4">
-              <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3">Break Timer</div>
-                {!shiftStarted ? (
-                  <p className="text-xs text-zinc-500">Start a shift to use the break timer.</p>
-                ) : breakRunning && breakStartMs ? (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-xs text-zinc-500 mb-1">On break</div>
-                      <div className="text-3xl font-bold tabular-nums text-amber-400">{breakTimerDisplay}</div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const elapsedBreakMs = Date.now() - breakStartMs;
-                        update({ breakRunning: false, breakStartMs: null, breakMinutes: breakMinutes + elapsedBreakMs / 60000 });
-                      }}
-                      className="w-full bg-amber-900 hover:bg-amber-800 border border-amber-700 text-amber-300 text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
-                    >
-                      End Break
-                    </button>
-                    {breakMinutes > 0 && (
-                      <div className="text-xs text-zinc-500">Total break: {Math.round(breakMinutes)} min</div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => update({ breakRunning: true, breakStartMs: Date.now() })}
-                      className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-3 min-h-[44px] transition-colors"
-                    >
-                      Take Break
-                    </button>
-                    {breakMinutes > 0 && (
-                      <div className="text-xs text-zinc-500">Total break: {Math.round(breakMinutes)} min</div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {shiftStarted && (
-                <div className="pb-2">
-                  <div className="text-xs text-zinc-600 mb-2">Danger zone</div>
-                  <button
-                    onClick={() => {
-                      if (window.confirm('Reset shift? This clears all orders and earnings.')) {
-                        setHamburgerOpen(false);
-                        localStorage.removeItem(STORAGE_KEY);
-                        setState(getDefaultState());
-                        setPrefsLoadKey(k => k + 1);
-                      }
-                    }}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
-                  >
-                    Reset Shift
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+      {/* Settings panel — slides in from right (Break Timer, Behavior, Reset) */}
+      <SettingsPanel
+        open={hamburgerOpen}
+        onClose={() => setHamburgerOpen(false)}
+        shiftStarted={shiftStarted}
+        breakMinutes={breakMinutes}
+        breakRunning={breakRunning}
+        breakStartMs={breakStartMs}
+        onUpdate={update}
+        strikeMode={strikeMode}
+        onStrikeModeChange={setStrikeMode}
+        strikeThreshold={strikeThreshold}
+        onStrikeThresholdChange={setStrikeThreshold}
+        onReset={() => {
+          if (window.confirm('Reset shift? This clears all orders and earnings.')) {
+            setHamburgerOpen(false);
+            localStorage.removeItem(STORAGE_KEY);
+            setState(getDefaultState());
+            setPrefsLoadKey(k => k + 1);
+          }
+        }}
+      />
 
       <main className="max-w-lg mx-auto px-4 pb-10">
 
@@ -1141,8 +1108,11 @@ export default function GigTracker() {
               <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-zinc-500 font-medium">Strikes</span>
+                  {strikeMode !== 'manual' && (
+                    <span className="text-xs text-zinc-600 capitalize">{strikeMode}</span>
+                  )}
                   <div className="flex gap-2">
-                    {[0, 1, 2].map(i => (
+                    {Array.from({ length: strikeThreshold }, (_, i) => i).map(i => (
                       <div
                         key={i}
                         className={`w-5 h-5 rounded-full ${i < strikes ? 'bg-red-500' : 'bg-zinc-700'}`}
@@ -1150,20 +1120,22 @@ export default function GigTracker() {
                     ))}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => update({ strikes: Math.min(3, strikes + 1) })}
-                    className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
-                  >
-                    + Strike
-                  </button>
-                  <button
-                    onClick={() => update({ strikes: Math.max(0, strikes - 1) })}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
-                  >
-                    - Strike
-                  </button>
-                </div>
+                {strikeMode !== 'auto' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => update({ strikes: Math.min(strikeThreshold, strikes + 1) })}
+                      className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
+                    >
+                      + Strike
+                    </button>
+                    <button
+                      onClick={() => update({ strikes: Math.max(0, strikes - 1) })}
+                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-medium px-3 rounded-lg min-h-[40px] transition-colors"
+                    >
+                      - Strike
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1229,94 +1201,14 @@ export default function GigTracker() {
               </div>
             </div>
 
-            {/* Order entry — side by side */}
-            <div className="mt-3 flex gap-2">
-              {/* UberEats */}
-              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden min-w-0">
-                {!ueInputOpen ? (
-                  <button
-                    onClick={() => setUeInputOpen(true)}
-                    className="w-full flex flex-col items-center justify-center gap-1 py-4 min-h-[68px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
-                  >
-                    <Plus size={18} />
-                    <span>UberEats</span>
-                    <span className="text-xs font-normal text-zinc-500">Order</span>
-                  </button>
-                ) : (
-                  <div className="p-2 flex flex-col gap-2">
-                    <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 min-h-[44px] border border-zinc-600">
-                      <span className="text-zinc-400 text-sm">$</span>
-                      <input
-                        type="number" min="0" step="0.01" inputMode="decimal"
-                        value={ueInputValue}
-                        onChange={e => setUeInputValue(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addOrder('ue', ueInputValue)}
-                        autoFocus
-                        placeholder="0.00"
-                        className="flex-1 bg-transparent text-zinc-100 outline-none text-lg min-w-0"
-                      />
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => addOrder('ue', ueInputValue)}
-                        className="flex-1 bg-green-700 hover:bg-green-600 text-white font-semibold rounded-lg min-h-[40px] text-sm transition-colors"
-                      >
-                        Add
-                      </button>
-                      <button
-                        onClick={() => { setUeInputOpen(false); setUeInputValue(''); }}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-2 rounded-lg min-h-[40px] transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* DoorDash */}
-              <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden min-w-0">
-                {!ddInputOpen ? (
-                  <button
-                    onClick={() => setDdInputOpen(true)}
-                    className="w-full flex flex-col items-center justify-center gap-1 py-4 min-h-[68px] text-sm font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
-                  >
-                    <Plus size={18} />
-                    <span>DoorDash</span>
-                    <span className="text-xs font-normal text-zinc-500">Order</span>
-                  </button>
-                ) : (
-                  <div className="p-2 flex flex-col gap-2">
-                    <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 min-h-[44px] border border-zinc-600">
-                      <span className="text-zinc-400 text-sm">$</span>
-                      <input
-                        type="number" min="0" step="0.01" inputMode="decimal"
-                        value={ddInputValue}
-                        onChange={e => setDdInputValue(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addOrder('dd', ddInputValue)}
-                        autoFocus
-                        placeholder="0.00"
-                        className="flex-1 bg-transparent text-zinc-100 outline-none text-lg min-w-0"
-                      />
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => addOrder('dd', ddInputValue)}
-                        className="flex-1 bg-green-700 hover:bg-green-600 text-white font-semibold rounded-lg min-h-[40px] text-sm transition-colors"
-                      >
-                        Add
-                      </button>
-                      <button
-                        onClick={() => { setDdInputOpen(false); setDdInputValue(''); }}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 px-2 rounded-lg min-h-[40px] transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Order entry — opens full-screen quick-add logger */}
+            <button
+              onClick={() => setOrderInputOpen(true)}
+              className="mt-3 w-full rounded-xl border border-zinc-800 bg-zinc-900 flex items-center justify-center gap-2 py-5 min-h-[68px] text-base font-semibold text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 transition-colors"
+            >
+              <Plus size={20} />
+              Log Order
+            </button>
 
             {/* Order Log */}
             {safeLog.length > 0 && (
@@ -1446,6 +1338,101 @@ export default function GigTracker() {
         )}
 
       </main>
+
+      {/* Full-screen quick-add order logger */}
+      {orderInputOpen && (
+        <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+          <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3 border-b border-zinc-800">
+            <h2 className="text-lg font-bold text-zinc-100">Log Order</h2>
+            <button
+              onClick={() => { setOrderInputOpen(false); setOrderInputValue(''); }}
+              className="flex items-center justify-center w-10 h-10 rounded-full text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col px-4 py-5 gap-4 overflow-y-auto">
+            {/* Platform — two buttons (UberEats / DoorDash) */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {PLATFORMS.map(p => {
+                const active = selectedPlatform === p;
+                const activeCls = p === 'UberEats'
+                  ? 'bg-green-900 border-green-600 text-green-200'
+                  : 'bg-red-900 border-red-600 text-red-200';
+                return (
+                  <button
+                    key={p}
+                    onClick={() => { setSelectedPlatform(p); localStorage.setItem(LAST_PLATFORM_KEY, p); }}
+                    className={`min-h-[56px] rounded-xl border text-base font-semibold transition-colors ${
+                      active ? activeCls : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Big amount input */}
+            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-xl px-4 min-h-[88px]">
+              <span className="text-zinc-400 text-3xl font-light">$</span>
+              <input
+                type="number" min="0" step="0.01" inputMode="decimal"
+                value={orderInputValue}
+                onChange={e => setOrderInputValue(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addOrder(selectedPlatform, orderInputValue)}
+                autoFocus
+                placeholder="0.00"
+                className="flex-1 bg-transparent text-zinc-100 outline-none text-5xl font-bold tabular-nums min-w-0"
+              />
+            </div>
+
+            {/* Quick-add +/- buttons */}
+            <div className="space-y-3">
+              <div className="flex gap-2.5">
+                {[1, 5, 10].map(delta => (
+                  <button
+                    key={`+${delta}`}
+                    onClick={() => setOrderInputValue(prev => {
+                      const next = Math.max(0, (parseFloat(prev) || 0) + delta);
+                      return next === 0 ? '' : next.toFixed(2);
+                    })}
+                    className="flex-1 flex flex-col items-center justify-center bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 rounded-xl min-h-[68px] transition-colors gap-0.5"
+                  >
+                    <span className="text-green-400 text-xl font-bold">+{delta}</span>
+                    <span className="text-zinc-500 text-xs">${delta}.00</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2.5">
+                {[1, 5, 10].map(delta => (
+                  <button
+                    key={`-${delta}`}
+                    onClick={() => setOrderInputValue(prev => {
+                      const next = Math.max(0, (parseFloat(prev) || 0) - delta);
+                      return next === 0 ? '' : next.toFixed(2);
+                    })}
+                    className="flex-1 flex flex-col items-center justify-center bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 rounded-xl min-h-[68px] transition-colors gap-0.5"
+                  >
+                    <span className="text-red-400 text-xl font-bold">−{delta}</span>
+                    <span className="text-zinc-500 text-xs">${delta}.00</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 border-t border-zinc-800">
+            <button
+              onClick={() => addOrder(selectedPlatform, orderInputValue)}
+              className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-bold text-xl py-5 rounded-2xl min-h-[72px] transition-colors"
+            >
+              OK — Log Order
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
