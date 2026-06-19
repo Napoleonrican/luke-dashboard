@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo,
-  Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb,
+  Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 import Sparkline from '../components/Sparkline';
@@ -23,6 +23,15 @@ const SECTIONS = [
         accentColor: 'text-cyan-400',
         feature: true,
         statKey: 'climate',
+      },
+      {
+        icon: Lightbulb,
+        title: 'Lighting',
+        description: 'Control your Govee strip light — color, brightness & scenes, over Bluetooth.',
+        to: '/lighting',
+        accentColor: 'text-fuchsia-400',
+        feature: true,
+        statKey: 'lighting',
       },
     ],
   },
@@ -130,6 +139,11 @@ function statFor(key, data) {
     if (data.climate.acState) parts.push(data.climate.acState);
     return parts.join(' · ') || null;
   }
+  if (key === 'lighting' && data.lighting) {
+    return data.lighting.power
+      ? `On · ${data.lighting.label} · ${data.lighting.brightness}%`
+      : 'Off';
+  }
   if (key === 'backlog' && data.backlog) {
     return `${data.backlog.pending} pending · ${data.backlog.inProgress} in progress`;
   }
@@ -185,6 +199,9 @@ export default function Home() {
       accent: 'text-green-400',
     });
   }
+  if (data.lighting?.power) {
+    chips.push({ to: '/lighting', icon: LightChip, label: 'Strip', value: `${data.lighting.label} · ${data.lighting.brightness}%`, accent: 'text-fuchsia-400' });
+  }
 
   // Per-tile live extras (sparkline) and status dots.
   const extraFor = (key) =>
@@ -194,6 +211,7 @@ export default function Home() {
   const statusFor = (key) => {
     if (key === 'climate' && data.climate?.stale) return { tone: 'stale' };
     if (key === 'gig' && data.gig?.active) return { tone: 'live' };
+    if (key === 'lighting' && data.lighting?.power) return { tone: 'live' };
     return null;
   };
 

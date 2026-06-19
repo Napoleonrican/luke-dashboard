@@ -12,6 +12,9 @@ import Goals from './pages/climate/Goals';
 import AgentLog from './pages/climate/AgentLog';
 import Settings from './pages/climate/Settings';
 import AIBacklog from './pages/AIBacklog';
+import LightingLayout from './pages/lighting/LightingLayout';
+import Controls from './pages/lighting/Controls';
+import Scenes from './pages/lighting/Scenes';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -37,6 +40,11 @@ export default function App() {
           <Route path="goals" element={<Goals />} />
           <Route path="log" element={<AgentLog />} />
           <Route path="settings" element={<Settings />} />
+        </Route>
+        <Route path="/lighting" element={<LightingLayout />}>
+          <Route index element={<Navigate to="controls" replace />} />
+          <Route path="controls" element={<Controls />} />
+          <Route path="scenes" element={<Scenes />} />
         </Route>
         {/* Old standalone page merged into the Climate shell; keep the URL working. */}
         <Route path="/thermometers" element={<Navigate to="/climate" replace />} />

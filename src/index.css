@@ -31,3 +31,20 @@ body {
     animation: none;
   }
 }
+
+/* react-colorful sizing for the Lighting color picker */
+.lighting-picker .react-colorful {
+  width: 100%;
+  max-width: 280px;
+  height: 200px;
+}
+.lighting-picker .react-colorful__saturation {
+  border-radius: 8px 8px 0 0;
+}
+.lighting-picker .react-colorful__last-control {
+  border-radius: 0 0 8px 8px;
+}
+.lighting-picker .react-colorful__hue,
+.lighting-picker .react-colorful__saturation {
+  border-color: #27272a;
+}
