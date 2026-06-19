@@ -100,6 +100,32 @@ async function loadClimate(unit) {
   }
 }
 
+// Lighting: current strip state (power / brightness / rough color name).
+async function loadLighting() {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase
+      .from('strip_state')
+      .select('power,brightness,r,g,b,scene')
+      .eq('id', 1)
+      .limit(1);
+    const s = data?.[0];
+    if (!s) return null;
+    // Rough color label without importing the lighting module's helper.
+    const { r, g, b } = s;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let label = 'color';
+    if (max - min < 25) label = max > 200 ? 'white' : 'dim white';
+    else if (r >= g && g >= b) label = g > 120 ? 'warm white' : 'red/orange';
+    else if (g >= r && r >= b) label = 'green';
+    else if (b >= g && g >= r) label = 'blue';
+    else if (r >= b && b >= g) label = 'pink';
+    return { power: !!s.power, brightness: s.brightness, label, scene: s.scene };
+  } catch {
+    return null;
+  }
+}
+
 // AI Backlog: active task counts.
 async function loadBacklog() {
   if (!supabase) return null;
@@ -148,7 +174,7 @@ async function loadWeather(unit) {
 }
 
 export function useHomeData() {
-  const [data, setData] = useState({ climate: null, backlog: null, gig: null, outdoor: null });
+  const [data, setData] = useState({ climate: null, backlog: null, gig: null, outdoor: null, lighting: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -156,13 +182,14 @@ export function useHomeData() {
     const unit = readUnit();
     const gig = loadGig();
     (async () => {
-      const [climate, backlog, outdoor] = await Promise.all([
+      const [climate, backlog, outdoor, lighting] = await Promise.all([
         loadClimate(unit),
         loadBacklog(),
         loadWeather(unit),
+        loadLighting(),
       ]);
       if (!cancelled) {
-        setData({ climate, backlog, gig, outdoor });
+        setData({ climate, backlog, gig, outdoor, lighting });
         setLoading(false);
       }
     })();
