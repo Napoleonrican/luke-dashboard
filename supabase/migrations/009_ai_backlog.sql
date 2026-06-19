@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS ai_backlog_tasks (
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
 
--- Seed data mirroring AI_BACKLOG.md as of 2026-06-09
+-- Seed data mirroring AI_BACKLOG.md as of 2026-06-19
 INSERT INTO ai_backlog_tasks (section, task_number, task_name, priority, owner, status, notes, completed_date)
 VALUES
   ('active_queue', '1',
@@ -26,9 +26,9 @@ VALUES
    '2026-06-09'),
   ('active_queue', '2',
    'Luke''s Dashboard Branching Cleanup',
-   'medium', 'agent', 'pending',
+   'medium', 'agent', 'done',
    'Several branches need reviewing and combining into one. KC trip section should be removed.',
-   NULL),
+   '2026-06-10'),
   ('decisions', '1',
    'Move the Waterfall workbook into the Financial Workbook',
    'medium', 'luke', 'pending',
