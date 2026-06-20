@@ -15,6 +15,10 @@ import AIBacklog from './pages/AIBacklog';
 import LightingLayout from './pages/lighting/LightingLayout';
 import Controls from './pages/lighting/Controls';
 import Scenes from './pages/lighting/Scenes';
+import CashflowLayout from './pages/cashflow/CashflowLayout';
+import Waterfall from './pages/cashflow/Waterfall';
+import Runway from './pages/cashflow/Runway';
+import BillsDebts from './pages/cashflow/BillsDebts';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -48,6 +52,12 @@ export default function App() {
         </Route>
         {/* Old standalone page merged into the Climate shell; keep the URL working. */}
         <Route path="/thermometers" element={<Navigate to="/climate" replace />} />
+        <Route path="/cashflow" element={<CashflowLayout />}>
+          <Route index element={<Navigate to="waterfall" replace />} />
+          <Route path="waterfall" element={<Waterfall />} />
+          <Route path="runway" element={<Runway />} />
+          <Route path="bills" element={<BillsDebts />} />
+        </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
     </div>
