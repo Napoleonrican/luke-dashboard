@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -54,6 +54,15 @@ const SECTIONS = [
         description: 'Model payoff timelines and find the fastest path to zero.',
         to: '/debt-calculator',
         accentColor: 'text-purple-400',
+        locked: true,
+      },
+      {
+        icon: Droplets,
+        title: 'Cashflow Plan',
+        description: 'Weekly cash waterfall, daily runway & bills — your workbooks, on the dashboard.',
+        to: '/cashflow',
+        accentColor: 'text-emerald-400',
+        feature: true,
         locked: true,
       },
     ],
