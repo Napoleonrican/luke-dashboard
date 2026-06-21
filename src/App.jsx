@@ -1,32 +1,35 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Home from './pages/Home';
-import TaskManager from './pages/TaskManager';
-import DebtCalculator from './pages/DebtCalculator';
-import VersaRepair from './pages/VersaRepair';
-import GigTracker from './pages/GigTracker';
-import ClimateLayout from './pages/climate/ClimateLayout';
-import Overview from './pages/climate/Overview';
-import History from './pages/climate/History';
-import Schedule from './pages/climate/Schedule';
-import Goals from './pages/climate/Goals';
-import AgentLog from './pages/climate/AgentLog';
-import Settings from './pages/climate/Settings';
-import AIBacklog from './pages/AIBacklog';
-import LightingLayout from './pages/lighting/LightingLayout';
-import Controls from './pages/lighting/Controls';
-import Scenes from './pages/lighting/Scenes';
-import CashflowLayout from './pages/cashflow/CashflowLayout';
-import Waterfall from './pages/cashflow/Waterfall';
-import Runway from './pages/cashflow/Runway';
-import BillsDebts from './pages/cashflow/BillsDebts';
 import FinancialAuthGate from './components/FinancialAuthGate';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
+
+const Home = lazy(() => import('./pages/Home'));
+const TaskManager = lazy(() => import('./pages/TaskManager'));
+const DebtCalculator = lazy(() => import('./pages/DebtCalculator'));
+const VersaRepair = lazy(() => import('./pages/VersaRepair'));
+const GigTracker = lazy(() => import('./pages/GigTracker'));
+const ClimateLayout = lazy(() => import('./pages/climate/ClimateLayout'));
+const Overview = lazy(() => import('./pages/climate/Overview'));
+const History = lazy(() => import('./pages/climate/History'));
+const Schedule = lazy(() => import('./pages/climate/Schedule'));
+const Goals = lazy(() => import('./pages/climate/Goals'));
+const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
+const Settings = lazy(() => import('./pages/climate/Settings'));
+const AIBacklog = lazy(() => import('./pages/AIBacklog'));
+const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
+const Controls = lazy(() => import('./pages/lighting/Controls'));
+const Scenes = lazy(() => import('./pages/lighting/Scenes'));
+const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
+const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
+const Runway = lazy(() => import('./pages/cashflow/Runway'));
+const BillsDebts = lazy(() => import('./pages/cashflow/BillsDebts'));
 
 export default function App() {
   const background = useRandomPalette();
   return (
     <div style={{ background, backgroundAttachment: 'fixed', minHeight: '100vh' }}>
+      <Suspense fallback={null}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/task-manager" element={
@@ -63,6 +66,7 @@ export default function App() {
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
+      </Suspense>
     </div>
   );
 }
