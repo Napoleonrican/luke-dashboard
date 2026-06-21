@@ -15,9 +15,9 @@ const SECTIONS = [
 ];
 
 const PRIORITY_MAP = {
-  high:   { label: '🔴 Do soon',             dot: 'bg-red-500' },
-  medium: { label: '🟡 When you get to it',  dot: 'bg-yellow-500' },
-  low:    { label: '🟢 No rush',              dot: 'bg-green-500' },
+  high:   { label: '🔴 Do soon',             dot: 'bg-red-500',    badge: 'bg-red-900/40 text-red-300' },
+  medium: { label: '🟡 When you get to it',  dot: 'bg-yellow-500', badge: 'bg-yellow-900/40 text-yellow-300' },
+  low:    { label: '🟢 No rush',              dot: 'bg-green-500',  badge: 'bg-green-900/40 text-green-300' },
 };
 
 const OWNER_MAP = {
@@ -77,24 +77,23 @@ export default function AIBacklog() {
   const [dbAvailable, setDbAvailable]       = useState(false);
   const [expandedNotes, setExpandedNotes]   = useState({});
   const [openStatus, setOpenStatus]         = useState(null);
-  const [openCategory, setOpenCategory]     = useState(null);
+  const [openPriority, setOpenPriority]     = useState(null);
   const [adding, setAdding]                 = useState(false);
   const [newTask, setNewTask]               = useState(BLANK_FORM);
   const [filterStatus, setFilterStatus]     = useState('');
   const [filterPriority, setFilterPriority] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
 
   useEffect(() => { loadTasks(); }, []);
 
   useEffect(() => {
-    if (!openStatus && !openCategory) return;
+    if (!openStatus && !openPriority) return;
     function close(e) {
       if (openStatus   && !e.target.closest('[data-status-dropdown]'))   setOpenStatus(null);
-      if (openCategory && !e.target.closest('[data-category-dropdown]')) setOpenCategory(null);
+      if (openPriority && !e.target.closest('[data-priority-dropdown]')) setOpenPriority(null);
     }
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
-  }, [openStatus, openCategory]);
+  }, [openStatus, openPriority]);
 
   async function loadTasks() {
     if (!supabase) { setTasks(SEED_TASKS); setLoading(false); return; }
@@ -125,11 +124,14 @@ export default function AIBacklog() {
     }
   }
 
-  async function updateCategory(taskId, section) {
-    setOpenCategory(null);
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, section } : t));
+  async function updatePriority(taskId, priority) {
+    setOpenPriority(null);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority } : t));
     if (dbAvailable && supabase) {
-      await supabase.from('ai_backlog_tasks').update({ section }).eq('id', taskId);
+      await supabase
+        .from('ai_backlog_tasks')
+        .update({ priority })
+        .eq('id', taskId);
     }
   }
 
@@ -181,8 +183,7 @@ export default function AIBacklog() {
 
   const visibleActive = activeTasks.filter(t =>
     (!filterStatus   || t.status   === filterStatus) &&
-    (!filterPriority || t.priority === filterPriority) &&
-    (!filterCategory || t.section  === filterCategory)
+    (!filterPriority || t.priority === filterPriority)
   );
 
   const stats = [
@@ -320,17 +321,9 @@ export default function AIBacklog() {
             <option value="">All priorities</option>
             {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
-          >
-            <option value="">All categories</option>
-            {SECTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-          {(filterStatus || filterPriority || filterCategory) && (
+          {(filterStatus || filterPriority) && (
             <button
-              onClick={() => { setFilterStatus(''); setFilterPriority(''); setFilterCategory(''); }}
+              onClick={() => { setFilterStatus(''); setFilterPriority(''); }}
               className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1"
             >
               <X size={11} /> Clear
@@ -354,12 +347,10 @@ export default function AIBacklog() {
                 const ow      = OWNER_MAP[task.owner]       || OWNER_MAP.agent;
                 const OwnIcon = ow.Icon;
                 const noted   = expandedNotes[task.id];
-                const secObj  = SECTIONS.find(s => s.id === task.section) || SECTIONS[0];
 
                 return (
                   <div key={task.id} className="px-4 py-2.5 hover:bg-zinc-800/25 transition-colors">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${pr.dot}`} />
                       <OwnIcon size={12} className={`flex-shrink-0 ${ow.color}`} />
                       <span className={`text-sm flex-1 min-w-0 truncate ${
                         task.status === 'cancelled' ? 'text-zinc-600 line-through' : 'text-zinc-200'
@@ -375,27 +366,27 @@ export default function AIBacklog() {
                           {noted ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
                       )}
-                      {/* Category badge — editable */}
-                      <div className="relative flex-shrink-0" data-category-dropdown>
+                      {/* Priority badge — editable */}
+                      <div className="relative flex-shrink-0" data-priority-dropdown>
                         <button
-                          onClick={() => setOpenCategory(openCategory === task.id ? null : task.id)}
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 bg-violet-900/40 text-violet-300 whitespace-nowrap"
-                          title={secObj.label}
+                          onClick={() => setOpenPriority(openPriority === task.id ? null : task.id)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${pr.badge}`}
+                          title={pr.label}
                         >
-                          {secObj.short}
+                          {pr.label.split(' ')[0]}
                           <ChevronDown size={9} className="flex-shrink-0" />
                         </button>
-                        {openCategory === task.id && (
-                          <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl min-w-[210px] overflow-hidden">
-                            {SECTIONS.map(s => (
+                        {openPriority === task.id && (
+                          <div className="absolute right-0 top-full mt-1 z-20 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl min-w-[180px] overflow-hidden">
+                            {PRIORITY_OPTIONS.map(p => (
                               <button
-                                key={s.id}
-                                onClick={() => updateCategory(task.id, s.id)}
+                                key={p.value}
+                                onClick={() => updatePriority(task.id, p.value)}
                                 className={`w-full text-left px-3 py-2 text-xs transition-colors hover:bg-zinc-700 ${
-                                  s.id === task.section ? 'text-white font-medium' : 'text-zinc-400'
+                                  p.value === task.priority ? 'text-white font-medium' : 'text-zinc-400'
                                 }`}
                               >
-                                {s.label}
+                                {p.label}
                               </button>
                             ))}
                           </div>
@@ -435,7 +426,7 @@ export default function AIBacklog() {
                       </button>
                     </div>
                     {noted && task.notes && (
-                      <div className="mt-2 ml-6 text-xs text-zinc-500 leading-relaxed bg-zinc-800/50 rounded px-2.5 py-2">
+                      <div className="mt-2 ml-4 text-xs text-zinc-500 leading-relaxed bg-zinc-800/50 rounded px-2.5 py-2">
                         {task.notes}
                       </div>
                     )}
@@ -455,7 +446,6 @@ export default function AIBacklog() {
                 {completedTasks.map(task => {
                   const ow = OWNER_MAP[task.owner] || OWNER_MAP.agent;
                   const OwnIcon = ow.Icon;
-                  const secObj  = SECTIONS.find(s => s.id === task.section) || SECTIONS[0];
                   return (
                     <div key={task.id} className="flex items-center gap-2.5 px-4 py-2.5">
                       <CheckCircle2 size={12} className="text-green-500 flex-shrink-0" />
@@ -463,7 +453,6 @@ export default function AIBacklog() {
                       <span className="text-xs text-zinc-500 line-through flex-1 min-w-0 truncate">
                         {task.task_name}
                       </span>
-                      <span className="text-[10px] text-zinc-700 flex-shrink-0">{secObj.short}</span>
                       {task.completed_date && (
                         <span className="text-[10px] text-zinc-700 flex-shrink-0">{task.completed_date}</span>
                       )}
