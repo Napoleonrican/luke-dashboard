@@ -19,6 +19,7 @@ import CashflowLayout from './pages/cashflow/CashflowLayout';
 import Waterfall from './pages/cashflow/Waterfall';
 import Runway from './pages/cashflow/Runway';
 import BillsDebts from './pages/cashflow/BillsDebts';
+import FinancialAuthGate from './components/FinancialAuthGate';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -52,7 +53,9 @@ export default function App() {
         </Route>
         {/* Old standalone page merged into the Climate shell; keep the URL working. */}
         <Route path="/thermometers" element={<Navigate to="/climate" replace />} />
-        <Route path="/cashflow" element={<CashflowLayout />}>
+        <Route path="/cashflow" element={
+          <FinancialAuthGate><CashflowLayout /></FinancialAuthGate>
+        }>
           <Route index element={<Navigate to="waterfall" replace />} />
           <Route path="waterfall" element={<Waterfall />} />
           <Route path="runway" element={<Runway />} />

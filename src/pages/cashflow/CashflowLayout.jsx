@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Droplets, CalendarRange, Receipt, Eye, EyeOff } from 'lucide-react';
+import { Droplets, CalendarRange, Receipt, Eye, EyeOff, LogOut } from 'lucide-react';
 import TopNav from '../../components/TopNav';
+import { useAuth } from '../../lib/useAuth';
 
 const NAV_ITEMS = [
   { to: 'waterfall', label: 'Waterfall',     icon: Droplets },
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
 // to every sub-page through the Outlet context (same idea as the Debt module).
 export default function CashflowLayout() {
   const [privacy, setPrivacy] = useState(true);
+  const { signOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -29,17 +31,27 @@ export default function CashflowLayout() {
               </span>
             </p>
           </div>
-          <button
-            onClick={() => setPrivacy((p) => !p)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-              privacy
-                ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
-                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-            }`}
-          >
-            {privacy ? <Eye size={15} /> : <EyeOff size={15} />}
-            {privacy ? 'Show' : 'Hide'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPrivacy((p) => !p)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                privacy
+                  ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+            >
+              {privacy ? <Eye size={15} /> : <EyeOff size={15} />}
+              {privacy ? 'Show' : 'Hide'}
+            </button>
+            <button
+              onClick={signOut}
+              title="Sign out of financial access"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-200 hover:border-zinc-500"
+            >
+              <LogOut size={15} />
+              Sign out
+            </button>
+          </div>
         </header>
 
         {/* Horizontal tab bar (full width) */}

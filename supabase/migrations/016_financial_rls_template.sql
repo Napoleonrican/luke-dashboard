@@ -1,0 +1,47 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Financial tables — secure RLS pattern (TEMPLATE)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- This migration does NOT create the financial tables yet (those land in Tier 0
+-- once the schema is agreed). It documents the EXACT policy pattern every
+-- financial table must use so we don't accidentally ship one wide open like the
+-- existing public-access tables (climate, ai_backlog, etc.).
+--
+-- Key difference from the rest of the dashboard:
+--   • Other tables:  TO anon, authenticated  USING (true)     ← public
+--   • Financial:     TO authenticated         USING (auth.uid() = owner)  ← private
+--
+-- Prerequisites in the Supabase dashboard (one-time, see docs/SECURITY.md):
+--   1. Authentication → Providers → Email: enabled.
+--   2. Authentication → Sign-ups: DISABLED (you create your one user manually).
+--   3. Create your user, copy its UID — used as the default `owner` below.
+--
+-- Anyone holding the public anon key still cannot read these tables, because the
+-- anon role is never granted access and every row is scoped to auth.uid().
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Example — copy this block for each financial table (bills, debts, accounts…):
+--
+-- CREATE TABLE IF NOT EXISTS fin_bills (
+--   id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+--   owner       uuid        NOT NULL DEFAULT auth.uid() REFERENCES auth.users (id),
+--   name        text        NOT NULL,
+--   monthly     numeric     NOT NULL DEFAULT 0,
+--   category    text        NOT NULL DEFAULT 'Bill',
+--   created_at  timestamptz NOT NULL DEFAULT now(),
+--   updated_at  timestamptz NOT NULL DEFAULT now()
+-- );
+--
+-- ALTER TABLE fin_bills ENABLE ROW LEVEL SECURITY;
+--
+-- -- Only the authenticated owner can see or touch their rows. No anon access.
+-- CREATE POLICY "Owner read"   ON fin_bills FOR SELECT TO authenticated USING (auth.uid() = owner);
+-- CREATE POLICY "Owner insert" ON fin_bills FOR INSERT TO authenticated WITH CHECK (auth.uid() = owner);
+-- CREATE POLICY "Owner update" ON fin_bills FOR UPDATE TO authenticated USING (auth.uid() = owner) WITH CHECK (auth.uid() = owner);
+-- CREATE POLICY "Owner delete" ON fin_bills FOR DELETE TO authenticated USING (auth.uid() = owner);
+--
+-- CREATE TRIGGER fin_bills_updated_at
+--   BEFORE UPDATE ON fin_bills
+--   FOR EACH ROW EXECUTE FUNCTION update_updated_at();  -- defined in 009_ai_backlog.sql
+
+-- No-op so this migration is safe to run as-is.
+SELECT 1;
