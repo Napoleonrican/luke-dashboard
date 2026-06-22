@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "backup": "node scripts/backup-db.mjs"
+    "backup": "node scripts/backup-db.mjs",
+    "seed:financial": "node scripts/seed-financial.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
