@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -210,6 +210,13 @@ export default function Home() {
   }
   if (data.lighting?.power) {
     chips.push({ to: '/lighting', icon: LightChip, label: 'Strip', value: `${data.lighting.label} · ${data.lighting.brightness}%`, accent: 'text-fuchsia-400' });
+  }
+  if (data.claude) {
+    chips.push({
+      to: '/ai-backlog', icon: Bot, label: 'Claude week',
+      countTo: data.claude.pct, format: (n) => `${n.toFixed(1)}% used`,
+      accent: 'text-amber-400',
+    });
   }
 
   // Per-tile live extras (sparkline) and status dots.
