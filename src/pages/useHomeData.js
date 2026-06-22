@@ -156,6 +156,22 @@ function loadGig() {
   }
 }
 
+// Claude usage pace: % of the 7-day billing cycle elapsed since last Wed 7 AM.
+// Pure date math — no API call. Shows how much of the weekly budget window has
+// been used so Luke can pace his Claude usage evenly across the week.
+function loadClaudeUsage() {
+  const now = new Date();
+  // getDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+  const daysBack = (now.getDay() + 7 - 3) % 7;
+  const lastWed = new Date(now);
+  lastWed.setDate(now.getDate() - daysBack);
+  lastWed.setHours(7, 0, 0, 0);
+  // If the computed Wed 7 AM is still in the future (we're Wed before 7 AM), go back a week.
+  if (lastWed > now) lastWed.setDate(lastWed.getDate() - 7);
+  const pct = Math.min(100, ((now - lastWed) / (7 * 24 * 60 * 60 * 1000)) * 100);
+  return { pct: Math.round(pct * 10) / 10 };
+}
+
 // Outdoor weather for the apartment (Open-Meteo, no key) — same source the
 // Climate Overview tile uses.
 async function loadWeather(unit) {
@@ -174,13 +190,14 @@ async function loadWeather(unit) {
 }
 
 export function useHomeData() {
-  const [data, setData] = useState({ climate: null, backlog: null, gig: null, outdoor: null, lighting: null });
+  const [data, setData] = useState({ climate: null, backlog: null, gig: null, outdoor: null, lighting: null, claude: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     const unit = readUnit();
     const gig = loadGig();
+    const claude = loadClaudeUsage();
     (async () => {
       const [climate, backlog, outdoor, lighting] = await Promise.all([
         loadClimate(unit),
@@ -189,7 +206,7 @@ export function useHomeData() {
         loadLighting(),
       ]);
       if (!cancelled) {
-        setData({ climate, backlog, gig, outdoor, lighting });
+        setData({ climate, backlog, gig, outdoor, lighting, claude });
         setLoading(false);
       }
     })();
