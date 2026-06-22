@@ -24,7 +24,8 @@ const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
 const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
-const BillsDebts = lazy(() => import('./pages/cashflow/BillsDebts'));
+const Debts = lazy(() => import('./pages/cashflow/Debts'));
+const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -64,7 +65,8 @@ export default function App() {
           <Route path="waterfall" element={<Waterfall />} />
           <Route path="runway" element={<Runway />} />
           <Route path="bills" element={<Bills />} />
-          <Route path="debts" element={<BillsDebts />} />
+          <Route path="debts" element={<Debts />} />
+          <Route path="subscriptions" element={<Subscriptions />} />
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>

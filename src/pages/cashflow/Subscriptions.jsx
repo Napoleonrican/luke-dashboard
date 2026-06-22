@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
-import { ArrowUpRight, Pencil, Check, X, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useOutletContext } from 'react-router-dom';
+import { Pencil, Check, X, Plus, Trash2 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
-  fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchInputs,
-  upsertDebt, upsertDigitalSub, upsertConsumableSub, upsertInput,
+  fetchDigitalSubs, fetchConsumableSubs, fetchInputs,
+  upsertDigitalSub, upsertConsumableSub, upsertInput,
   deleteRow,
 } from '../../lib/fin';
 
@@ -74,89 +74,6 @@ function useFin(fetcher) {
   }, []);
 
   return [rows, setRows, loading];
-}
-
-// ── Debts section ─────────────────────────────────────────────────────────────
-function DebtsSection({ privacy }) {
-  const [debts, setDebts, loading] = useFin(fetchDebts);
-  const [expanded, setExpanded] = useState(null);
-
-  const updateField = async (id, field, value) => {
-    setDebts((prev) => prev.map((d) => d.id === id ? { ...d, [field]: value } : d));
-    await upsertDebt({ id, [field]: value });
-  };
-
-  const addDebt = async () => {
-    const { data } = await upsertDebt({ purchase: 'New Debt', balance: 0, normal_payment: 0, sort_order: debts.length });
-    if (data?.[0]) setDebts((prev) => [...prev, data[0]]);
-    else { const { data: fresh } = await fetchDebts(); if (fresh) setDebts(fresh); }
-  };
-
-  const removeDebt = async (id) => {
-    setDebts((prev) => prev.filter((d) => d.id !== id));
-    await deleteRow('fin_debts', id);
-  };
-
-  const totalMins = debts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
-  const totalBal  = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
-
-  return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold">Debts</h2>
-        <div className="flex items-center gap-3">
-          <Link to="/debt-calculator" className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
-            Payoff Calc <ArrowUpRight size={13} />
-          </Link>
-          <button onClick={addDebt} className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-            <Plus size={13} /> Add
-          </button>
-        </div>
-      </div>
-      {loading ? <Skeleton rows={5} /> : (
-        <div className="space-y-1">
-          {debts.map((d) => (
-            <div key={d.id}>
-              <div className="flex items-center justify-between text-sm py-1 group rounded hover:bg-zinc-800/40 px-1 -mx-1 transition-colors">
-                <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
-                  <button onClick={() => setExpanded(expanded === d.id ? null : d.id)} className="text-zinc-600 hover:text-zinc-400 shrink-0">
-                    {expanded === d.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  </button>
-                  <EditCell value={d.purchase} onSave={(v) => updateField(d.id, 'purchase', v)} className="text-zinc-300 truncate" />
-                  {d.lender && <span className="text-[10px] text-zinc-600 shrink-0">{d.lender}</span>}
-                </div>
-                <span className="flex items-center gap-4 tabular-nums shrink-0">
-                  <Redacted on={privacy}><span className="text-zinc-500">{fmtDec(d.normal_payment)}/mo</span></Redacted>
-                  <Redacted on={privacy}><span className="text-zinc-200 w-20 text-right">{fmt(d.balance)}</span></Redacted>
-                  <button onClick={() => removeDebt(d.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400"><Trash2 size={12} /></button>
-                </span>
-              </div>
-              {expanded === d.id && (
-                <div className="ml-7 mb-2 grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-lg bg-zinc-800/50 border border-zinc-800">
-                  <AdvField label="Balance" value={d.balance} type="number" privacy={privacy} onSave={(v) => updateField(d.id, 'balance', v)} />
-                  <AdvField label="Payment" value={d.normal_payment} type="number" privacy={privacy} onSave={(v) => updateField(d.id, 'normal_payment', v)} />
-                  <AdvField label="Next due" value={d.next_due_date ?? '—'} onSave={(v) => updateField(d.id, 'next_due_date', v)} />
-                  <AdvField label="Day due" value={d.day_due ?? '—'} type="number" onSave={(v) => updateField(d.id, 'day_due', v)} />
-                  <AdvField label="APR" value={d.apr != null ? `${(d.apr * 100).toFixed(2)}%` : '—'} />
-                  <AdvField label="Pmts remain." value={d.payments_remaining ?? '—'} type="number" onSave={(v) => updateField(d.id, 'payments_remaining', v)} />
-                  <AdvField label="Expected payoff" value={d.expected_payoff_date ?? '—'} />
-                  <AdvField label="Type" value={d.credit_type ?? '—'} onSave={(v) => updateField(d.id, 'credit_type', v)} />
-                  <AdvField label="Priority" value={d.paydown_priority ?? '—'} type="number" onSave={(v) => updateField(d.id, 'paydown_priority', v)} />
-                </div>
-              )}
-            </div>
-          ))}
-          <div className="flex justify-between text-xs text-zinc-500 pt-2 mt-1 border-t border-zinc-800 px-1">
-            <span>Total minimums</span>
-            <span className="flex gap-4 tabular-nums">
-              <Redacted on={privacy}><span>{fmtDec(totalMins)}/mo</span></Redacted>
-              <Redacted on={privacy}><span className="w-20 text-right text-zinc-400">{fmt(totalBal)}</span></Redacted>
-            </span>
-          </div>
-        </div>
-      )}
-    </section>
-  );
 }
 
 // ── Digital Subscriptions ─────────────────────────────────────────────────────
@@ -311,29 +228,24 @@ function InputsSection({ privacy }) {
 
 // ── Summary stats ─────────────────────────────────────────────────────────────
 function SummaryStats({ privacy }) {
-  const [debts, setDebts] = useState([]);
   const [digitalSubs, setDigitalSubs] = useState([]);
   const [consumableSubs, setConsumableSubs] = useState([]);
 
   useEffect(() => {
-    fetchDebts().then(({ data }) => data && setDebts(data));
     fetchDigitalSubs().then(({ data }) => data && setDigitalSubs(data));
     fetchConsumableSubs().then(({ data }) => data && setConsumableSubs(data));
   }, []);
 
-  const debtMins   = debts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
-  const debtBal    = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
   const digitalTotal = digitalSubs.reduce((s, sub) => {
     return s + (sub.frequency === 'Annually' ? (sub.amount ?? 0) / 12 : (sub.amount ?? 0));
   }, 0);
   const consumableTotal = consumableSubs.reduce((s, sub) => s + (sub.monthly_estimate ?? 0), 0);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <StatCard label="Debt mins / mo" value={fmt(debtMins)} privacy={privacy} tone="text-purple-400" />
-      <StatCard label="Debt balance" value={fmt(debtBal)} privacy={privacy} tone="text-red-400" />
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
       <StatCard label="Digital subs / mo" value={fmt(digitalTotal)} privacy={privacy} tone="text-pink-400" />
       <StatCard label="Consumables / mo" value={fmt(consumableTotal)} privacy={privacy} tone="text-emerald-400" />
+      <StatCard label="Total subs / mo" value={fmt(digitalTotal + consumableTotal)} privacy={privacy} tone="text-blue-400" />
     </div>
   );
 }
@@ -344,21 +256,6 @@ function StatCard({ label, value, privacy, tone = 'text-white' }) {
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
       <Redacted on={privacy}><span className={`text-xl font-bold tabular-nums ${tone}`}>{value}</span></Redacted>
-    </div>
-  );
-}
-
-function AdvField({ label, value, type, privacy, onSave }) {
-  return (
-    <div>
-      <p className="text-[10px] text-zinc-600 mb-0.5">{label}</p>
-      {onSave ? (
-        <Redacted on={privacy}>
-          <EditCell value={value} type={type} onSave={onSave} className="text-xs text-zinc-300" />
-        </Redacted>
-      ) : (
-        <Redacted on={privacy}><span className="text-xs text-zinc-300">{value}</span></Redacted>
-      )}
     </div>
   );
 }
@@ -374,14 +271,12 @@ function Skeleton({ rows = 4 }) {
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default function BillsDebts() {
+export default function Subscriptions() {
   const { privacy } = useOutletContext();
 
   return (
     <div className="space-y-6">
       <SummaryStats privacy={privacy} />
-
-      <DebtsSection privacy={privacy} />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <DigitalSubsSection privacy={privacy} />

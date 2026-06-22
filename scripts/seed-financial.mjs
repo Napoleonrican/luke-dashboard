@@ -135,28 +135,29 @@ function extractDebts(wb) {
   for (const r of rows) {
     const purchase = str(r[1]);
     if (!purchase) continue;
-    const normalPayment = num(r[15]) ?? 0;
-    const pendingFlag = r[16] === true || r[16] === 'TRUE' || r[16] === 'true';
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[0]),
       purchase,
+      credit_type: str(r[2]),
       lender: str(r[3]),
+      origination_date: excelDate(r[4]),
+      apr: num(r[5]),
+      term_months: Number.isFinite(num(r[6])) ? num(r[6]) : null,
+      finance_charge: num(r[7]),
+      credit_limit: num(r[8]),
+      total_due: num(r[9]),
       balance: num(r[10]) ?? 0,
-      normal_payment: normalPayment,
+      available_credit: num(r[11]),
       next_due_date: excelDate(r[12]),
       day_due: Number.isFinite(num(r[14])) ? num(r[14]) : null,
-      // workbook stores a yes/no flag; carry the upcoming payment as the amount
-      // when flagged so the Waterfall has a number to work with (editable later).
-      pending_withdrawal: pendingFlag ? normalPayment : 0,
+      normal_payment: num(r[15]) ?? 0,
+      pending_withdrawal: r[16] === true || r[16] === 'TRUE' || r[16] === 'true',
       paydown_priority: Number.isFinite(num(r[17])) ? num(r[17]) : null,
       payments_remaining: Number.isFinite(num(r[18])) ? num(r[18]) : null,
       expected_payoff_date: excelDate(r[19]),
-      credit_type: str(r[2]),
-      apr: num(r[5]),
-      term_months: Number.isFinite(num(r[6])) ? num(r[6]) : null,
-      origination_date: excelDate(r[4]),
-      finance_charge: num(r[7]),
-      credit_limit: num(r[8]),
+      last_date: excelDate(r[20]),
+      new_min: num(r[21]),
       sort_order: sort++,
     });
   }

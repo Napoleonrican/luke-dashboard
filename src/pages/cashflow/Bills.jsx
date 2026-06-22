@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Columns3, RotateCcw, Maximize2, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, Columns3, Maximize2, X } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import { fetchBills, upsertBill, deleteRow, getPref, setPref } from '../../lib/fin';
 import {
-  fmtDec, fmtPct, fmtDate, todayISO, daysUntil, monthlyOf,
-  daysToColor, updatedColor, FREQUENCIES,
+  fmtDec, fmtPct, fmtDate, todayISO, daysUntil, monthlyOf, daysToColor, FREQUENCIES,
 } from './format';
 import EditCell from './EditCell';
+import { UpdatedCell, DaysBadge } from './cells';
+import { Th, Td } from './tableparts';
+import { makeToggleSort, sortRows } from './sorting';
+import { Field, ModalEdit } from './ModalField';
 
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
@@ -35,63 +38,12 @@ const SORT_ACCESSORS = {
   monthly:       (b) => monthlyOf(b.amount, b.frequency),
 };
 
-function sortBills(bills, sort) {
-  if (!sort?.key || !SORT_ACCESSORS[sort.key]) return bills;
-  const get = SORT_ACCESSORS[sort.key];
-  const dir = sort.dir === 'desc' ? -1 : 1;
-  return [...bills].sort((a, b) => {
-    const av = get(a), bv = get(b);
-    const aEmpty = av == null || av === '';
-    const bEmpty = bv == null || bv === '';
-    if (aEmpty && bEmpty) return 0;
-    if (aEmpty) return 1;   // blanks always sink to the bottom
-    if (bEmpty) return -1;
-    if (av < bv) return -1 * dir;
-    if (av > bv) return 1 * dir;
-    return 0;
-  });
-}
-
 // Sticky-column class helpers — freeze Updated + Bill so they stay visible when
 // the table scrolls horizontally (e.g. with "All columns" on).
 const STICKY_1 = 'sticky left-0 z-10 bg-zinc-900 group-hover:bg-zinc-800';
 const STICKY_2 = 'sticky left-[128px] z-10 bg-zinc-900 group-hover:bg-zinc-800';
 const STICKY_HEAD_1 = 'sticky left-0 z-20 bg-zinc-900';
 const STICKY_HEAD_2 = 'sticky left-[128px] z-20 bg-zinc-900';
-
-// Days-to-next as a heat-colored pill.
-function DaysBadge({ iso }) {
-  const d = daysUntil(iso);
-  if (d == null) return <span className="text-zinc-600">—</span>;
-  const c = daysToColor(d);
-  const label = d < 0 ? `${Math.abs(d)}d overdue` : `${d}d`;
-  return (
-    <span className="rounded px-1.5 py-0.5 text-xs font-medium tabular-nums" style={{ color: c.color, background: c.background }}>
-      {label}
-    </span>
-  );
-}
-
-// "Updated" date as a heat-colored, editable cell (stale = red).
-function UpdatedCell({ value, onSave }) {
-  const c = updatedColor(value);
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <EditCell
-        type="date" value={value} onSave={onSave} display={fmtDate}
-        className="rounded px-1.5 py-0.5 text-xs font-medium tabular-nums"
-      />
-      {value && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} title="freshness" />}
-      <button
-        onClick={() => onSave(todayISO())}
-        title="Mark updated today"
-        className="text-zinc-600 hover:text-emerald-400 transition-colors"
-      >
-        <RotateCcw size={11} />
-      </button>
-    </span>
-  );
-}
 
 export default function Bills() {
   const { privacy } = useOutletContext();
@@ -109,18 +61,9 @@ export default function Bills() {
   }, []);
 
   // Click a header: sort asc → desc → off. Persisted cross-device via fin_prefs.
-  const toggleSort = (key) => {
-    setSort((prev) => {
-      let next;
-      if (!prev || prev.key !== key) next = { key, dir: 'asc' };
-      else if (prev.dir === 'asc') next = { key, dir: 'desc' };
-      else next = null;
-      setPref(SORT_PREF_KEY, next);
-      return next;
-    });
-  };
+  const toggleSort = makeToggleSort(setSort, (next) => setPref(SORT_PREF_KEY, next));
 
-  const sortedBills = sortBills(bills, sort);
+  const sortedBills = sortRows(bills, sort, SORT_ACCESSORS);
 
   const update = async (id, field, value) => {
     setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: value } : b));
@@ -372,72 +315,4 @@ function BillModal({ bill, privacy, onChange, onClose }) {
       </div>
     </div>
   );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <span className="block text-xs text-zinc-500 mb-1">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-// Always-open input for the modal: commits on blur / Enter / select-change.
-function ModalEdit({ value, type = 'text', options = [], onCommit }) {
-  const [draft, setDraft] = useState(value ?? '');
-  // Re-sync the draft when the underlying value changes (React's recommended
-  // "adjust state during render" pattern — avoids an effect).
-  const [prev, setPrev] = useState(value);
-  if (value !== prev) { setPrev(value); setDraft(value ?? ''); }
-
-  const commit = () => {
-    const out = draft === '' ? null : (type === 'number' ? (parseFloat(draft) || 0) : draft);
-    if (out !== (value ?? null)) onCommit(out);
-  };
-
-  const base = 'w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-white focus:border-emerald-600 focus:outline-none';
-
-  if (type === 'select') {
-    return (
-      <select
-        value={draft ?? ''} className={base}
-        onChange={(e) => { setDraft(e.target.value); onCommit(e.target.value || null); }}
-      >
-        {(value == null || !options.includes(value)) && <option value="">—</option>}
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    );
-  }
-  return (
-    <input
-      type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
-      value={draft ?? ''} className={base}
-      step={type === 'number' ? '0.01' : undefined}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-    />
-  );
-}
-
-function Th({ children, className = '', sortKey, sort, onSort, align = 'left' }) {
-  if (!sortKey) return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${className}`}>{children}</th>;
-  const active = sort?.key === sortKey;
-  const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
-  return (
-    <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${align === 'right' ? 'text-right' : ''} ${className}`}>
-      <button
-        onClick={() => onSort(sortKey)}
-        className={`group inline-flex items-center gap-1 transition-colors hover:text-zinc-200 ${active ? 'text-emerald-400' : ''} ${align === 'right' ? 'flex-row-reverse' : ''}`}
-        title="Sort"
-      >
-        {children}
-        <Icon size={12} className={active ? 'opacity-100' : 'opacity-30 group-hover:opacity-60'} />
-      </button>
-    </th>
-  );
-}
-function Td({ children, className = '', colSpan }) {
-  return <td colSpan={colSpan} className={`px-3 py-2 whitespace-nowrap ${className}`}>{children}</td>;
 }

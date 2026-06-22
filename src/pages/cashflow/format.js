@@ -85,3 +85,31 @@ export function updatedColor(iso) {
   const t = clamped / 90;                  // 0 today → 1 at 90d
   return heat(120 * (1 - t));
 }
+
+// APR: lower is better. ≤10% green → ~20% yellow → ≥30% red. (fraction in, 0.30)
+export function aprColor(apr) {
+  if (apr == null) return null;
+  const clamped = Math.max(0.10, Math.min(0.30, apr));
+  const t = (clamped - 0.10) / 0.20;       // 0 at 10% → 1 at 30%
+  return heat(120 * (1 - t));
+}
+
+// Payments remaining: fewer = closer to payoff (green) → many (red).
+// ≤6 green → ~24 yellow → ≥48 red.
+export function paymentsRemainingColor(n) {
+  if (n == null) return null;
+  const clamped = Math.max(0, Math.min(48, n));
+  const t = clamped / 48;
+  return heat(120 * (1 - t));
+}
+
+// Expected payoff date: sooner = green → later = red. Past/very soon = green.
+// today → green, ~3 years out → red.
+export function payoffColor(iso) {
+  const days = daysUntil(iso);
+  if (days == null) return null;
+  if (days <= 0) return heat(120);
+  const clamped = Math.min(1095, days);     // cap at ~3 years
+  const t = clamped / 1095;
+  return heat(120 * (1 - t));
+}
