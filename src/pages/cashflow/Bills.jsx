@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Columns3, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Columns3, RotateCcw, Maximize2, X } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import { fetchBills, upsertBill, deleteRow } from '../../lib/fin';
 import {
@@ -12,6 +12,13 @@ import EditCell from './EditCell';
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
 const CATEGORIES = ['Bill', 'Operating', 'Subscription'];
+
+// Sticky-column class helpers — freeze Updated + Bill so they stay visible when
+// the table scrolls horizontally (e.g. with "All columns" on).
+const STICKY_1 = 'sticky left-0 z-10 bg-zinc-900 group-hover:bg-zinc-800';
+const STICKY_2 = 'sticky left-[128px] z-10 bg-zinc-900 group-hover:bg-zinc-800';
+const STICKY_HEAD_1 = 'sticky left-0 z-20 bg-zinc-900';
+const STICKY_HEAD_2 = 'sticky left-[128px] z-20 bg-zinc-900';
 
 // Days-to-next as a heat-colored pill.
 function DaysBadge({ iso }) {
@@ -52,6 +59,7 @@ export default function Bills() {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -110,8 +118,8 @@ export default function Bills() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-              <Th>Updated</Th>
-              <Th>Bill</Th>
+              <Th className={STICKY_HEAD_1}>Updated</Th>
+              <Th className={STICKY_HEAD_2}>Bill</Th>
               <Th>Category</Th>
               {showAll && <><Th>Cat 2</Th><Th>Cat 3</Th><Th className="text-right">Priority</Th><Th className="text-right">Day Due</Th><Th>Payment Source</Th></>}
               <Th>Next Due</Th>
@@ -128,9 +136,16 @@ export default function Bills() {
               <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">No bills yet — add one or run the seed.</td></tr>
             ) : bills.map((b) => (
               <tr key={b.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                <Td><UpdatedCell value={b.updated_on} onSave={(v) => update(b.id, 'updated_on', v)} /></Td>
-                <Td>
+                <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={b.updated_on} onSave={(v) => update(b.id, 'updated_on', v)} /></Td>
+                <Td className={STICKY_2}>
                   <span className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingId(b.id)}
+                      title="Open full editor"
+                      className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0"
+                    >
+                      <Maximize2 size={13} />
+                    </button>
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ background: catColor(b.category) }} />
                     <EditCell value={b.name} onSave={(v) => update(b.id, 'name', v)} className="text-zinc-200 font-medium" />
                   </span>
@@ -196,7 +211,147 @@ export default function Bills() {
         <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(60 80% 60%)' }} />Coming up</span>
         <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(120 70% 55%)' }} />Plenty of runway / fresh</span>
       </p>
+
+      {editingId && (
+        <BillModal
+          bill={bills.find((b) => b.id === editingId)}
+          privacy={privacy}
+          onChange={update}
+          onClose={() => setEditingId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Full-row editor (overlay) ─────────────────────────────────────────────────
+// The fields the user asked to keep front-and-center sit at the top; the
+// later-in-year / workbook-detail fields collapse below.
+function BillModal({ bill, privacy, onChange, onClose }) {
+  if (!bill) return null;
+  const set = (field) => (v) => onChange(bill.id, field, v);
+  const days = daysUntil(bill.next_due_date);
+  const dc = daysToColor(days);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: catColor(bill.category) }} />
+            <h3 className="text-base font-semibold text-white truncate">{bill.name || 'Bill'}</h3>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X size={18} /></button>
+        </div>
+
+        <div className="px-5 py-5 space-y-6">
+          {/* Priority fields */}
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-emerald-500/80 mb-3">Key fields</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+              <Field label="Bill"><ModalEdit value={bill.name} onCommit={set('name')} /></Field>
+              <Field label="Category">
+                <ModalEdit type="select" value={bill.category} onCommit={set('category')} options={CATEGORIES} />
+              </Field>
+              <Field label="Updated">
+                <ModalEdit type="date" value={bill.updated_on} onCommit={set('updated_on')} />
+              </Field>
+              <Field label="Next Due Date">
+                <ModalEdit type="date" value={bill.next_due_date} onCommit={set('next_due_date')} />
+              </Field>
+              <Field label="Days to Next Payment">
+                <span className="rounded px-2 py-1 text-sm font-medium tabular-nums inline-block"
+                  style={dc ? { color: dc.color, background: dc.background } : undefined}>
+                  {days == null ? '—' : days < 0 ? `${Math.abs(days)}d overdue` : `${days} days`}
+                </span>
+              </Field>
+              <Field label="Monthly (derived)">
+                <Redacted on={privacy}>
+                  <span className="text-sm font-semibold text-emerald-400 tabular-nums">{fmtDec(monthlyOf(bill.amount, bill.frequency))}</span>
+                </Redacted>
+              </Field>
+            </div>
+          </div>
+
+          {/* Secondary / detail fields */}
+          <div className="border-t border-zinc-800 pt-5">
+            <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-3">More details</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+              <Field label="Amount (per frequency)">
+                <Redacted on={privacy}><ModalEdit type="number" value={bill.amount} onCommit={set('amount')} /></Redacted>
+              </Field>
+              <Field label="Frequency">
+                <ModalEdit type="select" value={bill.frequency} onCommit={set('frequency')} options={FREQUENCIES} />
+              </Field>
+              <Field label="Payment Source"><ModalEdit value={bill.account} onCommit={set('account')} /></Field>
+              <Field label="Day Due (debit day)"><ModalEdit type="number" value={bill.day_due} onCommit={set('day_due')} /></Field>
+              <Field label="Priority"><ModalEdit type="number" value={bill.priority} onCommit={set('priority')} /></Field>
+              <Field label="Category 2"><ModalEdit value={bill.category2} onCommit={set('category2')} /></Field>
+              <Field label="Category 3"><ModalEdit value={bill.category3} onCommit={set('category3')} /></Field>
+              <Field label="Total Updated"><ModalEdit type="date" value={bill.total_updated} onCommit={set('total_updated')} /></Field>
+              <Field label="YoY Change (e.g. 0.18 = 18%)"><ModalEdit type="number" value={bill.yoy_change} onCommit={set('yoy_change')} /></Field>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-zinc-800 px-5 py-4">
+          <button onClick={onClose} className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-xs text-zinc-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// Always-open input for the modal: commits on blur / Enter / select-change.
+function ModalEdit({ value, type = 'text', options = [], onCommit }) {
+  const [draft, setDraft] = useState(value ?? '');
+  // Re-sync the draft when the underlying value changes (React's recommended
+  // "adjust state during render" pattern — avoids an effect).
+  const [prev, setPrev] = useState(value);
+  if (value !== prev) { setPrev(value); setDraft(value ?? ''); }
+
+  const commit = () => {
+    const out = draft === '' ? null : (type === 'number' ? (parseFloat(draft) || 0) : draft);
+    if (out !== (value ?? null)) onCommit(out);
+  };
+
+  const base = 'w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-white focus:border-emerald-600 focus:outline-none';
+
+  if (type === 'select') {
+    return (
+      <select
+        value={draft ?? ''} className={base}
+        onChange={(e) => { setDraft(e.target.value); onCommit(e.target.value || null); }}
+      >
+        {(value == null || !options.includes(value)) && <option value="">—</option>}
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  return (
+    <input
+      type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
+      value={draft ?? ''} className={base}
+      step={type === 'number' ? '0.01' : undefined}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+    />
   );
 }
 
