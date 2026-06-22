@@ -95,6 +95,8 @@ function rowsOf(wb, sheet) {
 // Bills sheet. Data starts at row index 2. We skip the two roll-up rows
 // ("Digital Subscriptions" / "Consumable Subscriptions") — those are aggregates
 // that live in their own tables (single source of truth, no duplication).
+// `amount` holds the raw per-frequency figure (sheet "Amt."); monthly is derived
+// in the UI from amount + frequency, mirroring the workbook.
 function extractBills(wb) {
   const rows = rowsOf(wb, 'Bills').slice(2);
   const SKIP = new Set(['digital subscriptions', 'consumable subscriptions']);
@@ -105,14 +107,20 @@ function extractBills(wb) {
     if (!name || SKIP.has(name.toLowerCase())) continue;
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[6]),
       name,
-      amount: num(r[21]) ?? 0,           // monthly amount
       category: str(r[8]) || 'Bill',     // Category 1: Bill | Operating | …
+      category2: str(r[9]),
+      category3: str(r[10]),
+      priority: Number.isFinite(num(r[11])) ? num(r[11]) : null,
       day_due: Number.isFinite(num(r[12])) ? num(r[12]) : null,
       next_due_date: excelDate(r[13]),
-      autopay: false,
       account: str(r[15]),
-      notes: str(r[18]) ? `Freq: ${str(r[18])}` : null,
+      total_updated: excelDate(r[16]),
+      yoy_change: num(r[17]),
+      frequency: str(r[18]) || 'Monthly',
+      amount: num(r[19]) ?? 0,            // raw per-frequency amount ("Amt.")
+      autopay: false,
       sort_order: sort++,
     });
   }

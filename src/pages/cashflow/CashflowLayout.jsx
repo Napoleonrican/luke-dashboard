@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Droplets, CalendarRange, Receipt, Eye, EyeOff, LogOut } from 'lucide-react';
+import { Droplets, CalendarRange, Receipt, CreditCard, Eye, EyeOff, LogOut } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 
 const NAV_ITEMS = [
-  { to: 'waterfall', label: 'Waterfall',     icon: Droplets },
-  { to: 'runway',    label: 'Runway',        icon: CalendarRange },
-  { to: 'bills',     label: 'Bills & Debts', icon: Receipt },
+  { to: 'waterfall', label: 'Waterfall',      icon: Droplets },
+  { to: 'runway',    label: 'Runway',         icon: CalendarRange },
+  { to: 'bills',     label: 'Bills',          icon: Receipt },
+  { to: 'debts',     label: 'Debts & Subs',   icon: CreditCard },
 ];
 
 // Full-bleed shell: no max-width cap so the module uses the entire screen

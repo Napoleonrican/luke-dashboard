@@ -3,8 +3,8 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { ArrowUpRight, Pencil, Check, X, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
-  fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchInputs,
-  upsertBill, upsertDebt, upsertDigitalSub, upsertConsumableSub, upsertInput,
+  fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchInputs,
+  upsertDebt, upsertDigitalSub, upsertConsumableSub, upsertInput,
   deleteRow,
 } from '../../lib/fin';
 
@@ -13,9 +13,6 @@ const fmt = (n) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n ?? 0);
 const fmtDec = (n) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n ?? 0);
-
-const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899', 'Digital Sub.': '#ec4899' };
-const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
 
 // ── Inline editable cell ──────────────────────────────────────────────────────
 function EditCell({ value, type = 'text', onSave, className = '' }) {
@@ -77,68 +74,6 @@ function useFin(fetcher) {
   }, []);
 
   return [rows, setRows, loading];
-}
-
-// ── Bills section ─────────────────────────────────────────────────────────────
-function BillsSection({ privacy }) {
-  const [bills, setBills, loading] = useFin(fetchBills);
-
-  const updateField = async (id, field, value) => {
-    setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: value } : b));
-    await upsertBill({ id, [field]: value });
-  };
-
-  const addBill = async () => {
-    const { data } = await upsertBill({ name: 'New Bill', amount: 0, category: 'Bill', sort_order: bills.length });
-    if (data?.[0]) setBills((prev) => [...prev, data[0]]);
-    else { const { data: fresh } = await fetchBills(); if (fresh) setBills(fresh); }
-  };
-
-  const removeBill = async (id) => {
-    setBills((prev) => prev.filter((b) => b.id !== id));
-    await deleteRow('fin_bills', id);
-  };
-
-  const total = bills.reduce((s, b) => s + (b.amount ?? 0), 0);
-  const maxAmt = Math.max(1, ...bills.map((b) => b.amount ?? 0));
-
-  return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold">Bills &amp; Operating</h2>
-        <div className="flex items-center gap-3">
-          <Redacted on={privacy}><span className="text-sm text-zinc-400 tabular-nums">{fmtDec(total)}/mo</span></Redacted>
-          <button onClick={addBill} className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors">
-            <Plus size={13} /> Add
-          </button>
-        </div>
-      </div>
-      {loading ? <Skeleton rows={6} /> : (
-        <div className="space-y-2.5">
-          {bills.map((b) => (
-            <div key={b.id}>
-              <div className="flex justify-between items-center text-sm mb-1 group">
-                <span className="flex items-center gap-2 text-zinc-300 min-w-0 flex-1 mr-2">
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: catColor(b.category) }} />
-                  <EditCell value={b.name} onSave={(v) => updateField(b.id, 'name', v)} className="text-zinc-300 truncate" />
-                  <span className="text-[10px] text-zinc-600 shrink-0">{b.category}</span>
-                </span>
-                <span className="flex items-center gap-2 shrink-0">
-                  <Redacted on={privacy}>
-                    <EditCell value={b.amount ?? 0} type="number" onSave={(v) => updateField(b.id, 'amount', v)} className="tabular-nums text-zinc-200" />
-                  </Redacted>
-                  <button onClick={() => removeBill(b.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400"><Trash2 size={12} /></button>
-                </span>
-              </div>
-              <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-1.5 rounded-full transition-all" style={{ width: `${((b.amount ?? 0) / maxAmt) * 100}%`, background: catColor(b.category) }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
 }
 
 // ── Debts section ─────────────────────────────────────────────────────────────
@@ -376,31 +311,29 @@ function InputsSection({ privacy }) {
 
 // ── Summary stats ─────────────────────────────────────────────────────────────
 function SummaryStats({ privacy }) {
-  const [bills, setBills] = useState([]);
   const [debts, setDebts] = useState([]);
   const [digitalSubs, setDigitalSubs] = useState([]);
   const [consumableSubs, setConsumableSubs] = useState([]);
 
   useEffect(() => {
-    fetchBills().then(({ data }) => data && setBills(data));
     fetchDebts().then(({ data }) => data && setDebts(data));
     fetchDigitalSubs().then(({ data }) => data && setDigitalSubs(data));
     fetchConsumableSubs().then(({ data }) => data && setConsumableSubs(data));
   }, []);
 
-  const billsTotal = bills.reduce((s, b) => s + (b.amount ?? 0), 0);
   const debtMins   = debts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
   const debtBal    = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
-  const subTotal   = digitalSubs.reduce((s, sub) => {
+  const digitalTotal = digitalSubs.reduce((s, sub) => {
     return s + (sub.frequency === 'Annually' ? (sub.amount ?? 0) / 12 : (sub.amount ?? 0));
-  }, 0) + consumableSubs.reduce((s, sub) => s + (sub.monthly_estimate ?? 0), 0);
+  }, 0);
+  const consumableTotal = consumableSubs.reduce((s, sub) => s + (sub.monthly_estimate ?? 0), 0);
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <StatCard label="Bills & Operating / mo" value={fmt(billsTotal)} privacy={privacy} tone="text-blue-400" />
-      <StatCard label="Subscriptions / mo" value={fmt(subTotal)} privacy={privacy} tone="text-pink-400" />
       <StatCard label="Debt mins / mo" value={fmt(debtMins)} privacy={privacy} tone="text-purple-400" />
       <StatCard label="Debt balance" value={fmt(debtBal)} privacy={privacy} tone="text-red-400" />
+      <StatCard label="Digital subs / mo" value={fmt(digitalTotal)} privacy={privacy} tone="text-pink-400" />
+      <StatCard label="Consumables / mo" value={fmt(consumableTotal)} privacy={privacy} tone="text-emerald-400" />
     </div>
   );
 }
@@ -448,10 +381,7 @@ export default function BillsDebts() {
     <div className="space-y-6">
       <SummaryStats privacy={privacy} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <BillsSection privacy={privacy} />
-        <DebtsSection privacy={privacy} />
-      </div>
+      <DebtsSection privacy={privacy} />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <DigitalSubsSection privacy={privacy} />

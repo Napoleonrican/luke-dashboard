@@ -1,0 +1,208 @@
+import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { Plus, Trash2, Columns3, RotateCcw } from 'lucide-react';
+import { Redacted } from './CashflowLayout';
+import { fetchBills, upsertBill, deleteRow } from '../../lib/fin';
+import {
+  fmtDec, fmtPct, fmtDate, todayISO, daysUntil, monthlyOf,
+  daysToColor, updatedColor, FREQUENCIES,
+} from './format';
+import EditCell from './EditCell';
+
+const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
+const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
+const CATEGORIES = ['Bill', 'Operating', 'Subscription'];
+
+// Days-to-next as a heat-colored pill.
+function DaysBadge({ iso }) {
+  const d = daysUntil(iso);
+  if (d == null) return <span className="text-zinc-600">—</span>;
+  const c = daysToColor(d);
+  const label = d < 0 ? `${Math.abs(d)}d overdue` : `${d}d`;
+  return (
+    <span className="rounded px-1.5 py-0.5 text-xs font-medium tabular-nums" style={{ color: c.color, background: c.background }}>
+      {label}
+    </span>
+  );
+}
+
+// "Updated" date as a heat-colored, editable cell (stale = red).
+function UpdatedCell({ value, onSave }) {
+  const c = updatedColor(value);
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <EditCell
+        type="date" value={value} onSave={onSave} display={fmtDate}
+        className="rounded px-1.5 py-0.5 text-xs font-medium tabular-nums"
+      />
+      {value && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} title="freshness" />}
+      <button
+        onClick={() => onSave(todayISO())}
+        title="Mark updated today"
+        className="text-zinc-600 hover:text-emerald-400 transition-colors"
+      >
+        <RotateCcw size={11} />
+      </button>
+    </span>
+  );
+}
+
+export default function Bills() {
+  const { privacy } = useOutletContext();
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchBills().then(({ data }) => { if (active) { if (data) setBills(data); setLoading(false); } });
+    return () => { active = false; };
+  }, []);
+
+  const update = async (id, field, value) => {
+    setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: value } : b));
+    await upsertBill({ id, [field]: value });
+  };
+
+  const add = async () => {
+    const { data } = await upsertBill({
+      name: 'New Bill', amount: 0, frequency: 'Monthly', category: 'Bill',
+      updated_on: todayISO(), sort_order: bills.length,
+    });
+    if (data?.[0]) setBills((prev) => [...prev, data[0]]);
+  };
+
+  const remove = async (id) => {
+    setBills((prev) => prev.filter((b) => b.id !== id));
+    await deleteRow('fin_bills', id);
+  };
+
+  const monthlyTotal = bills.reduce((s, b) => s + monthlyOf(b.amount, b.frequency), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Header / controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Monthly Bills</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {bills.length} bills ·{' '}
+            <Redacted on={privacy}><span className="text-zinc-400 tabular-nums">{fmtDec(monthlyTotal)}/mo</span></Redacted>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              showAll ? 'bg-emerald-900/30 border-emerald-600 text-emerald-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Columns3 size={15} /> {showAll ? 'Fewer columns' : 'All columns'}
+          </button>
+          <button onClick={add} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-600 bg-emerald-900/30 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+            <Plus size={15} /> Add bill
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+              <Th>Updated</Th>
+              <Th>Bill</Th>
+              <Th>Category</Th>
+              {showAll && <><Th>Cat 2</Th><Th>Cat 3</Th><Th className="text-right">Priority</Th><Th className="text-right">Day Due</Th><Th>Payment Source</Th></>}
+              <Th>Next Due</Th>
+              <Th className="text-right">Days</Th>
+              {showAll && <><Th>Total Updated</Th><Th className="text-right">YoY</Th><Th>Freq.</Th><Th className="text-right">Amt.</Th></>}
+              <Th className="text-right">Mon.</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+            ) : bills.length === 0 ? (
+              <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">No bills yet — add one or run the seed.</td></tr>
+            ) : bills.map((b) => (
+              <tr key={b.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                <Td><UpdatedCell value={b.updated_on} onSave={(v) => update(b.id, 'updated_on', v)} /></Td>
+                <Td>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: catColor(b.category) }} />
+                    <EditCell value={b.name} onSave={(v) => update(b.id, 'name', v)} className="text-zinc-200 font-medium" />
+                  </span>
+                </Td>
+                <Td>
+                  <EditCell
+                    type="select" value={b.category} onSave={(v) => update(b.id, 'category', v)}
+                    options={CATEGORIES.map((c) => ({ value: c, label: c }))} className="text-zinc-400"
+                  />
+                </Td>
+                {showAll && <>
+                  <Td><EditCell value={b.category2} onSave={(v) => update(b.id, 'category2', v)} className="text-zinc-500" /></Td>
+                  <Td><EditCell value={b.category3} onSave={(v) => update(b.id, 'category3', v)} className="text-zinc-500" /></Td>
+                  <Td className="text-right"><EditCell type="number" value={b.priority} onSave={(v) => update(b.id, 'priority', v)} className="text-zinc-500 tabular-nums" /></Td>
+                  <Td className="text-right"><EditCell type="number" value={b.day_due} onSave={(v) => update(b.id, 'day_due', v)} className="text-zinc-500 tabular-nums" /></Td>
+                  <Td><EditCell value={b.account} onSave={(v) => update(b.id, 'account', v)} className="text-zinc-500" /></Td>
+                </>}
+                <Td><EditCell type="date" value={b.next_due_date} onSave={(v) => update(b.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                <Td className="text-right"><DaysBadge iso={b.next_due_date} /></Td>
+                {showAll && <>
+                  <Td><EditCell type="date" value={b.total_updated} onSave={(v) => update(b.id, 'total_updated', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
+                  <Td className="text-right"><EditCell type="number" value={b.yoy_change} onSave={(v) => update(b.id, 'yoy_change', v)} display={fmtPct} className="text-zinc-500 tabular-nums" /></Td>
+                  <Td>
+                    <EditCell
+                      type="select" value={b.frequency} onSave={(v) => update(b.id, 'frequency', v)}
+                      options={FREQUENCIES.map((f) => ({ value: f, label: f }))} className="text-zinc-500"
+                    />
+                  </Td>
+                  <Td className="text-right">
+                    <Redacted on={privacy}>
+                      <EditCell type="number" value={b.amount} onSave={(v) => update(b.id, 'amount', v)} display={fmtDec} className="text-zinc-400 tabular-nums" />
+                    </Redacted>
+                  </Td>
+                </>}
+                <Td className="text-right">
+                  <Redacted on={privacy}><span className="text-zinc-200 font-medium tabular-nums">{fmtDec(monthlyOf(b.amount, b.frequency))}</span></Redacted>
+                </Td>
+                <Td className="text-right">
+                  <button onClick={() => remove(b.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity">
+                    <Trash2 size={13} />
+                  </button>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+          {!loading && bills.length > 0 && (
+            <tfoot>
+              <tr className="border-t border-zinc-800 text-zinc-400">
+                <Td className="font-medium text-zinc-300" colSpan={showAll ? 14 : 6}>Total</Td>
+                <Td />
+                <Td className="text-right font-semibold text-emerald-400">
+                  <Redacted on={privacy}><span className="tabular-nums">{fmtDec(monthlyTotal)}</span></Redacted>
+                </Td>
+                <Td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+
+      <p className="text-[11px] text-zinc-600 flex flex-wrap gap-4">
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(0 85% 65%)' }} />Needs attention soon / stale</span>
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(60 80% 60%)' }} />Coming up</span>
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(120 70% 55%)' }} />Plenty of runway / fresh</span>
+      </p>
+    </div>
+  );
+}
+
+function Th({ children, className = '' }) {
+  return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${className}`}>{children}</th>;
+}
+function Td({ children, className = '', colSpan }) {
+  return <td colSpan={colSpan} className={`px-3 py-2 whitespace-nowrap ${className}`}>{children}</td>;
+}
