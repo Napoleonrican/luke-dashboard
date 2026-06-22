@@ -265,12 +265,25 @@ export function useClimateData() {
   }, []);
 
   // Activate comfort mode with a natural-language instruction the AI interprets (Layer 3 override).
-  const activateComfortMode = useCallback(async (intentText, expiresAt = null) => {
+  // goalRoom / goalTempF can be passed explicitly from the UI; when omitted we
+  // best-effort parse them from the intent text so the Pi-side cooling guard has
+  // structured data to work with even if the user just types freeform.
+  const activateComfortMode = useCallback(async (intentText, { expiresAt = null, goalRoom = null, goalTempF = null } = {}) => {
     if (!supabase) return;
-    // Deactivate any existing row first.
+    if (!goalRoom) {
+      const lower = intentText.toLowerCase();
+      if (lower.includes('living')) goalRoom = 'living_room';
+      else if (lower.includes('bed')) goalRoom = 'bedroom';
+    }
+    if (goalTempF == null) {
+      const m = intentText.match(/(\d{2})\s*(?:°|degrees?|deg|f\b)/i) || intentText.match(/to\s+(\d{2})\b/i);
+      if (m) goalTempF = Number(m[1]);
+    }
     await supabase.from('ac_comfort_mode').update({ active: false }).eq('active', true);
     const row = { active: true, intent_text: intentText, activated_by: 'dashboard' };
     if (expiresAt) row.expires_at = expiresAt;
+    if (goalRoom) row.goal_room = goalRoom;
+    if (goalTempF != null) row.goal_temp_f = goalTempF;
     const { data } = await supabase
       .from('ac_comfort_mode')
       .insert(row)
