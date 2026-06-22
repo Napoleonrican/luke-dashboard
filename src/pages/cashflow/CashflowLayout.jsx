@@ -25,10 +25,7 @@ export default function CashflowLayout() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">Cashflow Plan</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Budget, accounts &amp; weekly dash goals — the workbooks, on your dashboard
-              <span className="ml-2 rounded bg-amber-900/30 border border-amber-700/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                DEMO · mock data
-              </span>
+              Budget, accounts &amp; weekly dash goals — your data, live from Supabase
             </p>
           </div>
           <div className="flex items-center gap-2">
