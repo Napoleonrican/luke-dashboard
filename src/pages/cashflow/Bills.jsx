@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Columns3, RotateCcw, Maximize2, X } from 'lucide-react';
+import { Plus, Trash2, Columns3, RotateCcw, Maximize2, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
-import { fetchBills, upsertBill, deleteRow } from '../../lib/fin';
+import { fetchBills, upsertBill, deleteRow, getPref, setPref } from '../../lib/fin';
 import {
   fmtDec, fmtPct, fmtDate, todayISO, daysUntil, monthlyOf,
   daysToColor, updatedColor, FREQUENCIES,
@@ -12,6 +12,45 @@ import EditCell from './EditCell';
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
 const CATEGORIES = ['Bill', 'Operating', 'Subscription'];
+
+const SORT_PREF_KEY = 'bills_sort';
+
+// Accessors so each column sorts by the right underlying value (derived columns
+// like Days and Mon. sort by their computed figure). Null/blank sorts last.
+const SORT_ACCESSORS = {
+  updated_on:    (b) => b.updated_on,
+  name:          (b) => (b.name || '').toLowerCase(),
+  category:      (b) => (b.category || '').toLowerCase(),
+  category2:     (b) => (b.category2 || '').toLowerCase(),
+  category3:     (b) => (b.category3 || '').toLowerCase(),
+  priority:      (b) => b.priority,
+  day_due:       (b) => b.day_due,
+  account:       (b) => (b.account || '').toLowerCase(),
+  next_due_date: (b) => b.next_due_date,
+  days:          (b) => daysUntil(b.next_due_date),
+  total_updated: (b) => b.total_updated,
+  yoy_change:    (b) => b.yoy_change,
+  frequency:     (b) => (b.frequency || '').toLowerCase(),
+  amount:        (b) => b.amount,
+  monthly:       (b) => monthlyOf(b.amount, b.frequency),
+};
+
+function sortBills(bills, sort) {
+  if (!sort?.key || !SORT_ACCESSORS[sort.key]) return bills;
+  const get = SORT_ACCESSORS[sort.key];
+  const dir = sort.dir === 'desc' ? -1 : 1;
+  return [...bills].sort((a, b) => {
+    const av = get(a), bv = get(b);
+    const aEmpty = av == null || av === '';
+    const bEmpty = bv == null || bv === '';
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;   // blanks always sink to the bottom
+    if (bEmpty) return -1;
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}
 
 // Sticky-column class helpers — freeze Updated + Bill so they stay visible when
 // the table scrolls horizontally (e.g. with "All columns" on).
@@ -60,12 +99,28 @@ export default function Bills() {
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [sort, setSort] = useState(null);   // { key, dir } — null = DB order
 
   useEffect(() => {
     let active = true;
     fetchBills().then(({ data }) => { if (active) { if (data) setBills(data); setLoading(false); } });
+    getPref(SORT_PREF_KEY).then(({ data }) => { if (active && data?.key) setSort(data); });
     return () => { active = false; };
   }, []);
+
+  // Click a header: sort asc → desc → off. Persisted cross-device via fin_prefs.
+  const toggleSort = (key) => {
+    setSort((prev) => {
+      let next;
+      if (!prev || prev.key !== key) next = { key, dir: 'asc' };
+      else if (prev.dir === 'asc') next = { key, dir: 'desc' };
+      else next = null;
+      setPref(SORT_PREF_KEY, next);
+      return next;
+    });
+  };
+
+  const sortedBills = sortBills(bills, sort);
 
   const update = async (id, field, value) => {
     setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: value } : b));
@@ -118,14 +173,25 @@ export default function Bills() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-              <Th className={STICKY_HEAD_1}>Updated</Th>
-              <Th className={STICKY_HEAD_2}>Bill</Th>
-              <Th>Category</Th>
-              {showAll && <><Th>Cat 2</Th><Th>Cat 3</Th><Th className="text-right">Priority</Th><Th className="text-right">Day Due</Th><Th>Payment Source</Th></>}
-              <Th>Next Due</Th>
-              <Th className="text-right">Days</Th>
-              {showAll && <><Th>Total Updated</Th><Th className="text-right">YoY</Th><Th>Freq.</Th><Th className="text-right">Amt.</Th></>}
-              <Th className="text-right">Mon.</Th>
+              <Th sortKey="updated_on" sort={sort} onSort={toggleSort} className={STICKY_HEAD_1}>Updated</Th>
+              <Th sortKey="name" sort={sort} onSort={toggleSort} className={STICKY_HEAD_2}>Bill</Th>
+              <Th sortKey="category" sort={sort} onSort={toggleSort}>Category</Th>
+              {showAll && <>
+                <Th sortKey="category2" sort={sort} onSort={toggleSort}>Cat 2</Th>
+                <Th sortKey="category3" sort={sort} onSort={toggleSort}>Cat 3</Th>
+                <Th sortKey="priority" sort={sort} onSort={toggleSort} align="right">Priority</Th>
+                <Th sortKey="day_due" sort={sort} onSort={toggleSort} align="right">Day Due</Th>
+                <Th sortKey="account" sort={sort} onSort={toggleSort}>Payment Source</Th>
+              </>}
+              <Th sortKey="next_due_date" sort={sort} onSort={toggleSort}>Next Due</Th>
+              <Th sortKey="days" sort={sort} onSort={toggleSort} align="right">Days</Th>
+              {showAll && <>
+                <Th sortKey="total_updated" sort={sort} onSort={toggleSort}>Total Updated</Th>
+                <Th sortKey="yoy_change" sort={sort} onSort={toggleSort} align="right">YoY</Th>
+                <Th sortKey="frequency" sort={sort} onSort={toggleSort}>Freq.</Th>
+                <Th sortKey="amount" sort={sort} onSort={toggleSort} align="right">Amt.</Th>
+              </>}
+              <Th sortKey="monthly" sort={sort} onSort={toggleSort} align="right">Mon.</Th>
               <Th />
             </tr>
           </thead>
@@ -134,7 +200,7 @@ export default function Bills() {
               <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
             ) : bills.length === 0 ? (
               <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">No bills yet — add one or run the seed.</td></tr>
-            ) : bills.map((b) => (
+            ) : sortedBills.map((b) => (
               <tr key={b.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                 <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={b.updated_on} onSave={(v) => update(b.id, 'updated_on', v)} /></Td>
                 <Td className={STICKY_2}>
@@ -355,8 +421,22 @@ function ModalEdit({ value, type = 'text', options = [], onCommit }) {
   );
 }
 
-function Th({ children, className = '' }) {
-  return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${className}`}>{children}</th>;
+function Th({ children, className = '', sortKey, sort, onSort, align = 'left' }) {
+  if (!sortKey) return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${className}`}>{children}</th>;
+  const active = sort?.key === sortKey;
+  const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
+  return (
+    <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${align === 'right' ? 'text-right' : ''} ${className}`}>
+      <button
+        onClick={() => onSort(sortKey)}
+        className={`group inline-flex items-center gap-1 transition-colors hover:text-zinc-200 ${active ? 'text-emerald-400' : ''} ${align === 'right' ? 'flex-row-reverse' : ''}`}
+        title="Sort"
+      >
+        {children}
+        <Icon size={12} className={active ? 'opacity-100' : 'opacity-30 group-hover:opacity-60'} />
+      </button>
+    </th>
+  );
 }
 function Td({ children, className = '', colSpan }) {
   return <td colSpan={colSpan} className={`px-3 py-2 whitespace-nowrap ${className}`}>{children}</td>;

@@ -84,3 +84,16 @@ export async function deleteRow(table, id) {
   if (!s) return { error: { message: 'Not configured' } };
   return s.from(table).delete().eq('id', id);
 }
+
+// ── UI preferences (cross-device, owner-scoped) ───────────────────────────────
+
+export async function getPref(key) {
+  if (!s) return { data: null, error: null };
+  const { data, error } = await s.from('fin_prefs').select('value').eq('key', key).maybeSingle();
+  return { data: data?.value ?? null, error };
+}
+
+export async function setPref(key, value) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from('fin_prefs').upsert({ key, value }, { onConflict: 'owner,key' });
+}
