@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Droplets, CalendarRange, Receipt, Eye, EyeOff, LogOut } from 'lucide-react';
+import { Droplets, CalendarRange, Receipt, CreditCard, Eye, EyeOff, LogOut } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 
 const NAV_ITEMS = [
-  { to: 'waterfall', label: 'Waterfall',     icon: Droplets },
-  { to: 'runway',    label: 'Runway',        icon: CalendarRange },
-  { to: 'bills',     label: 'Bills & Debts', icon: Receipt },
+  { to: 'waterfall', label: 'Waterfall',      icon: Droplets },
+  { to: 'runway',    label: 'Runway',         icon: CalendarRange },
+  { to: 'bills',     label: 'Bills',          icon: Receipt },
+  { to: 'debts',     label: 'Debts & Subs',   icon: CreditCard },
 ];
 
 // Full-bleed shell: no max-width cap so the module uses the entire screen
@@ -25,10 +26,7 @@ export default function CashflowLayout() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">Cashflow Plan</h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Budget, accounts &amp; weekly dash goals — the workbooks, on your dashboard
-              <span className="ml-2 rounded bg-amber-900/30 border border-amber-700/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                DEMO · mock data
-              </span>
+              Budget, accounts &amp; weekly dash goals — your data, live from Supabase
             </p>
           </div>
           <div className="flex items-center gap-2">

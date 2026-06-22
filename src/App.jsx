@@ -23,6 +23,7 @@ const Scenes = lazy(() => import('./pages/lighting/Scenes'));
 const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
 const Runway = lazy(() => import('./pages/cashflow/Runway'));
+const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const BillsDebts = lazy(() => import('./pages/cashflow/BillsDebts'));
 
 export default function App() {
@@ -62,7 +63,8 @@ export default function App() {
           <Route index element={<Navigate to="waterfall" replace />} />
           <Route path="waterfall" element={<Waterfall />} />
           <Route path="runway" element={<Runway />} />
-          <Route path="bills" element={<BillsDebts />} />
+          <Route path="bills" element={<Bills />} />
+          <Route path="debts" element={<BillsDebts />} />
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
