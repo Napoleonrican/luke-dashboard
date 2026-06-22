@@ -108,15 +108,19 @@ export default function Overview() {
   // Comfort mode panel state — freeform intent the AI interprets (Layer 3 override)
   const [cmExpanded, setCmExpanded] = useState(false);
   const [intentText, setIntentText] = useState('');
+  const [cmRoom, setCmRoom] = useState(null);
+  const [cmTemp, setCmTemp] = useState(null);
   const [cmSaving, setCmSaving] = useState(false);
 
   async function handleActivate() {
     if (!intentText.trim()) return;
     setCmSaving(true);
-    await activateComfortMode(intentText.trim());
+    await activateComfortMode(intentText.trim(), { goalRoom: cmRoom, goalTempF: cmTemp });
     setCmSaving(false);
     setCmExpanded(false);
     setIntentText('');
+    setCmRoom(null);
+    setCmTemp(null);
   }
 
   async function handleClear() {
@@ -265,6 +269,20 @@ export default function Overview() {
               </button>
             </div>
             <p className="text-sm text-zinc-200 leading-snug">{comfortMode.intent_text}</p>
+            {(comfortMode.goal_room || comfortMode.goal_temp_f) && (
+              <div className="flex gap-2 mt-1.5">
+                {comfortMode.goal_room && (
+                  <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
+                    {comfortMode.goal_room === 'living_room' ? 'Living Room' : 'Bedroom'}
+                  </span>
+                )}
+                {comfortMode.goal_temp_f && (
+                  <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
+                    Goal {comfortMode.goal_temp_f}°F
+                  </span>
+                )}
+              </div>
+            )}
             <p className="text-[11px] text-zinc-500 mt-1">
               Activated {comfortMode.activated_at ? new Date(comfortMode.activated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}
               {comfortMode.expires_at
@@ -292,11 +310,40 @@ export default function Overview() {
               value={intentText}
               onChange={(e) => setIntentText(e.target.value)}
               rows={3}
-              placeholder={'e.g. "Keep the bedroom around 68°F tonight from 9pm to 6am" or "Turn the AC off for the next 2 hours" or "Guests over — get the living room to 72°F"'}
+              placeholder={'e.g. "Keep the bedroom around 68°F tonight" or "Get the living room to 72°F"'}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
             />
+            {/* Optional structured hints — auto-parsed from text too, but explicit is better */}
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-zinc-500">Room</span>
+                {[['bedroom', 'Bedroom'], ['living_room', 'Living Room']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setCmRoom(cmRoom === val ? null : val)}
+                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${cmRoom === val ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-zinc-500">Goal</span>
+                {[68, 70, 72, 75].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setCmTemp(cmTemp === t ? null : t)}
+                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${cmTemp === t ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    {t}°F
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">
-              The agent checks sensors hourly and adjusts the AC toward your instruction. Clears manually.
+              The agent checks sensors every few minutes and adjusts the AC toward your instruction. Clears manually.
             </p>
             <div className="flex justify-end mt-3">
               <button
