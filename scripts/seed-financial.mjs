@@ -49,8 +49,8 @@ const argVal = (name, fallback) => {
   const a = args.find((x) => x.startsWith(`--${name}=`));
   return a ? a.split('=').slice(1).join('=') : fallback;
 };
-const FINANCIAL_PATH = argVal('financial', 'C:\\Users\\napol\\OneDrive\\0 - Financial Workbook.xlsx');
-const CASHFLOW_PATH  = argVal('cashflow',  'C:\\Users\\napol\\OneDrive\\0 - Cashflow Plan (AI_Assisted).xlsx');
+const FINANCIAL_PATH = argVal('financial', 'C:\\Users\\napol\\OneDrive\\0 - Financials\\0 - Financial Workbook.xlsx');
+const CASHFLOW_PATH  = argVal('cashflow',  'C:\\Users\\napol\\OneDrive\\0 - Financials\\0 - Cashflow Plan (AI_Assisted).xlsx');
 
 if (!DRY && (!SUPABASE_URL || !SERVICE_ROLE_KEY)) {
   console.error('ERROR: set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env');
