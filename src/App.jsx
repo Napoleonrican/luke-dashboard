@@ -26,6 +26,7 @@ const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
+const Inputs = lazy(() => import('./pages/cashflow/Inputs'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="bills" element={<Bills />} />
           <Route path="debts" element={<Debts />} />
           <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="inputs" element={<Inputs />} />
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>

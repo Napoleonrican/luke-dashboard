@@ -12,6 +12,22 @@ export const monthlyDigital = (s) => monthlyOf(s.amount, s.frequency);
 export const monthlyConsumable = (s) =>
   s.monthly_estimate ?? ((s.cost_per_order ?? 0) * 30.44) / Math.max(1, s.order_frequency_days ?? 30);
 
+// ── Consumable derived figures (mirror the workbook) ──────────────────────────
+// We store frequency in days; the workbook shows/edits it in weeks.
+export const weeksOf = (s) => (s.order_frequency_days ?? 0) / 7;
+// Cost per unit = Amt. ÷ Count.
+export const costPerType = (s) => (s.count ? (s.cost_per_order ?? 0) / s.count : null);
+// Orders per year = 52 ÷ frequency-in-weeks.
+export const ordersPerYear = (s) => {
+  const w = weeksOf(s);
+  return w ? 52 / w : null;
+};
+// Cost/Year = Amt. × Orders/Yr.
+export const costPerYear = (s) => {
+  const o = ordersPerYear(s);
+  return o == null ? null : (s.cost_per_order ?? 0) * o;
+};
+
 const CAT = (c) => (c && String(c).trim()) || 'Uncategorized';
 
 // Active-only monthly spend grouped by category, across both tables.

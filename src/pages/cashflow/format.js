@@ -113,3 +113,20 @@ export function payoffColor(iso) {
   const t = clamped / 1095;
   return heat(120 * (1 - t));
 }
+
+// Relative heat across a column's range: lowest = green, highest = red.
+// Used for "Cost Per Type" where the scale is data-dependent (a few cents to
+// many dollars), mirroring the workbook's green→red color scale.
+export function scaleColor(value, min, max) {
+  if (value == null || max == null || min == null || max === min) return null;
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  return heat(120 * (1 - t));
+}
+
+// Highlight values above an average (e.g. Cost/Year over the mean). Above = red
+// tint; at/below = no emphasis.
+export function aboveAvgColor(value, avg) {
+  if (value == null || avg == null) return null;
+  if (value > avg) return { color: 'hsl(0 85% 70%)', background: 'hsl(0 80% 45% / 0.18)' };
+  return null;
+}

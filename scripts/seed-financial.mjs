@@ -194,7 +194,9 @@ function extractDigital(wb) {
   return out;
 }
 
-// Consumable Subscriptions sheet. Data starts at row index 2.
+// Consumable Subscriptions sheet. Data starts at row index 2. Layout:
+// Updated(1) · Priority(2) · Store(3) · Category(4) · Item(5) · Count(6) ·
+// Type(7) · Amt(8) · Freq-Wks(9) · …  (Cost/Type, Orders/Yr, Cost/Year derived).
 // Freq is in WEEKS → order_frequency_days = weeks * 7. monthly_estimate is a
 // generated column, so we never set it.
 function extractConsumable(wb) {
@@ -207,8 +209,13 @@ function extractConsumable(wb) {
     const freqWeeks = num(r[9]);
     out.push({
       owner: OWNER_UID,
-      name,
+      updated_on: excelDate(r[1]),
+      priority: Number.isFinite(num(r[2])) ? num(r[2]) : null,
+      store: str(r[3]),
       category: str(r[4]),
+      name,
+      count: num(r[6]),
+      unit: str(r[7]),
       active: true,
       cost_per_order: num(r[8]) ?? 0,
       order_frequency_days: freqWeeks ? Math.max(1, Math.round(freqWeeks * 7)) : 30,
