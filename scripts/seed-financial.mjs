@@ -49,8 +49,8 @@ const argVal = (name, fallback) => {
   const a = args.find((x) => x.startsWith(`--${name}=`));
   return a ? a.split('=').slice(1).join('=') : fallback;
 };
-const FINANCIAL_PATH = argVal('financial', 'C:\\Users\\napol\\OneDrive\\0 - Financial Workbook.xlsx');
-const CASHFLOW_PATH  = argVal('cashflow',  'C:\\Users\\napol\\OneDrive\\0 - Cashflow Plan (AI_Assisted).xlsx');
+const FINANCIAL_PATH = argVal('financial', 'C:\\Users\\napol\\OneDrive\\0 - Financials\\0 - Financial Workbook.xlsx');
+const CASHFLOW_PATH  = argVal('cashflow',  'C:\\Users\\napol\\OneDrive\\0 - Financials\\0 - Cashflow Plan (AI_Assisted).xlsx');
 
 if (!DRY && (!SUPABASE_URL || !SERVICE_ROLE_KEY)) {
   console.error('ERROR: set VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env');
@@ -135,35 +135,38 @@ function extractDebts(wb) {
   for (const r of rows) {
     const purchase = str(r[1]);
     if (!purchase) continue;
-    const normalPayment = num(r[15]) ?? 0;
-    const pendingFlag = r[16] === true || r[16] === 'TRUE' || r[16] === 'true';
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[0]),
       purchase,
+      credit_type: str(r[2]),
       lender: str(r[3]),
+      origination_date: excelDate(r[4]),
+      apr: num(r[5]),
+      term_months: Number.isFinite(num(r[6])) ? num(r[6]) : null,
+      finance_charge: num(r[7]),
+      credit_limit: num(r[8]),
+      total_due: num(r[9]),
       balance: num(r[10]) ?? 0,
-      normal_payment: normalPayment,
+      available_credit: num(r[11]),
       next_due_date: excelDate(r[12]),
       day_due: Number.isFinite(num(r[14])) ? num(r[14]) : null,
-      // workbook stores a yes/no flag; carry the upcoming payment as the amount
-      // when flagged so the Waterfall has a number to work with (editable later).
-      pending_withdrawal: pendingFlag ? normalPayment : 0,
+      normal_payment: num(r[15]) ?? 0,
+      pending_withdrawal: r[16] === true || r[16] === 'TRUE' || r[16] === 'true',
       paydown_priority: Number.isFinite(num(r[17])) ? num(r[17]) : null,
       payments_remaining: Number.isFinite(num(r[18])) ? num(r[18]) : null,
       expected_payoff_date: excelDate(r[19]),
-      credit_type: str(r[2]),
-      apr: num(r[5]),
-      term_months: Number.isFinite(num(r[6])) ? num(r[6]) : null,
-      origination_date: excelDate(r[4]),
-      finance_charge: num(r[7]),
-      credit_limit: num(r[8]),
+      last_date: excelDate(r[20]),
+      new_min: num(r[21]),
       sort_order: sort++,
     });
   }
   return out;
 }
 
-// Digital Subscriptions sheet. Data starts at row index 2.
+// Digital Subscriptions sheet. Data starts at row index 2. Same left-edge layout
+// as Bills: Update(1) · Priori(2) · Activ(3) · Category(4) · Bill(5) · …
+// `active` comes from the sheet's Yes/No "Activ" flag (blank ⇒ active).
 function extractDigital(wb) {
   const rows = rowsOf(wb, 'Digital Subscriptions').slice(2);
   const out = [];
@@ -171,8 +174,13 @@ function extractDigital(wb) {
   for (const r of rows) {
     const name = str(r[5]);
     if (!name) continue;
+    const activ = r[3];
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[1]),
+      priority: Number.isFinite(num(r[2])) ? num(r[2]) : null,
+      active: activ == null || /^y/i.test(String(activ)),
+      category: str(r[4]),
       name,
       amount: num(r[9]) ?? 0,
       frequency: str(r[10]) || 'Monthly',
@@ -180,14 +188,15 @@ function extractDigital(wb) {
       day_due: Number.isFinite(num(r[6])) ? num(r[6]) : null,
       autopay: false,
       account: str(r[14]),
-      notes: str(r[4]) ? `Category: ${str(r[4])}` : null,
       sort_order: sort++,
     });
   }
   return out;
 }
 
-// Consumable Subscriptions sheet. Data starts at row index 2.
+// Consumable Subscriptions sheet. Data starts at row index 2. Layout:
+// Updated(1) · Priority(2) · Store(3) · Category(4) · Item(5) · Count(6) ·
+// Type(7) · Amt(8) · Freq-Wks(9) · …  (Cost/Type, Orders/Yr, Cost/Year derived).
 // Freq is in WEEKS → order_frequency_days = weeks * 7. monthly_estimate is a
 // generated column, so we never set it.
 function extractConsumable(wb) {
@@ -200,10 +209,16 @@ function extractConsumable(wb) {
     const freqWeeks = num(r[9]);
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[1]),
+      priority: Number.isFinite(num(r[2])) ? num(r[2]) : null,
+      store: str(r[3]),
+      category: str(r[4]),
       name,
+      count: num(r[6]),
+      unit: str(r[7]),
+      active: true,
       cost_per_order: num(r[8]) ?? 0,
       order_frequency_days: freqWeeks ? Math.max(1, Math.round(freqWeeks * 7)) : 30,
-      notes: str(r[4]) ? `Category: ${str(r[4])}` : null,
       sort_order: sort++,
     });
   }

@@ -85,3 +85,85 @@ export function updatedColor(iso) {
   const t = clamped / 90;                  // 0 today → 1 at 90d
   return heat(120 * (1 - t));
 }
+
+// APR: lower is better. ≤10% green → ~20% yellow → ≥30% red. (fraction in, 0.30)
+export function aprColor(apr) {
+  if (apr == null) return null;
+  const clamped = Math.max(0.10, Math.min(0.30, apr));
+  const t = (clamped - 0.10) / 0.20;       // 0 at 10% → 1 at 30%
+  return heat(120 * (1 - t));
+}
+
+// Payments remaining: fewer = closer to payoff (green) → many (red).
+// ≤6 green → ~24 yellow → ≥48 red.
+export function paymentsRemainingColor(n) {
+  if (n == null) return null;
+  const clamped = Math.max(0, Math.min(48, n));
+  const t = clamped / 48;
+  return heat(120 * (1 - t));
+}
+
+// Expected payoff date: sooner = green → later = red. Past/very soon = green.
+// today → green, ~3 years out → red.
+export function payoffColor(iso) {
+  const days = daysUntil(iso);
+  if (days == null) return null;
+  if (days <= 0) return heat(120);
+  const clamped = Math.min(1095, days);     // cap at ~3 years
+  const t = clamped / 1095;
+  return heat(120 * (1 - t));
+}
+
+// Relative heat across a column's range: lowest = green, highest = red.
+// Used for "Cost Per Type" where the scale is data-dependent (a few cents to
+// many dollars), mirroring the workbook's green→red color scale.
+export function scaleColor(value, min, max) {
+  if (value == null || max == null || min == null || max === min) return null;
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  return heat(120 * (1 - t));
+}
+
+// Highlight values above an average (e.g. Cost/Year over the mean). Above = red
+// tint; at/below = no emphasis.
+export function aboveAvgColor(value, avg) {
+  if (value == null || avg == null) return null;
+  if (value > avg) return { color: 'hsl(0 85% 70%)', background: 'hsl(0 80% 45% / 0.18)' };
+  return null;
+}
+
+// ── Debt amortization (mirrors the workbook's NPER-based formulas) ─────────────
+
+// Excel NPER(rate, -pmt, pv): number of monthly periods to pay `pv` off at
+// `pmt`/month and monthly `rate`. Returns null when it never amortizes (payment
+// doesn't cover interest) — matching the workbook's IFERROR("").
+export function nper(rate, pmt, pv) {
+  if (!pmt || pmt <= 0 || !pv || pv <= 0) return null;
+  if (!rate) return pv / pmt;                 // 0% APR → simple division
+  const denom = pmt - pv * rate;              // payment left after interest
+  if (denom <= 0) return null;                // never pays down
+  return Math.log(pmt / denom) / Math.log(1 + rate);
+}
+
+// Payments Remaining:
+//   =IF(CreditType<>"BNPL", NPER(APR/12,-NormalPayment,Balance),
+//                           ROUNDUP(Balance/NormalPayment,0))
+export function paymentsRemaining(debt) {
+  const pmt = debt.normal_payment;
+  const bal = debt.balance;
+  if (!pmt || pmt <= 0 || !bal || bal <= 0) return null;
+  if (debt.credit_type === 'BNPL') return Math.ceil(bal / pmt);
+  return nper((debt.apr ?? 0) / 12, pmt, bal);
+}
+
+// Expected Payoff Date:
+//   =IFERROR(MIN(LastDate, NPER(APR/12,-NormalPayment,Balance)*30 + TODAY()), "")
+export function expectedPayoffDate(debt) {
+  const n = nper((debt.apr ?? 0) / 12, debt.normal_payment, debt.balance);
+  if (n == null) return debt.last_date || null;
+  const d = new Date();
+  d.setDate(d.getDate() + Math.round(n * 30));
+  const p = (x) => String(x).padStart(2, '0');
+  const candidate = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  // MIN(last_date, candidate): the earlier of the two when last_date is set.
+  return debt.last_date && debt.last_date < candidate ? debt.last_date : candidate;
+}

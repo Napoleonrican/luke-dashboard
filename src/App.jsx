@@ -21,10 +21,13 @@ const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
 const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
+const Summary = lazy(() => import('./pages/cashflow/Summary'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
 const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
-const BillsDebts = lazy(() => import('./pages/cashflow/BillsDebts'));
+const Debts = lazy(() => import('./pages/cashflow/Debts'));
+const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
+const Inputs = lazy(() => import('./pages/cashflow/Inputs'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -36,7 +39,9 @@ export default function App() {
         <Route path="/task-manager" element={
           <ProtectedRoute><TaskManager /></ProtectedRoute>
         } />
-        <Route path="/debt-calculator" element={<DebtCalculator />} />
+        <Route path="/debt-calculator" element={
+          <FinancialAuthGate><DebtCalculator /></FinancialAuthGate>
+        } />
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
@@ -60,11 +65,14 @@ export default function App() {
         <Route path="/cashflow" element={
           <FinancialAuthGate><CashflowLayout /></FinancialAuthGate>
         }>
-          <Route index element={<Navigate to="waterfall" replace />} />
+          <Route index element={<Navigate to="summary" replace />} />
+          <Route path="summary" element={<Summary />} />
           <Route path="waterfall" element={<Waterfall />} />
           <Route path="runway" element={<Runway />} />
           <Route path="bills" element={<Bills />} />
-          <Route path="debts" element={<BillsDebts />} />
+          <Route path="debts" element={<Debts />} />
+          <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="inputs" element={<Inputs />} />
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
       </Routes>
