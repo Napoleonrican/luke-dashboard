@@ -10,7 +10,7 @@ import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
-import { Field, ModalEdit } from './ModalField';
+import { Field, ModalEdit, MoreDetails } from './ModalField';
 
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
@@ -287,11 +287,10 @@ function BillModal({ bill, privacy, onChange, onClose }) {
           </div>
 
           {/* Secondary / detail fields */}
-          <div className="border-t border-zinc-800 pt-5">
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-3">More details</p>
+          <MoreDetails>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Amount (per frequency)">
-                <Redacted on={privacy}><ModalEdit type="number" value={bill.amount} onCommit={set('amount')} /></Redacted>
+                <Redacted on={privacy}><ModalEdit type="currency" value={bill.amount} onCommit={set('amount')} /></Redacted>
               </Field>
               <Field label="Frequency">
                 <ModalEdit type="select" value={bill.frequency} onCommit={set('frequency')} options={FREQUENCIES} />
@@ -304,7 +303,7 @@ function BillModal({ bill, privacy, onChange, onClose }) {
               <Field label="Total Updated"><ModalEdit type="date" value={bill.total_updated} onCommit={set('total_updated')} /></Field>
               <Field label="YoY Change (e.g. 0.18 = 18%)"><ModalEdit type="number" value={bill.yoy_change} onCommit={set('yoy_change')} /></Field>
             </div>
-          </div>
+          </MoreDetails>
         </div>
 
         <div className="flex justify-end border-t border-zinc-800 px-5 py-4">

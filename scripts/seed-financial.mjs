@@ -164,7 +164,9 @@ function extractDebts(wb) {
   return out;
 }
 
-// Digital Subscriptions sheet. Data starts at row index 2.
+// Digital Subscriptions sheet. Data starts at row index 2. Same left-edge layout
+// as Bills: Update(1) · Priori(2) · Activ(3) · Category(4) · Bill(5) · …
+// `active` comes from the sheet's Yes/No "Activ" flag (blank ⇒ active).
 function extractDigital(wb) {
   const rows = rowsOf(wb, 'Digital Subscriptions').slice(2);
   const out = [];
@@ -172,8 +174,13 @@ function extractDigital(wb) {
   for (const r of rows) {
     const name = str(r[5]);
     if (!name) continue;
+    const activ = r[3];
     out.push({
       owner: OWNER_UID,
+      updated_on: excelDate(r[1]),
+      priority: Number.isFinite(num(r[2])) ? num(r[2]) : null,
+      active: activ == null || /^y/i.test(String(activ)),
+      category: str(r[4]),
       name,
       amount: num(r[9]) ?? 0,
       frequency: str(r[10]) || 'Monthly',
@@ -181,7 +188,6 @@ function extractDigital(wb) {
       day_due: Number.isFinite(num(r[6])) ? num(r[6]) : null,
       autopay: false,
       account: str(r[14]),
-      notes: str(r[4]) ? `Category: ${str(r[4])}` : null,
       sort_order: sort++,
     });
   }
@@ -202,9 +208,10 @@ function extractConsumable(wb) {
     out.push({
       owner: OWNER_UID,
       name,
+      category: str(r[4]),
+      active: true,
       cost_per_order: num(r[8]) ?? 0,
       order_frequency_days: freqWeeks ? Math.max(1, Math.round(freqWeeks * 7)) : 30,
-      notes: str(r[4]) ? `Category: ${str(r[4])}` : null,
       sort_order: sort++,
     });
   }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 // Labeled field wrapper for the full-row editor modals.
 export function Field({ label, children }) {
@@ -10,8 +11,27 @@ export function Field({ label, children }) {
   );
 }
 
+// Collapsible "More details" section for the modals. Starts collapsed; the
+// caller passes the secondary fields as children.
+export function MoreDetails({ label = 'More details', children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-t border-zinc-800 pt-5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300 transition-colors mb-3"
+      >
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        {label}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 // Always-open input for the modals; commits on blur / Enter / change.
-//   type: 'text' | 'number' | 'date' | 'select' | 'checkbox'
+//   type: 'text' | 'number' | 'currency' | 'date' | 'select' | 'checkbox'
 export function ModalEdit({ value, type = 'text', options = [], onCommit }) {
   const [draft, setDraft] = useState(value ?? '');
   // Re-sync the draft when the underlying value changes (React's recommended
@@ -43,19 +63,33 @@ export function ModalEdit({ value, type = 'text', options = [], onCommit }) {
     );
   }
 
+  const numeric = type === 'number' || type === 'currency';
+
   const commit = () => {
-    const out = draft === '' ? null : (type === 'number' ? (parseFloat(draft) || 0) : draft);
+    const out = draft === '' ? null : (numeric ? (parseFloat(draft) || 0) : draft);
     if (out !== (value ?? null)) onCommit(out);
   };
 
-  return (
+  const input = (
     <input
-      type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
-      value={draft ?? ''} className={base}
-      step={type === 'number' ? '0.01' : undefined}
+      type={numeric ? 'number' : type === 'date' ? 'date' : 'text'}
+      value={draft ?? ''} className={type === 'currency' ? `${base} pl-6` : base}
+      step={numeric ? '0.01' : undefined}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
     />
   );
+
+  // Currency: leading "$" adornment so money fields read as money.
+  if (type === 'currency') {
+    return (
+      <span className="relative block">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-zinc-500">$</span>
+        {input}
+      </span>
+    );
+  }
+
+  return input;
 }

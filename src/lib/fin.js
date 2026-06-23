@@ -36,6 +36,11 @@ export async function fetchInputs() {
   return s.from('fin_inputs').select('*').order('slug');
 }
 
+export async function fetchSubSnapshots() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_subscription_snapshots').select('*').order('taken_on', { ascending: false });
+}
+
 // ── Upsert / update ───────────────────────────────────────────────────────────
 
 export async function upsertAccount(row) {
@@ -78,6 +83,11 @@ export async function upsertInput(row) {
   const { id, ...rest } = row;
   if (id) return s.from('fin_inputs').update(rest).eq('id', id).select();
   return s.from('fin_inputs').insert(rest).select();
+}
+
+export async function insertSubSnapshot(row) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from('fin_subscription_snapshots').insert(row).select();
 }
 
 export async function deleteRow(table, id) {

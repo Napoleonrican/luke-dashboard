@@ -11,7 +11,7 @@ import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
-import { Field, ModalEdit } from './ModalField';
+import { Field, ModalEdit, MoreDetails } from './ModalField';
 
 const CREDIT_TYPES = ['BNPL', 'Loan', 'Credit Card'];
 const TYPE_COLOR = { BNPL: '#a855f7', Loan: '#f59e0b', 'Credit Card': '#3b82f6' };
@@ -274,8 +274,8 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
               <Field label="Credit Type"><ModalEdit type="select" value={debt.credit_type} onCommit={set('credit_type')} options={CREDIT_TYPES} /></Field>
               <Field label="Lender"><ModalEdit value={debt.lender} onCommit={set('lender')} /></Field>
               <Field label="Updated"><ModalEdit type="date" value={debt.updated_on} onCommit={set('updated_on')} /></Field>
-              <Field label="Balance"><Redacted on={privacy}><ModalEdit type="number" value={debt.balance} onCommit={set('balance')} /></Redacted></Field>
-              <Field label="Available Credit"><Redacted on={privacy}><ModalEdit type="number" value={debt.available_credit} onCommit={set('available_credit')} /></Redacted></Field>
+              <Field label="Balance"><Redacted on={privacy}><ModalEdit type="currency" value={debt.balance} onCommit={set('balance')} /></Redacted></Field>
+              <Field label="Available Credit"><Redacted on={privacy}><ModalEdit type="currency" value={debt.available_credit} onCommit={set('available_credit')} /></Redacted></Field>
               <Field label="Next Due Date"><ModalEdit type="date" value={debt.next_due_date} onCommit={set('next_due_date')} /></Field>
               <Field label="Days to Next Payment">
                 <span className="rounded px-2 py-1 text-sm font-medium tabular-nums inline-block" style={dc ? { color: dc.color, background: dc.background } : undefined}>
@@ -283,28 +283,27 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
                 </span>
               </Field>
               <Field label="Day Due"><ModalEdit type="number" value={debt.day_due} onCommit={set('day_due')} /></Field>
-              <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="number" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
+              <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="currency" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
               <Field label="Pending Withdrawal"><ModalEdit type="checkbox" value={debt.pending_withdrawal} onCommit={set('pending_withdrawal')} /></Field>
               <Field label="Paydown Priority"><ModalEdit type="number" value={debt.paydown_priority} onCommit={set('paydown_priority')} /></Field>
               <Field label="Payments Remaining"><ModalEdit type="number" value={debt.payments_remaining} onCommit={set('payments_remaining')} /></Field>
               <Field label="Expected Payoff Date"><ModalEdit type="date" value={debt.expected_payoff_date} onCommit={set('expected_payoff_date')} /></Field>
               <Field label="Last Date"><ModalEdit type="date" value={debt.last_date} onCommit={set('last_date')} /></Field>
-              <Field label="New Min."><Redacted on={privacy}><ModalEdit type="number" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
+              <Field label="New Min."><Redacted on={privacy}><ModalEdit type="currency" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
             </div>
           </div>
 
           {/* Hidden-by-default detail group (Origination Date → Total Due) */}
-          <div className="border-t border-zinc-800 pt-5">
-            <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-3">More details</p>
+          <MoreDetails>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Origination Date"><ModalEdit type="date" value={debt.origination_date} onCommit={set('origination_date')} /></Field>
               <Field label="APR (e.g. 0.2999 = 29.99%)"><ModalEdit type="number" value={debt.apr} onCommit={set('apr')} /></Field>
               <Field label="Term (Months)"><ModalEdit type="number" value={debt.term_months} onCommit={set('term_months')} /></Field>
-              <Field label="Finance Charge"><Redacted on={privacy}><ModalEdit type="number" value={debt.finance_charge} onCommit={set('finance_charge')} /></Redacted></Field>
-              <Field label="Limit"><Redacted on={privacy}><ModalEdit type="number" value={debt.credit_limit} onCommit={set('credit_limit')} /></Redacted></Field>
-              <Field label="Total Due"><Redacted on={privacy}><ModalEdit type="number" value={debt.total_due} onCommit={set('total_due')} /></Redacted></Field>
+              <Field label="Finance Charge"><Redacted on={privacy}><ModalEdit type="currency" value={debt.finance_charge} onCommit={set('finance_charge')} /></Redacted></Field>
+              <Field label="Limit"><Redacted on={privacy}><ModalEdit type="currency" value={debt.credit_limit} onCommit={set('credit_limit')} /></Redacted></Field>
+              <Field label="Total Due"><Redacted on={privacy}><ModalEdit type="currency" value={debt.total_due} onCommit={set('total_due')} /></Redacted></Field>
             </div>
-          </div>
+          </MoreDetails>
         </div>
 
         <div className="flex justify-end border-t border-zinc-800 px-5 py-4">
