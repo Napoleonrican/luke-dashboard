@@ -211,7 +211,7 @@ export default function Debts() {
                   <input type="checkbox" checked={!!d.pending_withdrawal} onChange={(e) => update(d.id, 'pending_withdrawal', e.target.checked)} className="h-4 w-4 accent-emerald-500 cursor-pointer" />
                 </Td>
                 <Td className="text-right"><EditCell type="number" value={d.paydown_priority} onSave={(v) => update(d.id, 'paydown_priority', v)} className="text-zinc-400 tabular-nums" /></Td>
-                <Td className="text-right"><ColorCell value={d.payments_remaining} type="number" colorFn={paymentsRemainingColor} display={(v) => (v == null ? '—' : v)} onSave={(v) => update(d.id, 'payments_remaining', v)} /></Td>
+                <Td className="text-right"><ColorCell value={d.payments_remaining} type="number" colorFn={paymentsRemainingColor} display={(v) => (v == null ? '—' : Math.round(v))} onSave={(v) => update(d.id, 'payments_remaining', v)} /></Td>
                 <Td><ColorCell value={d.expected_payoff_date} type="date" colorFn={payoffColor} display={fmtDate} onSave={(v) => update(d.id, 'expected_payoff_date', v)} /></Td>
                 <Td><EditCell type="date" value={d.last_date} onSave={(v) => update(d.id, 'last_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
                 <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.new_min} onSave={(v) => update(d.id, 'new_min', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
