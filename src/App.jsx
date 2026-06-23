@@ -39,7 +39,9 @@ export default function App() {
         <Route path="/task-manager" element={
           <ProtectedRoute><TaskManager /></ProtectedRoute>
         } />
-        <Route path="/debt-calculator" element={<DebtCalculator />} />
+        <Route path="/debt-calculator" element={
+          <FinancialAuthGate><DebtCalculator /></FinancialAuthGate>
+        } />
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
