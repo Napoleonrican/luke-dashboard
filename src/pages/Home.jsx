@@ -214,7 +214,7 @@ export default function Home() {
   if (data.claude) {
     chips.push({
       to: '/ai-backlog', icon: Bot, label: 'Claude week',
-      countTo: data.claude.pct, format: (n) => `${n.toFixed(1)}% used`,
+      countTo: data.claude.pct, format: (n) => `${n.toFixed(0)}% elapsed`,
       accent: 'text-amber-400',
     });
   }
