@@ -48,7 +48,7 @@ const STRATEGIES = [
   { id: 'hybrid',    label: 'Hybrid ⭐',      desc: 'Recommended — clear Upstart, then avalanche' },
 ];
 
-const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1', BNPL: '#f97316' };
+const TAG_COLORS = { CC: '#f59e0b', Loan: '#6366f1', BNPL: '#f97316', Mixed: '#94a3b8' };
 
 const fmtShortDate = (iso) => {
   if (!iso) return '—';
@@ -196,18 +196,35 @@ export default function DebtCalculator() {
     let cancelled = false;
     fetchDebts().then(({ data }) => {
       if (cancelled) return;
-      const mapped = (data || [])
-        .filter((d) => (d.balance ?? 0) > 0)
-        .map((d) => ({
-          id: d.id,
-          name: d.purchase || 'Debt',
-          balance: Math.max(0, d.balance ?? 0),
-          apr: d.apr ?? 0,                                   // stored as a fraction
-          min: d.normal_payment ?? 0,
-          tag: TAG_FROM_CREDIT[d.credit_type] || 'Loan',
-          baseline: (d.total_due ?? 0) > 0 ? d.total_due : Math.max(0, d.balance ?? 0),
-          updated: d.updated_on,
-        }));
+      // Group by lender so the calculator models ~8 lenders, not 20+ individual
+      // purchases. Balance/min/baseline sum; APR is balance-weighted.
+      const groups = {};
+      for (const d of data || []) {
+        if ((d.balance ?? 0) <= 0) continue;
+        const key = d.lender || d.purchase || 'Unknown';
+        const g = (groups[key] ||= {
+          id: key, name: key, balance: 0, min: 0, aprWeighted: 0, baseline: 0,
+          tags: new Set(), updated: null, count: 0,
+        });
+        const bal = Math.max(0, d.balance ?? 0);
+        g.balance += bal;
+        g.min += d.normal_payment ?? 0;
+        g.aprWeighted += (d.apr ?? 0) * bal;
+        g.baseline += (d.total_due ?? 0) > 0 ? d.total_due : bal;
+        g.tags.add(d.credit_type);
+        g.count += 1;
+        if (d.updated_on && (!g.updated || d.updated_on > g.updated)) g.updated = d.updated_on;
+      }
+      const mapped = Object.values(groups).map((g) => ({
+        id: g.id,
+        name: g.count > 1 ? `${g.name} (${g.count})` : g.name,
+        balance: g.balance,
+        apr: g.balance > 0 ? g.aprWeighted / g.balance : 0,
+        min: g.min,
+        tag: g.tags.size === 1 ? (TAG_FROM_CREDIT[[...g.tags][0]] || 'Loan') : 'Mixed',
+        baseline: g.baseline,
+        updated: g.updated,
+      }));
       setDebts(mapped);
       setDebtsLoading(false);
     });

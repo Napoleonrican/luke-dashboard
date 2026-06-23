@@ -40,14 +40,25 @@ export default function Summary() {
             updated: b.updated_on,
           });
         }
+        // Debts roll up by lender — one line per lender, not per purchase, so a
+        // handful of lenders replace 20+ individual rows.
+        const byLender = {};
         for (const d of debts.data || []) {
+          const key = d.lender || d.purchase || 'Unknown';
+          const g = (byLender[key] ||= { name: key, monthly: 0, balance: 0, count: 0, updated: null });
+          g.monthly += d.normal_payment ?? 0;
+          g.balance += d.balance ?? 0;
+          g.count += 1;
+          if (d.updated_on && (!g.updated || d.updated_on > g.updated)) g.updated = d.updated_on;
+        }
+        for (const g of Object.values(byLender)) {
           out.push({
-            name: d.purchase,
-            monthly: d.normal_payment ?? 0,
+            name: g.count > 1 ? `${g.name} (${g.count})` : g.name,
+            monthly: g.monthly,
             category: 'Debt',
-            balance: d.balance ?? 0,
+            balance: g.balance,
             yoy: null,
-            updated: d.updated_on,
+            updated: g.updated,
           });
         }
         // Subscriptions roll up to two summary lines (active only), matching the
