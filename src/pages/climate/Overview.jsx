@@ -328,18 +328,17 @@ export default function Overview() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-zinc-500">Goal</span>
-                {[68, 70, 72, 75].map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setCmTemp(cmTemp === t ? null : t)}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${cmTemp === t ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    {t}°F
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-[11px] text-zinc-500 shrink-0">Goal</span>
+                <input
+                  type="range"
+                  min={62}
+                  max={86}
+                  value={cmTemp ?? 72}
+                  onChange={(e) => setCmTemp(Number(e.target.value))}
+                  className="flex-1 h-1 accent-violet-500 cursor-pointer"
+                />
+                <span className="text-[11px] text-zinc-300 tabular-nums w-8 text-right shrink-0">{cmTemp ?? 72}°F</span>
               </div>
             </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">
