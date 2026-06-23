@@ -6,6 +6,7 @@ import { fetchDebts, upsertDebt, deleteRow, getPref, setPref } from '../../lib/f
 import {
   fmt, fmtDec, fmtDate, todayISO, daysUntil,
   daysToColor, aprColor, paymentsRemainingColor, payoffColor,
+  paymentsRemaining, expectedPayoffDate,
 } from './format';
 import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
@@ -40,8 +41,8 @@ const SORT_ACCESSORS = {
   normal_payment:      (d) => d.normal_payment,
   pending_withdrawal:  (d) => (d.pending_withdrawal ? 1 : 0),
   paydown_priority:    (d) => d.paydown_priority,
-  payments_remaining:  (d) => d.payments_remaining,
-  expected_payoff_date:(d) => d.expected_payoff_date,
+  payments_remaining:  (d) => paymentsRemaining(d),
+  expected_payoff_date:(d) => expectedPayoffDate(d),
   last_date:           (d) => d.last_date,
   new_min:             (d) => d.new_min,
 };
@@ -104,7 +105,7 @@ export default function Debts() {
 
   const totalBal  = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
   const totalMins = debts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
-  const colSpan = showAll ? 23 : 17;
+  const colSpan = showAll ? 23 : 16;
 
   return (
     <div className="space-y-4">
@@ -148,6 +149,17 @@ export default function Debts() {
               <Th sortKey="purchase" sort={sort} onSort={toggleSort} className={STICKY_HEAD_2}>Purchase</Th>
               <Th sortKey="credit_type" sort={sort} onSort={toggleSort}>Credit Type</Th>
               <Th sortKey="lender" sort={sort} onSort={toggleSort}>Lender</Th>
+              <Th sortKey="balance" sort={sort} onSort={toggleSort} align="right">Balance</Th>
+              <Th sortKey="normal_payment" sort={sort} onSort={toggleSort} align="right">Normal Pmt</Th>
+              <Th sortKey="next_due_date" sort={sort} onSort={toggleSort}>Next Due</Th>
+              <Th sortKey="days" sort={sort} onSort={toggleSort} align="right">Days</Th>
+              <Th sortKey="day_due" sort={sort} onSort={toggleSort} align="right">Day Due</Th>
+              <Th sortKey="pending_withdrawal" sort={sort} onSort={toggleSort} align="right">Pending</Th>
+              <Th sortKey="paydown_priority" sort={sort} onSort={toggleSort} align="right">Priority</Th>
+              <Th sortKey="payments_remaining" sort={sort} onSort={toggleSort} align="right">Pmts Rem.</Th>
+              <Th sortKey="expected_payoff_date" sort={sort} onSort={toggleSort}>Exp. Payoff</Th>
+              <Th sortKey="last_date" sort={sort} onSort={toggleSort}>Last Date</Th>
+              <Th sortKey="new_min" sort={sort} onSort={toggleSort} align="right">New Min.</Th>
               {showAll && <>
                 <Th sortKey="origination_date" sort={sort} onSort={toggleSort}>Origination</Th>
                 <Th sortKey="apr" sort={sort} onSort={toggleSort} align="right">APR</Th>
@@ -155,19 +167,8 @@ export default function Debts() {
                 <Th sortKey="finance_charge" sort={sort} onSort={toggleSort} align="right">Finance Chg</Th>
                 <Th sortKey="credit_limit" sort={sort} onSort={toggleSort} align="right">Limit</Th>
                 <Th sortKey="total_due" sort={sort} onSort={toggleSort} align="right">Total Due</Th>
+                <Th sortKey="available_credit" sort={sort} onSort={toggleSort} align="right">Avail. Credit</Th>
               </>}
-              <Th sortKey="balance" sort={sort} onSort={toggleSort} align="right">Balance</Th>
-              <Th sortKey="available_credit" sort={sort} onSort={toggleSort} align="right">Avail. Credit</Th>
-              <Th sortKey="next_due_date" sort={sort} onSort={toggleSort}>Next Due</Th>
-              <Th sortKey="days" sort={sort} onSort={toggleSort} align="right">Days</Th>
-              <Th sortKey="day_due" sort={sort} onSort={toggleSort} align="right">Day Due</Th>
-              <Th sortKey="normal_payment" sort={sort} onSort={toggleSort} align="right">Normal Pmt</Th>
-              <Th sortKey="pending_withdrawal" sort={sort} onSort={toggleSort} align="right">Pending</Th>
-              <Th sortKey="paydown_priority" sort={sort} onSort={toggleSort} align="right">Priority</Th>
-              <Th sortKey="payments_remaining" sort={sort} onSort={toggleSort} align="right">Pmts Rem.</Th>
-              <Th sortKey="expected_payoff_date" sort={sort} onSort={toggleSort}>Exp. Payoff</Th>
-              <Th sortKey="last_date" sort={sort} onSort={toggleSort}>Last Date</Th>
-              <Th sortKey="new_min" sort={sort} onSort={toggleSort} align="right">New Min.</Th>
               <Th />
             </tr>
           </thead>
@@ -176,7 +177,12 @@ export default function Debts() {
               <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
             ) : debts.length === 0 ? (
               <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">No debts yet — add one or run the seed.</td></tr>
-            ) : sortedDebts.map((d) => (
+            ) : sortedDebts.map((d) => {
+              const pr = paymentsRemaining(d);
+              const prC = paymentsRemainingColor(pr);
+              const ep = expectedPayoffDate(d);
+              const epC = payoffColor(ep);
+              return (
               <tr key={d.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                 <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={d.updated_on} onSave={(v) => update(d.id, 'updated_on', v)} /></Td>
                 <Td className={STICKY_2}>
@@ -193,6 +199,23 @@ export default function Debts() {
                     options={CREDIT_TYPES.map((c) => ({ value: c, label: c }))} className="text-zinc-400" />
                 </Td>
                 <Td><EditCell value={d.lender} onSave={(v) => update(d.id, 'lender', v)} className="text-zinc-400" /></Td>
+                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.balance} onSave={(v) => update(d.id, 'balance', v)} display={fmtDec} className="text-zinc-200 font-medium tabular-nums" /></Redacted></Td>
+                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.normal_payment} onSave={(v) => update(d.id, 'normal_payment', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted></Td>
+                <Td><EditCell type="date" value={d.next_due_date} onSave={(v) => update(d.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                <Td className="text-right"><DaysBadge iso={d.next_due_date} /></Td>
+                <Td className="text-right"><EditCell type="number" value={d.day_due} onSave={(v) => update(d.id, 'day_due', v)} className="text-zinc-400 tabular-nums" /></Td>
+                <Td className="text-right">
+                  <input type="checkbox" checked={!!d.pending_withdrawal} onChange={(e) => update(d.id, 'pending_withdrawal', e.target.checked)} className="h-4 w-4 accent-emerald-500 cursor-pointer" />
+                </Td>
+                <Td className="text-right"><EditCell type="number" value={d.paydown_priority} onSave={(v) => update(d.id, 'paydown_priority', v)} className="text-zinc-400 tabular-nums" /></Td>
+                <Td className="text-right" title="Calculated from balance, payment & APR">
+                  <span style={prC ? { color: prC.color } : undefined} className="tabular-nums">{pr == null ? '—' : Math.round(pr)}</span>
+                </Td>
+                <Td title="Calculated payoff (NPER) or Last Date, whichever is sooner">
+                  <span style={epC ? { color: epC.color } : undefined} className="tabular-nums">{fmtDate(ep)}</span>
+                </Td>
+                <Td><EditCell type="date" value={d.last_date} onSave={(v) => update(d.id, 'last_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
+                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.new_min} onSave={(v) => update(d.id, 'new_min', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
                 {showAll && <>
                   <Td><EditCell type="date" value={d.origination_date} onSave={(v) => update(d.id, 'origination_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
                   <Td className="text-right"><ColorCell value={d.apr} type="number" colorFn={aprColor} display={fmtApr} onSave={(v) => update(d.id, 'apr', v)} /></Td>
@@ -200,35 +223,22 @@ export default function Debts() {
                   <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.finance_charge} onSave={(v) => update(d.id, 'finance_charge', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
                   <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.credit_limit} onSave={(v) => update(d.id, 'credit_limit', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
                   <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.total_due} onSave={(v) => update(d.id, 'total_due', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.available_credit} onSave={(v) => update(d.id, 'available_credit', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
                 </>}
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.balance} onSave={(v) => update(d.id, 'balance', v)} display={fmtDec} className="text-zinc-200 font-medium tabular-nums" /></Redacted></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.available_credit} onSave={(v) => update(d.id, 'available_credit', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
-                <Td><EditCell type="date" value={d.next_due_date} onSave={(v) => update(d.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
-                <Td className="text-right"><DaysBadge iso={d.next_due_date} /></Td>
-                <Td className="text-right"><EditCell type="number" value={d.day_due} onSave={(v) => update(d.id, 'day_due', v)} className="text-zinc-400 tabular-nums" /></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.normal_payment} onSave={(v) => update(d.id, 'normal_payment', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted></Td>
-                <Td className="text-right">
-                  <input type="checkbox" checked={!!d.pending_withdrawal} onChange={(e) => update(d.id, 'pending_withdrawal', e.target.checked)} className="h-4 w-4 accent-emerald-500 cursor-pointer" />
-                </Td>
-                <Td className="text-right"><EditCell type="number" value={d.paydown_priority} onSave={(v) => update(d.id, 'paydown_priority', v)} className="text-zinc-400 tabular-nums" /></Td>
-                <Td className="text-right"><ColorCell value={d.payments_remaining} type="number" colorFn={paymentsRemainingColor} display={(v) => (v == null ? '—' : Math.round(v))} onSave={(v) => update(d.id, 'payments_remaining', v)} /></Td>
-                <Td><ColorCell value={d.expected_payoff_date} type="date" colorFn={payoffColor} display={fmtDate} onSave={(v) => update(d.id, 'expected_payoff_date', v)} /></Td>
-                <Td><EditCell type="date" value={d.last_date} onSave={(v) => update(d.id, 'last_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.new_min} onSave={(v) => update(d.id, 'new_min', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
                 <Td className="text-right">
                   <button onClick={() => remove(d.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           {!loading && debts.length > 0 && (
             <tfoot>
               <tr className="border-t border-zinc-800 text-zinc-400">
-                <Td className="font-medium text-zinc-300" colSpan={showAll ? 10 : 4}>Total</Td>
+                <Td className="font-medium text-zinc-300" colSpan={4}>Total</Td>
                 <Td className="text-right font-semibold text-red-400"><Redacted on={privacy}><span className="tabular-nums">{fmtDec(totalBal)}</span></Redacted></Td>
-                <Td colSpan={4} />
                 <Td className="text-right font-semibold text-emerald-400"><Redacted on={privacy}><span className="tabular-nums">{fmtDec(totalMins)}</span></Redacted></Td>
-                <Td colSpan={6} />
+                <Td colSpan={showAll ? 17 : 10} />
               </tr>
             </tfoot>
           )}
@@ -286,8 +296,14 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
               <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="currency" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
               <Field label="Pending Withdrawal"><ModalEdit type="checkbox" value={debt.pending_withdrawal} onCommit={set('pending_withdrawal')} /></Field>
               <Field label="Paydown Priority"><ModalEdit type="number" value={debt.paydown_priority} onCommit={set('paydown_priority')} /></Field>
-              <Field label="Payments Remaining"><ModalEdit type="number" value={debt.payments_remaining} onCommit={set('payments_remaining')} /></Field>
-              <Field label="Expected Payoff Date"><ModalEdit type="date" value={debt.expected_payoff_date} onCommit={set('expected_payoff_date')} /></Field>
+              <Field label="Payments Remaining (calculated)">
+                <span className="text-sm font-semibold text-zinc-200 tabular-nums">
+                  {paymentsRemaining(debt) == null ? '—' : Math.round(paymentsRemaining(debt))}
+                </span>
+              </Field>
+              <Field label="Expected Payoff Date (calculated)">
+                <span className="text-sm font-semibold text-zinc-200 tabular-nums">{fmtDate(expectedPayoffDate(debt))}</span>
+              </Field>
               <Field label="Last Date"><ModalEdit type="date" value={debt.last_date} onCommit={set('last_date')} /></Field>
               <Field label="New Min."><Redacted on={privacy}><ModalEdit type="currency" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
             </div>

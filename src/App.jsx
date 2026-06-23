@@ -21,6 +21,7 @@ const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
 const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
+const Summary = lazy(() => import('./pages/cashflow/Summary'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
 const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
@@ -62,7 +63,8 @@ export default function App() {
         <Route path="/cashflow" element={
           <FinancialAuthGate><CashflowLayout /></FinancialAuthGate>
         }>
-          <Route index element={<Navigate to="waterfall" replace />} />
+          <Route index element={<Navigate to="summary" replace />} />
+          <Route path="summary" element={<Summary />} />
           <Route path="waterfall" element={<Waterfall />} />
           <Route path="runway" element={<Runway />} />
           <Route path="bills" element={<Bills />} />

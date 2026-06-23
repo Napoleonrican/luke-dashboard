@@ -1,0 +1,34 @@
+/* Light theme for the Cashflow module only.
+   The module is built with hard-coded dark zinc utilities; rather than thread a
+   `dark:` variant through every component, we scope a light palette under
+   `.cf-light` on the module root. Two-class selectors out-specify Tailwind's
+   single-class utilities, so these win without !important. */
+
+.cf-light .bg-zinc-950 { background-color: #f1f5f9; }
+.cf-light .bg-zinc-900 { background-color: #ffffff; }
+.cf-light .bg-zinc-800 { background-color: #e2e8f0; }
+.cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
+.cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
+
+.cf-light .text-white,
+.cf-light .text-zinc-100,
+.cf-light .text-zinc-200,
+.cf-light .text-zinc-300 { color: #0f172a; }
+.cf-light .text-zinc-400 { color: #475569; }
+.cf-light .text-zinc-500 { color: #64748b; }
+.cf-light .text-zinc-600 { color: #94a3b8; }
+
+.cf-light .border-zinc-800 { border-color: #e2e8f0; }
+.cf-light .border-zinc-700 { border-color: #cbd5e1; }
+
+/* Sticky/frozen cells inherit bg-zinc-900 → white above; row hovers */
+.cf-light .hover\:bg-zinc-800\/30:hover { background-color: #f1f5f9; }
+.cf-light .group:hover .group-hover\:bg-zinc-800 { background-color: #eef2f7; }
+.cf-light .hover\:bg-zinc-800\/40:hover { background-color: #eef2f7; }
+
+/* Skeleton shimmer blocks */
+.cf-light .bg-zinc-800.rounded { background-color: #e2e8f0; }
+
+/* Inputs sit on bg-zinc-800 (remapped); keep their text dark for contrast */
+.cf-light input,
+.cf-light select { color: #0f172a; }
