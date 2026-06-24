@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, Github,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, GitBranch,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -80,7 +80,7 @@ const SECTIONS = [
         statKey: 'backlog',
       },
       {
-        icon: Github,
+        icon: GitBranch,
         title: 'GitHub Issues',
         description: 'All open issues across your repos — sorted by urgency, reply inline.',
         to: '/github-issues',

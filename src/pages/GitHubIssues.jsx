@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Github, RefreshCw, MessageSquare, ChevronDown, ChevronUp,
+  GitBranch, RefreshCw, MessageSquare, ChevronDown, ChevronUp,
   Send, AlertCircle, ExternalLink,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
@@ -254,7 +254,7 @@ export default function GitHubIssues() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Github size={18} className="text-zinc-400" />
+              <GitBranch size={18} className="text-zinc-400" />
               <h1 className="text-lg font-semibold">GitHub Issues</h1>
             </div>
             <p className="text-xs text-zinc-500">
