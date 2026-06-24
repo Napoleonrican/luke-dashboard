@@ -17,6 +17,7 @@ const Goals = lazy(() => import('./pages/climate/Goals'));
 const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
 const Settings = lazy(() => import('./pages/climate/Settings'));
 const AIBacklog = lazy(() => import('./pages/AIBacklog'));
+const GitHubIssues = lazy(() => import('./pages/GitHubIssues'));
 const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="inputs" element={<Inputs />} />
         </Route>
         <Route path="/ai-backlog" element={<AIBacklog />} />
+        <Route path="/github-issues" element={<GitHubIssues />} />
       </Routes>
       </Suspense>
     </div>
