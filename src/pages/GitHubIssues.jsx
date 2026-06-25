@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   GitBranch, RefreshCw, MessageSquare, ChevronDown, ChevronUp,
-  Send, AlertCircle, ExternalLink,
+  Send, AlertCircle, ExternalLink, KeyRound,
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 
@@ -31,6 +31,11 @@ function ghHeaders() {
   return h;
 }
 
+/**
+ * Returns { issues: IssueWithRepo[], failedRepos: string[] }.
+ * Per-repo 4xx/5xx is captured in failedRepos instead of silently returning
+ * an empty array, so the UI can distinguish "auth required" from "no issues".
+ */
 async function fetchAllIssues() {
   const results = await Promise.allSettled(
     REPOS.map(async ({ owner, repo }) => {
@@ -38,12 +43,23 @@ async function fetchAllIssues() {
         `https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=50`,
         { headers: ghHeaders() }
       );
-      if (!res.ok) return [];
+      if (!res.ok) return { repo, ok: false, status: res.status, issues: [] };
       const data = await res.json();
-      return data.map(issue => ({ ...issue, _repo: repo, _owner: owner }));
+      return {
+        repo,
+        ok: true,
+        issues: data.map(issue => ({ ...issue, _repo: repo, _owner: owner })),
+      };
     })
   );
-  return results.flatMap(r => (r.status === 'fulfilled' ? r.value : []));
+
+  const fulfilled = results.map(r =>
+    r.status === 'fulfilled' ? r.value : { ok: false, issues: [], repo: undefined }
+  );
+  const allIssues   = fulfilled.flatMap(r => r.issues);
+  const failedRepos = fulfilled.filter(r => !r.ok && r.repo).map(r => r.repo);
+
+  return { issues: allIssues, failedRepos };
 }
 
 function formatDate(iso) {
@@ -204,17 +220,19 @@ function IssueCard({ issue, onReplyPosted }) {
 }
 
 export default function GitHubIssues() {
-  const [issues, setIssues]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
-  const [activeTab, setActiveTab] = useState('action');
+  const [issues, setIssues]           = useState([]);
+  const [failedRepos, setFailedRepos] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [activeTab, setActiveTab]     = useState('action');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const all = await fetchAllIssues();
+      const { issues: all, failedRepos: failed } = await fetchAllIssues();
       setIssues(all);
+      setFailedRepos(failed);
     } catch (err) {
       setError(err.message || 'Failed to fetch issues');
     } finally {
@@ -227,6 +245,8 @@ export default function GitHubIssues() {
   const actionIssues  = issues.filter(i => i.labels.some(l => ACTION_LABEL_SET.has(l.name)));
   const summaryIssues = issues.filter(i => i.labels.some(l => SUMMARY_LABEL_SET.has(l.name)));
   const displayed     = activeTab === 'action' ? actionIssues : summaryIssues;
+
+  const noTokenPrivateRepos = !GH_TOKEN && failedRepos.length > 0;
 
   const tabs = [
     {
@@ -260,8 +280,9 @@ export default function GitHubIssues() {
             <p className="text-xs text-zinc-500">
               {GH_TOKEN
                 ? 'Read and reply to issues across all your repos without leaving the dashboard.'
-                : <>Showing open issues across all repos.{' '}
-                    <span className="text-amber-500">Add VITE_GITHUB_TOKEN to Vercel to enable inline replies.</span>
+                : <>
+                    4 of your 5 repos are private.{' '}
+                    <span className="text-amber-400">Add VITE_GITHUB_TOKEN to Vercel to read their issues and enable inline replies.</span>
                   </>}
             </p>
           </div>
@@ -280,6 +301,20 @@ export default function GitHubIssues() {
           <div className="flex items-center gap-2 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2.5 mb-5 text-xs text-red-300">
             <AlertCircle size={13} className="flex-shrink-0" />
             {error}
+          </div>
+        )}
+
+        {/* Token-required banner — shown when private repos returned 401/403/404 */}
+        {!loading && noTokenPrivateRepos && (
+          <div className="flex items-start gap-2.5 bg-amber-950/40 border border-amber-800/50 rounded-lg px-3 py-2.5 mb-5 text-xs text-amber-300">
+            <KeyRound size={13} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-medium">Token required to read private repos.</span>{' '}
+              The following repos returned a read error (401/404) — their issues won't appear until
+              you add <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-200">VITE_GITHUB_TOKEN</code> to
+              your Vercel environment:{' '}
+              <span className="text-amber-200">{failedRepos.join(', ')}</span>.
+            </div>
           </div>
         )}
 
@@ -311,11 +346,21 @@ export default function GitHubIssues() {
         {loading ? (
           <div className="text-center py-16 text-zinc-600 text-sm">Loading issues…</div>
         ) : displayed.length === 0 ? (
-          <div className="text-center py-16 text-zinc-700 text-sm">
-            {activeTab === 'action'
-              ? 'No open issues need your attention.'
-              : 'No agent summaries found.'}
-          </div>
+          noTokenPrivateRepos ? (
+            <div className="text-center py-16">
+              <p className="text-zinc-500 text-sm mb-1">No issues loaded from private repos</p>
+              <p className="text-zinc-700 text-xs">
+                Add <code className="bg-zinc-800 px-1 rounded">VITE_GITHUB_TOKEN</code> to Vercel to see issues
+                from {failedRepos.join(', ')}{failedRepos.length > 0 ? ' and others.' : '.'}
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-16 text-zinc-700 text-sm">
+              {activeTab === 'action'
+                ? 'No open issues need your attention.'
+                : 'No agent summaries found.'}
+            </div>
+          )
         ) : (
           <div className="space-y-3">
             {displayed.map(issue => (
