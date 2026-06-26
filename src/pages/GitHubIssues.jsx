@@ -246,7 +246,7 @@ export default function GitHubIssues() {
   const summaryIssues = issues.filter(i => i.labels.some(l => SUMMARY_LABEL_SET.has(l.name)));
   const displayed     = activeTab === 'action' ? actionIssues : summaryIssues;
 
-  const noTokenPrivateRepos = !GH_TOKEN && failedRepos.length > 0;
+  const hasFailedRepos = failedRepos.length > 0;
 
   const tabs = [
     {
@@ -304,16 +304,26 @@ export default function GitHubIssues() {
           </div>
         )}
 
-        {/* Token-required banner — shown when private repos returned 401/403/404 */}
-        {!loading && noTokenPrivateRepos && (
+        {/* Fetch-failure banner — surfaces whenever any repo couldn't be read */}
+        {!loading && hasFailedRepos && (
           <div className="flex items-start gap-2.5 bg-amber-950/40 border border-amber-800/50 rounded-lg px-3 py-2.5 mb-5 text-xs text-amber-300">
             <KeyRound size={13} className="flex-shrink-0 mt-0.5" />
             <div>
-              <span className="font-medium">Token required to read private repos.</span>{' '}
-              The following repos returned a read error (401/404) — their issues won't appear until
-              you add <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-200">VITE_GITHUB_TOKEN</code> to
-              your Vercel environment:{' '}
-              <span className="text-amber-200">{failedRepos.join(', ')}</span>.
+              {GH_TOKEN ? (
+                <>
+                  <span className="font-medium">Couldn't read some repos — token may be expired, rate-limited, or missing scope.</span>{' '}
+                  Issues from these repos won't appear until the token is refreshed:{' '}
+                  <span className="text-amber-200">{failedRepos.join(', ')}</span>.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">Token required to read private repos.</span>{' '}
+                  The following repos returned a read error (401/404) — their issues won't appear until
+                  you add <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-200">VITE_GITHUB_TOKEN</code> to
+                  your Vercel environment:{' '}
+                  <span className="text-amber-200">{failedRepos.join(', ')}</span>.
+                </>
+              )}
             </div>
           </div>
         )}
@@ -346,12 +356,17 @@ export default function GitHubIssues() {
         {loading ? (
           <div className="text-center py-16 text-zinc-600 text-sm">Loading issues…</div>
         ) : displayed.length === 0 ? (
-          noTokenPrivateRepos ? (
+          hasFailedRepos ? (
             <div className="text-center py-16">
-              <p className="text-zinc-500 text-sm mb-1">No issues loaded from private repos</p>
+              <p className="text-zinc-500 text-sm mb-1">
+                {GH_TOKEN
+                  ? "Some repos couldn't be read"
+                  : 'No issues loaded from private repos'}
+              </p>
               <p className="text-zinc-700 text-xs">
-                Add <code className="bg-zinc-800 px-1 rounded">VITE_GITHUB_TOKEN</code> to Vercel to see issues
-                from {failedRepos.join(', ')}{failedRepos.length > 0 ? ' and others.' : '.'}
+                {GH_TOKEN
+                  ? `Token may be expired or missing scope for: ${failedRepos.join(', ')}.`
+                  : <>Add <code className="bg-zinc-800 px-1 rounded">VITE_GITHUB_TOKEN</code> to Vercel to see issues from {failedRepos.join(', ')}.</>}
               </p>
             </div>
           ) : (
