@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle } from 'lucide-react';
+import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle, Bot, PowerOff } from 'lucide-react';
 import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -90,13 +90,73 @@ function fmtLiveState(s) {
   return parts.join(' · ');
 }
 
+// Derive the four control-mode states from the three Supabase signals.
+// Priority: comfort mode > executor off > schedule only > fully automatic.
+function useControlMode(comfortMode, executorEnabled, goalsText) {
+  if (comfortMode)            return 'comfort';
+  if (!executorEnabled)       return 'manual';
+  if (!goalsText?.trim())     return 'schedule';
+  return 'auto';
+}
+
+const CONTROL_MODE_CONFIG = {
+  comfort: {
+    Icon: Sparkles,
+    label: 'Comfort Mode Active',
+    desc: 'Normal schedule is paused — the executor is following your manual instruction.',
+    border: 'border-violet-500/40',
+    bg: 'bg-violet-500/10',
+    text: 'text-violet-300',
+    iconColor: 'text-violet-400',
+  },
+  manual: {
+    Icon: PowerOff,
+    label: 'Manual Control',
+    desc: 'Dashboard executor is off — the AC is not following the schedule. Enable it in Settings.',
+    border: 'border-red-500/40',
+    bg: 'bg-red-500/10',
+    text: 'text-red-300',
+    iconColor: 'text-red-400',
+  },
+  schedule: {
+    Icon: CalendarClock,
+    label: 'Schedule Only',
+    desc: 'Following the preset schedule, but no goals are set — the agent has nothing to optimise toward. Add goals to enable Fully Automatic mode.',
+    border: 'border-amber-500/40',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-300',
+    iconColor: 'text-amber-400',
+  },
+  auto: {
+    Icon: Bot,
+    label: 'Fully Automatic',
+    desc: 'Goals are set and the nightly agent is actively tuning the schedule toward them.',
+    border: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-300',
+    iconColor: 'text-emerald-400',
+  },
+};
+
 export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
-    schedule, executorEnabled, lastAcPush, acLiveState, loading,
+    schedule, executorEnabled, goalsText, lastAcPush, acLiveState, loading,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts,
   } = useOutletContext();
+
+  const controlMode = useControlMode(comfortMode, executorEnabled, goalsText);
+  const modeCfg = CONTROL_MODE_CONFIG[controlMode];
+
+  // Fully Automatic banner fades out after 10s — it's the "all good" state and
+  // doesn't need to stay in the way once the user has seen it.
+  const [autoBannerVisible, setAutoBannerVisible] = useState(true);
+  useEffect(() => {
+    if (controlMode !== 'auto') { setAutoBannerVisible(true); return; }
+    const t = setTimeout(() => setAutoBannerVisible(false), 10_000);
+    return () => clearTimeout(t);
+  }, [controlMode]);
 
   // Sensors currently reporting below the low-battery threshold (for the banner).
   const lowBattery = sensors
@@ -159,6 +219,15 @@ export default function Overview() {
           </div>
         </div>
       )}
+
+      {/* Control-mode status banner — "auto" fades out after 10s */}
+      <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2 transition-opacity duration-1000 ${controlMode === 'auto' && !autoBannerVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <modeCfg.Icon size={15} className={`${modeCfg.iconColor} mt-0.5 shrink-0`} />
+        <div className="text-sm leading-snug">
+          <span className={`font-semibold ${modeCfg.text}`}>{modeCfg.label}</span>
+          <span className={`${modeCfg.text} opacity-80`}> — {modeCfg.desc}</span>
+        </div>
+      </div>
 
       {/* AC right now / next change */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
