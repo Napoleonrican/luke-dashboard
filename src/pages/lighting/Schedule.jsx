@@ -149,7 +149,7 @@ export default function Schedule() {
               : (<><Play size={16} /> Start bedtime now</>)}
           </button>
           <p className="text-[11px] text-zinc-600 -mt-1 text-center">
-            Turns the strip on, then dims from {s.sleep_brightness}% to off over {s.sleep_fade_min} minutes.
+            Turns the strip on, then dims from {s.sleep_brightness}% to off over {Math.max(10, s.sleep_fade_min)} minutes.
           </p>
         </div>
       </div>
