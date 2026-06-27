@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle, Bot, PowerOff } from 'lucide-react';
 import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
@@ -113,19 +113,19 @@ const CONTROL_MODE_CONFIG = {
     Icon: PowerOff,
     label: 'Manual Control',
     desc: 'Dashboard executor is off — the AC is not following the schedule. Enable it in Settings.',
-    border: 'border-amber-500/40',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-300',
-    iconColor: 'text-amber-400',
+    border: 'border-red-500/40',
+    bg: 'bg-red-500/10',
+    text: 'text-red-300',
+    iconColor: 'text-red-400',
   },
   schedule: {
     Icon: CalendarClock,
     label: 'Schedule Only',
     desc: 'Following the preset schedule, but no goals are set — the agent has nothing to optimise toward. Add goals to enable Fully Automatic mode.',
-    border: 'border-sky-500/40',
-    bg: 'bg-sky-500/10',
-    text: 'text-sky-300',
-    iconColor: 'text-sky-400',
+    border: 'border-amber-500/40',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-300',
+    iconColor: 'text-amber-400',
   },
   auto: {
     Icon: Bot,
@@ -148,6 +148,15 @@ export default function Overview() {
 
   const controlMode = useControlMode(comfortMode, executorEnabled, goalsText);
   const modeCfg = CONTROL_MODE_CONFIG[controlMode];
+
+  // Fully Automatic banner fades out after 10s — it's the "all good" state and
+  // doesn't need to stay in the way once the user has seen it.
+  const [autoBannerVisible, setAutoBannerVisible] = useState(true);
+  useEffect(() => {
+    if (controlMode !== 'auto') { setAutoBannerVisible(true); return; }
+    const t = setTimeout(() => setAutoBannerVisible(false), 10_000);
+    return () => clearTimeout(t);
+  }, [controlMode]);
 
   // Sensors currently reporting below the low-battery threshold (for the banner).
   const lowBattery = sensors
@@ -211,8 +220,8 @@ export default function Overview() {
         </div>
       )}
 
-      {/* Control-mode status banner */}
-      <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2`}>
+      {/* Control-mode status banner — "auto" fades out after 10s */}
+      <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2 transition-opacity duration-1000 ${controlMode === 'auto' && !autoBannerVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <modeCfg.Icon size={15} className={`${modeCfg.iconColor} mt-0.5 shrink-0`} />
         <div className="text-sm leading-snug">
           <span className={`font-semibold ${modeCfg.text}`}>{modeCfg.label}</span>
