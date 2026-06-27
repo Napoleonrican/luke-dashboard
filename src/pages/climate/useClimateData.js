@@ -136,6 +136,7 @@ export function useClimateData() {
   // The live schedule, for the Overview "AC now / next change" summary.
   const [schedule, setSchedule] = useState([]);        // ac_schedule rows
   const [executorEnabled, setExecutorEnabled] = useState(null);
+  const [goalsText, setGoalsText] = useState(null);
   const [lastAcPush, setLastAcPush] = useState(null);  // most recent non-noop ac_change_log row
   const [acLiveState, setAcLiveState] = useState(null); // confirmed AC state from last Pi write
 
@@ -224,11 +225,12 @@ export function useClimateData() {
     setSchedule(sched ?? []);
     const { data: prefs } = await supabase
       .from('ac_preferences')
-      .select('executor_enabled,alert_temp_min_f,alert_temp_max_f,alert_battery_pct,ac_confirmed_power,ac_confirmed_setpoint_f,ac_confirmed_mode,ac_confirmed_fan,ac_confirmed_source,ac_confirmed_at')
+      .select('executor_enabled,goals_text,alert_temp_min_f,alert_temp_max_f,alert_battery_pct,ac_confirmed_power,ac_confirmed_setpoint_f,ac_confirmed_mode,ac_confirmed_fan,ac_confirmed_source,ac_confirmed_at')
       .eq('id', 1)
       .limit(1);
     const prefRow = prefs?.[0] ?? null;
     setExecutorEnabled(Boolean(prefRow?.executor_enabled));
+    setGoalsText(prefRow?.goals_text ?? '');
     setAlerts({
       tempMinF:   prefRow?.alert_temp_min_f ?? null,
       tempMaxF:   prefRow?.alert_temp_max_f ?? null,
@@ -411,7 +413,7 @@ export function useClimateData() {
 
   return {
     // data
-    sensors, latest, chartData, schedule, executorEnabled, lastAcPush, acLiveState,
+    sensors, latest, chartData, schedule, executorEnabled, goalsText, lastAcPush, acLiveState,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts, saveAlerts,
     weather, weatherLoading, coords, outdoorSeries,
