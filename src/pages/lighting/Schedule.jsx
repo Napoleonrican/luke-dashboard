@@ -131,7 +131,7 @@ export default function Schedule() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <Slider label="Dim-to-off length" value={s.sleep_fade_min} min={1} max={60} suffix=" min"
+          <Slider label="Dim-to-off length" value={Math.max(10, s.sleep_fade_min)} min={10} max={60} suffix=" min"
                   onChange={(v) => updateSleep({ sleep_fade_min: v })} accent="accent-indigo-400" />
           <Slider label="Starting brightness" value={s.sleep_brightness} min={1} max={100} suffix="%"
                   onChange={(v) => updateSleep({ sleep_brightness: v })} accent="accent-indigo-400" />
