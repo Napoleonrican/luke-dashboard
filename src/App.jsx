@@ -20,6 +20,7 @@ const AIBacklog = lazy(() => import('./pages/AIBacklog'));
 const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
+const LightingSchedule = lazy(() => import('./pages/lighting/Schedule'));
 const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
 const Runway = lazy(() => import('./pages/cashflow/Runway'));
@@ -54,6 +55,7 @@ export default function App() {
           <Route index element={<Navigate to="controls" replace />} />
           <Route path="controls" element={<Controls />} />
           <Route path="scenes" element={<Scenes />} />
+          <Route path="schedule" element={<LightingSchedule />} />
         </Route>
         {/* Old standalone page merged into the Climate shell; keep the URL working. */}
         <Route path="/thermometers" element={<Navigate to="/climate" replace />} />
