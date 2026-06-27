@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { SlidersHorizontal, Palette } from 'lucide-react';
+import { SlidersHorizontal, Palette, Clock } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useLightingData } from './useLightingData';
 
 const NAV_ITEMS = [
   { to: 'controls', label: 'Controls', icon: SlidersHorizontal },
   { to: 'scenes', label: 'Scenes', icon: Palette },
+  { to: 'schedule', label: 'Schedule', icon: Clock },
 ];
 
 export default function LightingLayout() {
