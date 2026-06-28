@@ -86,6 +86,16 @@ export default function AIBacklog() {
     return () => document.removeEventListener('mousedown', close);
   }, [openStatus, openPriority]);
 
+  // Close modal on Escape from any focused element
+  useEffect(() => {
+    if (!modalTask) return;
+    function handleKey(e) {
+      if (e.key === 'Escape') setModalTask(null);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [modalTask]);
+
   async function loadTasks() {
     if (!supabase) { setTasks(SEED_TASKS); setLoading(false); return; }
     try {
@@ -476,7 +486,6 @@ export default function AIBacklog() {
                 className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) saveModal();
-                  if (e.key === 'Escape') setModalTask(null);
                 }}
               />
               <textarea
