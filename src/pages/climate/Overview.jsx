@@ -149,13 +149,23 @@ export default function Overview() {
   const controlMode = useControlMode(comfortMode, executorEnabled, goalsText);
   const modeCfg = CONTROL_MODE_CONFIG[controlMode];
 
-  // Fully Automatic banner fades out after 10s — it's the "all good" state and
-  // doesn't need to stay in the way once the user has seen it.
+  // Fully Automatic banner fades out after 10s then unmounts — it's the "all good"
+  // state and doesn't need to stay in the way (or take up layout space) once seen.
   const [autoBannerVisible, setAutoBannerVisible] = useState(true);
+  const [autoBannerMounted, setAutoBannerMounted] = useState(true);
   useEffect(() => {
-    if (controlMode !== 'auto') { setAutoBannerVisible(true); return; }
-    const t = setTimeout(() => setAutoBannerVisible(false), 10_000);
-    return () => clearTimeout(t);
+    if (controlMode !== 'auto') {
+      setAutoBannerVisible(true);
+      setAutoBannerMounted(true);
+      return;
+    }
+    const fadeTimer = setTimeout(() => setAutoBannerVisible(false), 10_000);
+    // Unmount after fade completes (10s delay + 1s transition) so no layout gap remains.
+    const unmountTimer = setTimeout(() => setAutoBannerMounted(false), 11_000);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(unmountTimer);
+    };
   }, [controlMode]);
 
   // Sensors currently reporting below the low-battery threshold (for the banner).
@@ -220,14 +230,16 @@ export default function Overview() {
         </div>
       )}
 
-      {/* Control-mode status banner — "auto" fades out after 10s */}
-      <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2 transition-opacity duration-1000 ${controlMode === 'auto' && !autoBannerVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <modeCfg.Icon size={15} className={`${modeCfg.iconColor} mt-0.5 shrink-0`} />
-        <div className="text-sm leading-snug">
-          <span className={`font-semibold ${modeCfg.text}`}>{modeCfg.label}</span>
-          <span className={`${modeCfg.text} opacity-80`}> — {modeCfg.desc}</span>
+      {/* Control-mode status banner — "auto" fades out after 10s then unmounts to clear layout */}
+      {(controlMode !== 'auto' || autoBannerMounted) && (
+        <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2 transition-opacity duration-1000 ${controlMode === 'auto' && !autoBannerVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <modeCfg.Icon size={15} className={`${modeCfg.iconColor} mt-0.5 shrink-0`} />
+          <div className="text-sm leading-snug">
+            <span className={`font-semibold ${modeCfg.text}`}>{modeCfg.label}</span>
+            <span className={`${modeCfg.text} opacity-80`}> — {modeCfg.desc}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* AC right now / next change */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
