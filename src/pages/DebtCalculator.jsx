@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, ExternalLink, Copy, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchDebts } from '../lib/fin';
+import { buildSnapshotMarkdown } from '../lib/claudeExport';
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -362,6 +363,62 @@ export default function DebtCalculator() {
   const totalPaidDown = Math.max(0, totalOriginal - totalDebt);
   const debtFreeMonth = months.length > 0 ? months.length - 1 : null;
 
+  // ── Strategy comparison (all four, same income assumptions) ────────────────
+  // Re-runs each strategy so the Claude export can table interest/time side by
+  // side. extraPerMonth is income-driven, so it's identical across strategies.
+  const strategyComparison = useMemo(
+    () => STRATEGIES.map((s) => {
+      const sim = simulate(debts, s.id, extraPerMonth);
+      return {
+        id: s.id,
+        label: s.label,
+        totalInterest: sim.totalInterest,
+        debtFreeMonth: sim.months.length > 0 ? sim.months.length - 1 : null,
+      };
+    }),
+    [debts, extraPerMonth],
+  );
+
+  // ── Export snapshot for Claude Chat ────────────────────────────────────────
+  const [copied, setCopied] = useState(false);
+
+  function downloadFallback(md) {
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `financial-snapshot-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExport() {
+    // Don't dump plaintext financials while numbers are hidden — gate on unlock.
+    if (privacyMode) { handleEyeClick(); return; }
+
+    const md = buildSnapshotMarkdown({
+      takeHome, weeklyGross, monthlyGigNet, totalIncome,
+      billsVariable, totalDebtMins, monthlyOutflow,
+      monthlyDeficit, breakEvenWeekly, extraPerMonth,
+      strategyId: strategy,
+      strategyLabel: STRATEGIES.find((s) => s.id === strategy)?.label || strategy,
+      debtFreeMonth,
+      debts: debts.map((d) => ({
+        name: d.name, balance: d.balance, apr: d.apr, min: d.min, tag: d.tag,
+        payoffMonth: d.id in payoffMonths ? payoffMonths[d.id] : null,
+      })),
+      strategyComparison,
+    });
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(md)
+        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+        .catch(() => downloadFallback(md));
+    } else {
+      downloadFallback(md);
+    }
+  }
+
   // ── Privacy / unlock ──────────────────────────────────────────────────────
   function handleEyeClick() {
     if (!privacyMode)      { setPrivacyMode(true); }
@@ -419,18 +476,35 @@ export default function DebtCalculator() {
               {debtsLoading ? 'Loading debts…' : `${debts.length} debts · live from your Debts tab`}
             </p>
           </div>
-          <button
-            onClick={handleEyeClick}
-            title={privacyMode ? 'Unlock to show numbers' : 'Hide numbers'}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors mt-1 ${
-              privacyMode
-                ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
-                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-            }`}
-          >
-            {privacyMode ? <Eye size={15} /> : <EyeOff size={15} />}
-            {privacyMode ? 'Unlock' : 'Hide'}
-          </button>
+          <div className="flex items-center gap-2 mt-1 flex-shrink-0">
+            <button
+              onClick={handleExport}
+              disabled={debtsLoading}
+              title={privacyMode
+                ? 'Unlock numbers first, then copy a snapshot for Claude'
+                : 'Copy a Markdown snapshot to paste into a Claude Chat session'}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                copied
+                  ? 'bg-emerald-900/30 border-emerald-600 text-emerald-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+            >
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+              {copied ? 'Copied!' : 'Export for Claude'}
+            </button>
+            <button
+              onClick={handleEyeClick}
+              title={privacyMode ? 'Unlock to show numbers' : 'Hide numbers'}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                privacyMode
+                  ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+            >
+              {privacyMode ? <Eye size={15} /> : <EyeOff size={15} />}
+              {privacyMode ? 'Unlock' : 'Hide'}
+            </button>
+          </div>
         </div>
 
         {/* ── My Numbers (collapsible) ─────────────────────────────────────── */}
