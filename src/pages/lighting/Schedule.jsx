@@ -49,6 +49,40 @@ function Toggle({ on, onClick, title }) {
 
 const hhmm = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
+// Day-of-week bitmask helpers — bit0=Sun, bit1=Mon, …, bit6=Sat (matches strip firmware).
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const dayBit = (i) => 1 << i;
+const dayOn = (mask, i) => !!(mask & dayBit(i));
+const toggleDay = (mask, i) => mask ^ dayBit(i);
+
+function DayPicker({ value = 127, onChange }) {
+  return (
+    <div>
+      <div className="flex items-center mb-1.5">
+        <span className="text-sm text-zinc-300">Repeat on</span>
+        {value === 0 && (
+          <span className="ml-2 text-xs text-amber-400">No days — alarm won&apos;t fire</span>
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        {DAY_LABELS.map((label, i) => (
+          <button
+            key={label}
+            onClick={() => onChange(toggleDay(value, i))}
+            className={`flex-1 rounded-md py-1 text-xs font-semibold transition-colors ${
+              dayOn(value, i)
+                ? 'bg-amber-500 text-zinc-900'
+                : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Schedule() {
   const {
     schedule, loading, missing, updateWake, updateSleep, startBedtime,
@@ -105,6 +139,8 @@ export default function Schedule() {
               className="bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-sm text-zinc-100 tabular-nums"
             />
           </div>
+          <DayPicker value={s.wake_days ?? 127}
+                     onChange={(v) => updateWake({ wake_days: v })} />
           <Slider label="Fade-in length" value={s.wake_fade_min} min={1} max={60} suffix=" min"
                   onChange={(v) => updateWake({ wake_fade_min: v })} accent="accent-amber-400" />
           <Slider label="Target brightness" value={s.wake_brightness} min={1} max={100} suffix="%"
