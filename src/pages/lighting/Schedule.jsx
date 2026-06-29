@@ -153,7 +153,14 @@ export default function Schedule() {
                 t.setHours(s.wake_hour, s.wake_minute - s.wake_fade_min, 0, 0);
                 return t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               })()}
-            </span>{' '}and reaches {s.wake_brightness}% at {hhmm(s.wake_hour, s.wake_minute)}, every day.
+            </span>{' '}and reaches {s.wake_brightness}% at {hhmm(s.wake_hour, s.wake_minute)},{' '}
+            {(() => {
+              const days = s.wake_days ?? 127;
+              if (days === 127) return 'every day';
+              if (days === 0) return 'never (no days selected)';
+              const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+              return names.filter((_, i) => days & (1 << i)).join(', ');
+            })()}.
           </p>
         </div>
       </div>
