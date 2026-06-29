@@ -12,6 +12,7 @@ export const DEFAULT_SCHEDULE = {
   wake_minute: 0,
   wake_fade_min: 15,
   wake_brightness: 100,
+  wake_days: 127,
   sleep_fade_min: 15,
   sleep_brightness: 40,
   bedtime_trigger_at: null,
@@ -20,15 +21,25 @@ export const DEFAULT_SCHEDULE = {
 const tableMissing = (error) =>
   !!error && (error.code === 'PGRST205' || /lighting_schedule/i.test(error.message || ''));
 
+// How long after the last change before we flush to Supabase. Sliders fire on
+// every drag pixel — without debouncing, each pixel triggers a BLE write on the
+// Pi, which saturates the radio and locks up the UI.
+const DEBOUNCE_MS = 600;
+
 export function useLightingSchedule() {
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
-  const [bedtimeSentAt, setBedtimeSentAt] = useState(null); // for UI feedback
+  const [bedtimeSentAt, setBedtimeSentAt] = useState(null);
 
   const ref = useRef(schedule);
   useEffect(() => { ref.current = schedule; }, [schedule]);
+
+  // Pending debounce timer — one timer shared across all slider changes.
+  const debounceTimer = useRef(null);
+  // Whether there's a flush in flight (prevent double-send on rapid toggles).
+  const flushing = useRef(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -52,25 +63,49 @@ export function useLightingSchedule() {
     return () => { cancelled = true; };
   }, [load]);
 
-  const applyChange = useCallback(async (partial) => {
+  const flush = useCallback(async () => {
+    if (!supabase || flushing.current) return;
+    flushing.current = true;
+    const snap = ref.current;
+    const { error } = await supabase.from('lighting_schedule').upsert({
+      ...snap, id: 1, updated_at: new Date().toISOString(),
+    });
+    flushing.current = false;
+    if (tableMissing(error)) setMissing(true);
+  }, []);
+
+  // applyChange: update local state immediately (responsive UI), schedule a
+  // debounced Supabase write so slider drags only produce one network call.
+  const applyChange = useCallback((partial, { immediate = false } = {}) => {
     const next = { ...ref.current, ...partial };
     ref.current = next;
     setSchedule(next);
     if (!supabase) return;
-    const { error } = await supabase.from('lighting_schedule').upsert({
-      ...next, id: 1, updated_at: new Date().toISOString(),
-    });
-    if (tableMissing(error)) setMissing(true);
-  }, []);
+    clearTimeout(debounceTimer.current);
+    if (immediate) {
+      flush();
+    } else {
+      debounceTimer.current = setTimeout(flush, DEBOUNCE_MS);
+    }
+  }, [flush]);
 
-  // Convenience writers.
-  const updateWake = useCallback((partial) => applyChange(partial), [applyChange]);
-  const updateSleep = useCallback((partial) => applyChange(partial), [applyChange]);
+  // Toggles and discrete pickers (not sliders) flush immediately.
+  const updateWake = useCallback((partial) => {
+    const isSlider = Object.keys(partial).some((k) =>
+      ['wake_fade_min', 'wake_brightness'].includes(k));
+    applyChange(partial, { immediate: !isSlider });
+  }, [applyChange]);
 
-  // Fire the on-demand bedtime: bump bedtime_trigger_at; the Pi runs it once.
+  const updateSleep = useCallback((partial) => {
+    const isSlider = Object.keys(partial).some((k) =>
+      ['sleep_fade_min', 'sleep_brightness'].includes(k));
+    applyChange(partial, { immediate: !isSlider });
+  }, [applyChange]);
+
+  // Bedtime trigger always flushes immediately — timing matters.
   const startBedtime = useCallback(async () => {
     const ts = new Date().toISOString();
-    await applyChange({ bedtime_trigger_at: ts });
+    applyChange({ bedtime_trigger_at: ts }, { immediate: true });
     setBedtimeSentAt(new Date());
   }, [applyChange]);
 
