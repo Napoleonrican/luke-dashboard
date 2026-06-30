@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, Settings, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, Settings, ExternalLink, Copy, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchDebts } from '../lib/fin';
+import { buildSnapshotMarkdown } from '../lib/claudeExport';
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -290,6 +291,62 @@ export default function DebtCalculator() {
     `w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 text-sm text-white
      focus:outline-none focus:border-purple-500 transition-colors${blur && privacyMode ? ' blur-sm' : ''}`;
 
+  // ── Strategy comparison (all strategies, same income assumptions) ──────────
+  // Re-runs each strategy so the Claude export can table interest/time side by
+  // side. extraPerMonth is income-driven, so it's identical across strategies.
+  const strategyComparison = useMemo(
+    () => STRATEGIES.map((s) => {
+      const sim = simulate(debts, s.id, extraPerMonth);
+      return {
+        id: s.id,
+        label: s.label,
+        totalInterest: sim.totalInterest,
+        debtFreeMonth: sim.months.length > 0 ? sim.months.length - 1 : null,
+      };
+    }),
+    [debts, extraPerMonth],
+  );
+
+  // ── Export snapshot for Claude Chat ────────────────────────────────────────
+  const [copied, setCopied] = useState(false);
+
+  function downloadFallback(md) {
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `financial-snapshot-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExport() {
+    // Don't dump plaintext financials while numbers are hidden — unlock first.
+    if (privacyMode) { setPrivacyMode(false); return; }
+
+    const md = buildSnapshotMarkdown({
+      takeHome, weeklyGross, monthlyGigNet, totalIncome,
+      billsVariable, totalDebtMins, monthlyOutflow,
+      monthlyDeficit, breakEvenWeekly, extraPerMonth,
+      strategyId: strategy,
+      strategyLabel: STRATEGIES.find((s) => s.id === strategy)?.label || strategy,
+      debtFreeMonth,
+      debts: debts.map((d) => ({
+        name: d.name, balance: d.balance, apr: d.apr, min: d.min, tag: d.tag,
+        payoffMonth: d.id in payoffMonths ? payoffMonths[d.id] : null,
+      })),
+      strategyComparison,
+    });
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(md)
+        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+        .catch(() => downloadFallback(md));
+    } else {
+      downloadFallback(md);
+    }
+  }
+
   const tabs = ['Balance Over Time', 'Interest Paid', 'Payoff Sequence'];
 
   return (
@@ -307,11 +364,26 @@ export default function DebtCalculator() {
               {debtsLoading ? 'Loading debts…' : `${debts.length} lenders · live from your Debts tab`}
             </p>
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-shrink-0">
             <Link to="/debt-calculator/settings" title="Benchmark settings"
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors">
               <Settings size={15} />
             </Link>
+            <button
+              onClick={handleExport}
+              disabled={debtsLoading}
+              title={privacyMode
+                ? 'Show numbers first, then copy a snapshot for Claude'
+                : 'Copy a Markdown snapshot to paste into a Claude Chat session'}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                copied
+                  ? 'bg-emerald-900/30 border-emerald-600 text-emerald-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+              }`}
+            >
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+              {copied ? 'Copied!' : 'Export for Claude'}
+            </button>
             <button onClick={() => setPrivacyMode((p) => !p)}
               title={privacyMode ? 'Show numbers' : 'Hide numbers'}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${

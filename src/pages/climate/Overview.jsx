@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle } from 'lucide-react';
+import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle, Bot, PowerOff } from 'lucide-react';
 import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -90,13 +90,83 @@ function fmtLiveState(s) {
   return parts.join(' · ');
 }
 
+// Derive the four control-mode states from the three Supabase signals.
+// Priority: comfort mode > executor off > schedule only > fully automatic.
+function useControlMode(comfortMode, executorEnabled, goalsText) {
+  if (comfortMode)            return 'comfort';
+  if (!executorEnabled)       return 'manual';
+  if (!goalsText?.trim())     return 'schedule';
+  return 'auto';
+}
+
+const CONTROL_MODE_CONFIG = {
+  comfort: {
+    Icon: Sparkles,
+    label: 'Comfort Mode Active',
+    desc: 'Normal schedule is paused — the executor is following your manual instruction.',
+    border: 'border-violet-500/40',
+    bg: 'bg-violet-500/10',
+    text: 'text-violet-300',
+    iconColor: 'text-violet-400',
+  },
+  manual: {
+    Icon: PowerOff,
+    label: 'Manual Control',
+    desc: 'Dashboard executor is off — the AC is not following the schedule. Enable it in Settings.',
+    border: 'border-red-500/40',
+    bg: 'bg-red-500/10',
+    text: 'text-red-300',
+    iconColor: 'text-red-400',
+  },
+  schedule: {
+    Icon: CalendarClock,
+    label: 'Schedule Only',
+    desc: 'Following the preset schedule, but no goals are set — the agent has nothing to optimise toward. Add goals to enable Fully Automatic mode.',
+    border: 'border-amber-500/40',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-300',
+    iconColor: 'text-amber-400',
+  },
+  auto: {
+    Icon: Bot,
+    label: 'Fully Automatic',
+    desc: 'Goals are set and the nightly agent is actively tuning the schedule toward them.',
+    border: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-300',
+    iconColor: 'text-emerald-400',
+  },
+};
+
 export default function Overview() {
   const {
     sensors, latest, weather, weatherLoading, unit,
-    schedule, executorEnabled, lastAcPush, acLiveState, loading,
+    schedule, executorEnabled, goalsText, lastAcPush, acLiveState, loading,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts,
   } = useOutletContext();
+
+  const controlMode = useControlMode(comfortMode, executorEnabled, goalsText);
+  const modeCfg = CONTROL_MODE_CONFIG[controlMode];
+
+  // Fully Automatic banner fades out after 10s then unmounts — it's the "all good"
+  // state and doesn't need to stay in the way (or take up layout space) once seen.
+  const [autoBannerVisible, setAutoBannerVisible] = useState(true);
+  const [autoBannerMounted, setAutoBannerMounted] = useState(true);
+  useEffect(() => {
+    if (controlMode !== 'auto') {
+      setAutoBannerVisible(true);
+      setAutoBannerMounted(true);
+      return;
+    }
+    const fadeTimer = setTimeout(() => setAutoBannerVisible(false), 10_000);
+    // Unmount after fade completes (10s delay + 1s transition) so no layout gap remains.
+    const unmountTimer = setTimeout(() => setAutoBannerMounted(false), 11_000);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(unmountTimer);
+    };
+  }, [controlMode]);
 
   // Sensors currently reporting below the low-battery threshold (for the banner).
   const lowBattery = sensors
@@ -156,6 +226,17 @@ export default function Overview() {
                 {s.label || s.name} <span className="text-red-400/80 tabular-nums">({batt}%)</span>
               </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Control-mode status banner — "auto" fades out after 10s then unmounts to clear layout */}
+      {(controlMode !== 'auto' || autoBannerMounted) && (
+        <div className={`rounded-xl border ${modeCfg.border} ${modeCfg.bg} p-3 flex items-start gap-2 transition-opacity duration-1000 ${controlMode === 'auto' && !autoBannerVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <modeCfg.Icon size={15} className={`${modeCfg.iconColor} mt-0.5 shrink-0`} />
+          <div className="text-sm leading-snug">
+            <span className={`font-semibold ${modeCfg.text}`}>{modeCfg.label}</span>
+            <span className={`${modeCfg.text} opacity-80`}> — {modeCfg.desc}</span>
           </div>
         </div>
       )}
@@ -328,18 +409,17 @@ export default function Overview() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-zinc-500">Goal</span>
-                {[68, 70, 72, 75].map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setCmTemp(cmTemp === t ? null : t)}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${cmTemp === t ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    {t}°F
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-[11px] text-zinc-500 shrink-0">Goal</span>
+                <input
+                  type="range"
+                  min={62}
+                  max={86}
+                  value={cmTemp ?? 72}
+                  onChange={(e) => setCmTemp(Number(e.target.value))}
+                  className="flex-1 h-1 accent-violet-500 cursor-pointer"
+                />
+                <span className="text-[11px] text-zinc-300 tabular-nums w-8 text-right shrink-0">{cmTemp ?? 72}°F</span>
               </div>
             </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">

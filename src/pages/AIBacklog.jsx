@@ -1,18 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, ChevronDown, ChevronUp, X, Check,
-  Bot, Users, User, CheckCircle2, ListTodo
+  Bot, Users, User, CheckCircle2, ListTodo, Pencil
 } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
-
-const SECTIONS = [
-  { id: 'active_queue', label: 'Active Queue',                       short: 'Active Queue' },
-  { id: 'research',     label: 'Research & Analysis',                 short: 'Research' },
-  { id: 'writing',      label: 'Writing & Drafts',                    short: 'Writing' },
-  { id: 'decisions',    label: 'Decisions & Thinking',                short: 'Decisions' },
-  { id: 'gig_tracker',  label: 'Gig Tracker — Business & Strategy',   short: 'Gig Tracker' },
-];
 
 const PRIORITY_MAP = {
   high:   { label: '🔴 Do soon',             dot: 'bg-red-500',    badge: 'bg-red-900/40 text-red-300' },
@@ -21,9 +13,9 @@ const PRIORITY_MAP = {
 };
 
 const OWNER_MAP = {
-  agent:  { label: '🤖 Agent only',             Icon: Bot,   color: 'text-blue-400' },
-  shared: { label: '👥 Agent + Luke reviews',   Icon: Users, color: 'text-purple-400' },
-  luke:   { label: '🧑 Luke only',              Icon: User,  color: 'text-orange-400' },
+  agent:  { label: '🤖 Agent only',            Icon: Bot,   color: 'text-blue-400' },
+  shared: { label: '👥 Agent + Luke reviews',  Icon: Users, color: 'text-purple-400' },
+  luke:   { label: '🧑 Luke only',             Icon: User,  color: 'text-orange-400' },
 };
 
 const STATUS_MAP = {
@@ -69,7 +61,7 @@ const SEED_TASKS = [
   },
 ];
 
-const BLANK_FORM = { task_name: '', priority: 'medium', owner: 'agent', notes: '', section: 'active_queue' };
+const BLANK_MODAL = { id: null, task_name: '', priority: 'medium', owner: 'agent', notes: '', section: 'active_queue' };
 
 export default function AIBacklog() {
   const [tasks, setTasks]                   = useState([]);
@@ -78,8 +70,7 @@ export default function AIBacklog() {
   const [expandedNotes, setExpandedNotes]   = useState({});
   const [openStatus, setOpenStatus]         = useState(null);
   const [openPriority, setOpenPriority]     = useState(null);
-  const [adding, setAdding]                 = useState(false);
-  const [newTask, setNewTask]               = useState(BLANK_FORM);
+  const [modalTask, setModalTask]           = useState(null);
   const [filterStatus, setFilterStatus]     = useState('');
   const [filterPriority, setFilterPriority] = useState('');
 
@@ -94,6 +85,16 @@ export default function AIBacklog() {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [openStatus, openPriority]);
+
+  // Close modal on Escape from any focused element
+  useEffect(() => {
+    if (!modalTask) return;
+    function handleKey(e) {
+      if (e.key === 'Escape') setModalTask(null);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [modalTask]);
 
   async function loadTasks() {
     if (!supabase) { setTasks(SEED_TASKS); setLoading(false); return; }
@@ -110,6 +111,71 @@ export default function AIBacklog() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function openModal(task = null) {
+    if (task) {
+      setModalTask({
+        id:        task.id,
+        task_name: task.task_name,
+        priority:  task.priority,
+        owner:     task.owner,
+        notes:     task.notes || '',
+        section:   task.section || 'active_queue',
+      });
+    } else {
+      setModalTask({ ...BLANK_MODAL });
+    }
+  }
+
+  async function saveModal() {
+    if (!modalTask.task_name.trim()) return;
+
+    if (modalTask.id) {
+      const updates = {
+        task_name: modalTask.task_name.trim(),
+        notes:     modalTask.notes.trim(),
+        priority:  modalTask.priority,
+        owner:     modalTask.owner,
+      };
+      setTasks(prev => prev.map(t => t.id === modalTask.id ? { ...t, ...updates } : t));
+      if (dbAvailable && supabase) {
+        await supabase.from('ai_backlog_tasks').update(updates).eq('id', modalTask.id);
+      }
+    } else {
+      const count = tasks.filter(t => t.section === modalTask.section).length;
+      const task = {
+        id:             `local-${Date.now()}`,
+        section:        modalTask.section,
+        task_number:    String(count + 1),
+        task_name:      modalTask.task_name.trim(),
+        priority:       modalTask.priority,
+        owner:          modalTask.owner,
+        status:         'pending',
+        notes:          modalTask.notes.trim(),
+        completed_date: null,
+        output_link:    null,
+      };
+      if (dbAvailable && supabase) {
+        const { data } = await supabase
+          .from('ai_backlog_tasks')
+          .insert({
+            section:     task.section,
+            task_number: task.task_number,
+            task_name:   task.task_name,
+            priority:    task.priority,
+            owner:       task.owner,
+            status:      task.status,
+            notes:       task.notes,
+          })
+          .select()
+          .single();
+        if (data) task.id = data.id;
+      }
+      setTasks(prev => [...prev, task]);
+    }
+
+    setModalTask(null);
   }
 
   async function updateStatus(taskId, status) {
@@ -135,42 +201,6 @@ export default function AIBacklog() {
     }
   }
 
-  async function addTask() {
-    if (!newTask.task_name.trim()) return;
-    const count = tasks.filter(t => t.section === newTask.section).length;
-    const task = {
-      id:             `local-${Date.now()}`,
-      section:        newTask.section,
-      task_number:    String(count + 1),
-      task_name:      newTask.task_name.trim(),
-      priority:       newTask.priority,
-      owner:          newTask.owner,
-      status:         'pending',
-      notes:          newTask.notes.trim(),
-      completed_date: null,
-      output_link:    null,
-    };
-    if (dbAvailable && supabase) {
-      const { data } = await supabase
-        .from('ai_backlog_tasks')
-        .insert({
-          section:     task.section,
-          task_number: task.task_number,
-          task_name:   task.task_name,
-          priority:    task.priority,
-          owner:       task.owner,
-          status:      task.status,
-          notes:       task.notes,
-        })
-        .select()
-        .single();
-      if (data) task.id = data.id;
-    }
-    setTasks(prev => [...prev, task]);
-    setNewTask(BLANK_FORM);
-    setAdding(false);
-  }
-
   async function deleteTask(taskId) {
     setTasks(prev => prev.filter(t => t.id !== taskId));
     if (dbAvailable && supabase) {
@@ -192,6 +222,8 @@ export default function AIBacklog() {
     { label: 'In Progress', value: tasks.filter(t => t.status === 'in_progress').length, color: 'text-blue-400' },
     { label: 'Done',        value: completedTasks.length,                                color: 'text-green-400' },
   ];
+
+  const isEditing = modalTask?.id != null;
 
   if (loading) return (
     <div className="min-h-screen text-white">
@@ -223,7 +255,7 @@ export default function AIBacklog() {
               </span>
             )}
             <button
-              onClick={() => { setAdding(a => !a); setNewTask(BLANK_FORM); }}
+              onClick={() => openModal()}
               className="flex items-center gap-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded px-3 py-1.5 transition-colors"
             >
               <Plus size={13} /> Add Task
@@ -240,68 +272,6 @@ export default function AIBacklog() {
             </div>
           ))}
         </div>
-
-        {/* Add Task Form */}
-        {adding && (
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 mb-4 space-y-2.5">
-            <input
-              autoFocus
-              value={newTask.task_name}
-              onChange={e => setNewTask(p => ({ ...p, task_name: e.target.value }))}
-              placeholder="Task name..."
-              className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-600 rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500"
-              onKeyDown={e => {
-                if (e.key === 'Enter')  addTask();
-                if (e.key === 'Escape') setAdding(false);
-              }}
-            />
-            <textarea
-              value={newTask.notes}
-              onChange={e => setNewTask(p => ({ ...p, notes: e.target.value }))}
-              placeholder="Notes (optional)..."
-              rows={2}
-              className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
-            />
-            <div className="flex gap-2 flex-wrap">
-              <select
-                value={newTask.section}
-                onChange={e => setNewTask(p => ({ ...p, section: e.target.value }))}
-                className="flex-1 min-w-[140px] text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
-              >
-                {SECTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
-              <select
-                value={newTask.priority}
-                onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}
-                className="flex-1 min-w-[130px] text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
-              >
-                {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
-              <select
-                value={newTask.owner}
-                onChange={e => setNewTask(p => ({ ...p, owner: e.target.value }))}
-                className="flex-1 min-w-[120px] text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
-              >
-                {OWNER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setAdding(false)}
-                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addTask}
-                disabled={!newTask.task_name.trim()}
-                className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
-              >
-                <Check size={11} /> Add
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Filters */}
         <div className="flex items-center gap-2 mb-5 flex-wrap">
@@ -366,7 +336,7 @@ export default function AIBacklog() {
                           {noted ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
                       )}
-                      {/* Priority badge — editable */}
+                      {/* Priority badge */}
                       <div className="relative flex-shrink-0" data-priority-dropdown>
                         <button
                           onClick={() => setOpenPriority(openPriority === task.id ? null : task.id)}
@@ -392,7 +362,7 @@ export default function AIBacklog() {
                           </div>
                         )}
                       </div>
-                      {/* Status badge — editable */}
+                      {/* Status badge */}
                       <div className="relative flex-shrink-0" data-status-dropdown>
                         <button
                           onClick={() => setOpenStatus(openStatus === task.id ? null : task.id)}
@@ -417,6 +387,15 @@ export default function AIBacklog() {
                           </div>
                         )}
                       </div>
+                      {/* Edit */}
+                      <button
+                        onClick={() => openModal(task)}
+                        className="text-zinc-700 hover:text-violet-400 transition-colors flex-shrink-0"
+                        title="Edit task"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      {/* Delete */}
                       <button
                         onClick={() => deleteTask(task.id)}
                         className="text-zinc-700 hover:text-red-400 transition-colors flex-shrink-0"
@@ -475,6 +454,83 @@ export default function AIBacklog() {
         )}
 
       </div>
+
+      {/* Add / Edit Modal */}
+      {modalTask && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+          onClick={() => setModalTask(null)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-md p-5 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-zinc-200">
+                {isEditing ? 'Edit Task' : 'New Task'}
+              </h2>
+              <button
+                onClick={() => setModalTask(null)}
+                className="text-zinc-600 hover:text-zinc-300 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                autoFocus
+                value={modalTask.task_name}
+                onChange={e => setModalTask(p => ({ ...p, task_name: e.target.value }))}
+                placeholder="Task name..."
+                className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) saveModal();
+                }}
+              />
+              <textarea
+                value={modalTask.notes}
+                onChange={e => setModalTask(p => ({ ...p, notes: e.target.value }))}
+                placeholder="Notes (optional)..."
+                rows={3}
+                className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={modalTask.priority}
+                  onChange={e => setModalTask(p => ({ ...p, priority: e.target.value }))}
+                  className="flex-1 text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
+                >
+                  {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                <select
+                  value={modalTask.owner}
+                  onChange={e => setModalTask(p => ({ ...p, owner: e.target.value }))}
+                  className="flex-1 text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
+                >
+                  {OWNER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setModalTask(null)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveModal}
+                  disabled={!modalTask.task_name.trim()}
+                  className="text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded px-4 py-1.5 flex items-center gap-1.5 transition-colors"
+                >
+                  <Check size={11} /> {isEditing ? 'Save' : 'Add'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

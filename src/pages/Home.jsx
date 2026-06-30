@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, GitBranch,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -78,6 +78,14 @@ const SECTIONS = [
         accentColor: 'text-violet-400',
         feature: true,
         statKey: 'backlog',
+      },
+      {
+        icon: GitBranch,
+        title: 'GitHub Issues',
+        description: 'All open issues across your repos — sorted by urgency, reply inline.',
+        to: '/github-issues',
+        accentColor: 'text-zinc-400',
+        feature: true,
       },
       {
         icon: Inbox,
@@ -214,7 +222,7 @@ export default function Home() {
   if (data.claude) {
     chips.push({
       to: '/ai-backlog', icon: Bot, label: 'Claude week',
-      countTo: data.claude.pct, format: (n) => `${n.toFixed(1)}% used`,
+      countTo: data.claude.pct, format: (n) => `${n.toFixed(0)}% elapsed`,
       accent: 'text-amber-400',
     });
   }
