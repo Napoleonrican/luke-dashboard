@@ -521,13 +521,14 @@ export default function DebtCalculator() {
                   <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
                     <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 10 }} interval="preserveStartEnd" />
-                    <YAxis tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`} tick={{ fill: '#71717a', fontSize: 10 }} width={44} />
+                    <YAxis yAxisId="left" tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`} tick={{ fill: '#71717a', fontSize: 10 }} width={44} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => privacyMode ? '●●●' : `$${(v / 1000).toFixed(0)}k`} tick={{ fill: '#52525b', fontSize: 10 }} width={44} />
                     <Tooltip content={(props) => <DarkTooltip {...props} privacyMode={privacyMode} />} />
                     <Legend wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
                     {debts.map((d) => (
-                      <Line key={d.id} type="monotone" dataKey={d.id} name={d.name} stroke={debtColor[d.id]} dot={false} strokeWidth={1.5} />
+                      <Line key={d.id} yAxisId="left" type="monotone" dataKey={d.id} name={d.name} stroke={debtColor[d.id]} dot={false} strokeWidth={1.5} />
                     ))}
-                    <Line type="monotone" dataKey="totalBalance" name="Total" stroke="#ffffff" dot={false} strokeWidth={2} strokeDasharray="5 5" />
+                    <Line yAxisId="right" type="monotone" dataKey="totalBalance" name="Total" stroke="#ffffff" dot={false} strokeWidth={2} strokeDasharray="5 5" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : activeTab === 1 ? (
