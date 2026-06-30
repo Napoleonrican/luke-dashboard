@@ -7,6 +7,7 @@ import { useRandomPalette } from './utils/useRandomPalette';
 const Home = lazy(() => import('./pages/Home'));
 const TaskManager = lazy(() => import('./pages/TaskManager'));
 const DebtCalculator = lazy(() => import('./pages/DebtCalculator'));
+const DebtCalcSettings = lazy(() => import('./pages/DebtCalcSettings'));
 const VersaRepair = lazy(() => import('./pages/VersaRepair'));
 const GigTracker = lazy(() => import('./pages/GigTracker'));
 const ClimateLayout = lazy(() => import('./pages/climate/ClimateLayout'));
@@ -43,6 +44,9 @@ export default function App() {
         } />
         <Route path="/debt-calculator" element={
           <FinancialAuthGate><DebtCalculator /></FinancialAuthGate>
+        } />
+        <Route path="/debt-calculator/settings" element={
+          <FinancialAuthGate><DebtCalcSettings /></FinancialAuthGate>
         } />
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
