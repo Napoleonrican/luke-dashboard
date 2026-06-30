@@ -40,6 +40,8 @@ export function useLightingSchedule() {
   const debounceTimer = useRef(null);
   // Whether there's a flush in flight (prevent double-send on rapid toggles).
   const flushing = useRef(false);
+  // Whether a flush was skipped while one was in flight — triggers a trailing re-flush.
+  const dirty = useRef(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -64,14 +66,28 @@ export function useLightingSchedule() {
   }, [load]);
 
   const flush = useCallback(async () => {
-    if (!supabase || flushing.current) return;
+    if (!supabase) return;
+    if (flushing.current) {
+      // A write is already in flight; mark dirty so it re-flushes with the
+      // latest state once the current upsert resolves. Without this, rapid
+      // discrete taps (e.g. day-picker) can silently lose all but the first.
+      dirty.current = true;
+      return;
+    }
     flushing.current = true;
+    dirty.current = false;
     const snap = ref.current;
     const { error } = await supabase.from('lighting_schedule').upsert({
       ...snap, id: 1, updated_at: new Date().toISOString(),
     });
     flushing.current = false;
     if (tableMissing(error)) setMissing(true);
+    // If any writes were skipped during the in-flight upsert, flush once more
+    // with the latest ref state so nothing is silently dropped.
+    if (dirty.current) {
+      dirty.current = false;
+      flush();
+    }
   }, []);
 
   // applyChange: update local state immediately (responsive UI), schedule a
