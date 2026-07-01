@@ -17,8 +17,7 @@ const Schedule = lazy(() => import('./pages/climate/Schedule'));
 const Goals = lazy(() => import('./pages/climate/Goals'));
 const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
 const Settings = lazy(() => import('./pages/climate/Settings'));
-const AIBacklog = lazy(() => import('./pages/AIBacklog'));
-const GitHubIssues = lazy(() => import('./pages/GitHubIssues'));
+const MissionControl = lazy(() => import('./pages/MissionControl'));
 const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
@@ -81,8 +80,14 @@ export default function App() {
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="inputs" element={<Inputs />} />
         </Route>
-        <Route path="/ai-backlog" element={<AIBacklog />} />
-        <Route path="/github-issues" element={<GitHubIssues />} />
+        <Route path="/mission-control" element={
+          <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">
+            <MissionControl />
+          </FinancialAuthGate>
+        } />
+        {/* Mission Control replaced the standalone Backlog + Issues pages; keep old URLs working. */}
+        <Route path="/ai-backlog" element={<Navigate to="/mission-control" replace />} />
+        <Route path="/github-issues" element={<Navigate to="/mission-control" replace />} />
       </Routes>
       </Suspense>
     </div>
