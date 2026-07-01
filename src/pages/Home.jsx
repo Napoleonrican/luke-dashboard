@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, GitBranch,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, Radar,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -71,21 +71,13 @@ const SECTIONS = [
     label: 'Productivity',
     items: [
       {
-        icon: ListTodo,
-        title: 'AI Sidekick Backlog',
-        description: 'Track and manage the async tasks your Sidekick agent works on overnight.',
-        to: '/ai-backlog',
-        accentColor: 'text-violet-400',
+        icon: Radar,
+        title: 'Mission Control',
+        description: 'Your Sidekick, watching every project — what changed, what needs you, and your backlog, in one place.',
+        to: '/mission-control',
+        accentColor: 'text-cyan-400',
         feature: true,
         statKey: 'backlog',
-      },
-      {
-        icon: GitBranch,
-        title: 'GitHub Issues',
-        description: 'All open issues across your repos — sorted by urgency, reply inline.',
-        to: '/github-issues',
-        accentColor: 'text-zinc-400',
-        feature: true,
       },
       {
         icon: Inbox,
@@ -204,7 +196,7 @@ export default function Home() {
   }
   if (data.backlog) {
     chips.push({
-      to: '/ai-backlog', icon: TaskChip, label: 'Backlog',
+      to: '/mission-control', icon: TaskChip, label: 'Backlog',
       countTo: data.backlog.pending, format: (n) => `${Math.round(n)} pending`,
       accent: 'text-violet-400',
     });
@@ -221,7 +213,7 @@ export default function Home() {
   }
   if (data.claude) {
     chips.push({
-      to: '/ai-backlog', icon: Bot, label: 'Claude week',
+      to: '/mission-control', icon: Bot, label: 'Claude week',
       countTo: data.claude.pct, format: (n) => `${n.toFixed(0)}% elapsed`,
       accent: 'text-amber-400',
     });

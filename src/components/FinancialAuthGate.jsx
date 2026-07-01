@@ -2,11 +2,17 @@ import { useState } from 'react';
 import { ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../lib/useAuth';
 
-// Server-side auth gate for the financial modules. Validates a real Supabase
-// session before rendering anything — so financial data is never served to an
+// Server-side auth gate for private modules. Validates a real Supabase session
+// before rendering anything — so gated data is never served to an
 // unauthenticated visitor, even one who pokes through the JS bundle. Combine
-// with RLS on the financial tables (see supabase/migrations) for defense in depth.
-export default function FinancialAuthGate({ children }) {
+// with RLS on the underlying tables (see supabase/migrations) for defense in
+// depth. Copy defaults to the financial framing; pass `title` / `subtitle` to
+// reuse it for other private modules (e.g. Mission Control).
+export default function FinancialAuthGate({
+  children,
+  title = 'Financial Access',
+  subtitle = 'Secure sign-in required for financial data',
+}) {
   const { session, loading, signIn, configured } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,8 +50,8 @@ export default function FinancialAuthGate({ children }) {
             <ShieldCheck size={22} strokeWidth={1.75} />
           </div>
           <div className="text-center">
-            <h2 className="text-base font-semibold text-zinc-100">Financial Access</h2>
-            <p className="mt-1 text-xs text-zinc-500">Secure sign-in required for financial data</p>
+            <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
+            <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>
           </div>
         </div>
 
