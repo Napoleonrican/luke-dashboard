@@ -76,8 +76,10 @@ async function loadClimate(unit) {
       .select('active')
       .eq('active', true)
       .limit(1);
+    const comfortActive = Boolean(comfort?.length);
     let acState = 'Manual control';
-    if (comfort?.length) {
+    let executorEnabled = false;
+    if (comfortActive) {
       acState = 'Comfort Mode';
     } else {
       const { data: prefs } = await supabase
@@ -85,13 +87,16 @@ async function loadClimate(unit) {
         .select('executor_enabled')
         .eq('id', 1)
         .limit(1);
-      acState = prefs?.[0]?.executor_enabled ? 'Dashboard control' : 'Manual control';
+      executorEnabled = Boolean(prefs?.[0]?.executor_enabled);
+      acState = executorEnabled ? 'Dashboard control' : 'Manual control';
     }
 
     return {
       indoorTemp: indoorC != null ? fmtTemp(indoorC, unit) : null,
       sensorCount: sensors.length,
       acState,
+      comfortActive,
+      executorEnabled,
       stale,
       spark,
     };
