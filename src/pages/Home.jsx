@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, Radar,
+  Inbox, Fuel, Wallet, Wrench, ListChecks, Mail, Truck, Thermometer, ListTodo, Lightbulb, Droplets, Bot, Radar, Gauge,
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
@@ -78,6 +78,13 @@ const SECTIONS = [
         accentColor: 'text-cyan-400',
         feature: true,
         statKey: 'backlog',
+      },
+      {
+        icon: Gauge,
+        title: 'Routine Usage',
+        description: 'Real token burn per agent, summed from each run — spot heavy routines and plan model or schedule changes.',
+        to: '/routine-usage',
+        accentColor: 'text-emerald-400',
       },
       {
         icon: Inbox,

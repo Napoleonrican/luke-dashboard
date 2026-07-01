@@ -18,6 +18,7 @@ const Goals = lazy(() => import('./pages/climate/Goals'));
 const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
 const Settings = lazy(() => import('./pages/climate/Settings'));
 const MissionControl = lazy(() => import('./pages/MissionControl'));
+const RoutineUsage = lazy(() => import('./pages/RoutineUsage'));
 const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
@@ -83,6 +84,11 @@ export default function App() {
         <Route path="/mission-control" element={
           <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">
             <MissionControl />
+          </FinancialAuthGate>
+        } />
+        <Route path="/routine-usage" element={
+          <FinancialAuthGate title="Routine Usage" subtitle="Secure sign-in required">
+            <RoutineUsage />
           </FinancialAuthGate>
         } />
         {/* Mission Control replaced the standalone Backlog + Issues pages; keep old URLs working. */}
