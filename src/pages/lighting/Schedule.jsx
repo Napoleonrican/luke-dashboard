@@ -326,7 +326,7 @@ export default function Schedule() {
 
   return (
     <div className="flex flex-col gap-5">
-      {missing && <MissingNotice table="lighting_schedule" migration="020_lighting_schedule.sql" />}
+      {missing && <MissingNotice table="lighting_schedule" migration="030_lighting_schedule.sql" />}
       {timersMissing && <MissingNotice table="lighting_timers" migration="026_lighting_timers.sql" />}
 
       <p className="text-xs text-zinc-500 leading-relaxed">
