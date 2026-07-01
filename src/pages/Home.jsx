@@ -4,6 +4,7 @@ import {
   Thermometer as ThermoChip, Cloud, ListTodo as TaskChip, Truck as GigChip, Lightbulb as LightChip,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
+import ClimateHero from '../components/ClimateHero';
 import Sparkline from '../components/Sparkline';
 import { useHomeData } from './useHomeData';
 import { useCountUp } from '../utils/useCountUp';
@@ -187,6 +188,10 @@ function SnapshotChip({ to, icon: Icon, label, value, countTo, format, accent, d
 export default function Home() {
   const data = useHomeData();
 
+  // Proof-of-concept: when live climate data is present, promote it to a hero
+  // widget above the grid and drop its launcher tile below to avoid duplication.
+  const heroActive = !!data.climate?.indoorTemp;
+
   const chips = [];
   if (data.climate?.indoorTemp) {
     chips.push({ to: '/climate', icon: ThermoChip, label: 'Indoor', value: data.climate.indoorTemp, accent: 'text-cyan-400' });
@@ -243,6 +248,10 @@ export default function Home() {
           </p>
         </header>
 
+        {/* Hero widget POC — renders the Climate module's live content + an
+            inline AC control, instead of a plain shortcut card. */}
+        {heroActive && <ClimateHero climate={data.climate} outdoor={data.outdoor} />}
+
         {/* Live snapshot strip — only renders chips that have data */}
         {chips.length > 0 && (
           <div className="mb-10 flex flex-wrap gap-2">
@@ -268,7 +277,9 @@ export default function Home() {
                 {group.note && <p className="mt-0.5 text-xs text-zinc-600">{group.note}</p>}
               </div>
               <div className="space-y-3">
-                {group.items.map((tool) => (
+                {group.items
+                  .filter((tool) => !(heroActive && tool.statKey === 'climate'))
+                  .map((tool) => (
                   <ToolCard
                     key={tool.title}
                     {...tool}
