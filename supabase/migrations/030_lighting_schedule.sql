@@ -9,6 +9,8 @@
 --
 -- Maps to reverse-engineered commands: wake = 0x33 0x12 (absolute daily alarm),
 -- bedtime = 0x33 0x11 ("Sleeping" countdown, relative), sync = 0x33 0x09.
+-- (Previously filed as 020_lighting_schedule.sql; renamed to 030 to fix ordinal
+--  collision with 020_debts_workbook_columns.sql. Migration already applied to DB.)
 
 CREATE TABLE IF NOT EXISTS lighting_schedule (
   id              smallint    PRIMARY KEY DEFAULT 1,
