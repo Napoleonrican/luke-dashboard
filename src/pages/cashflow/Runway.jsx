@@ -1,81 +1,349 @@
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  ResponsiveContainer, ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-} from 'recharts';
+  ArrowDownToLine, SkipForward, X, Plus, Trash2, Layers, CalendarClock,
+} from 'lucide-react';
 import { Redacted } from './CashflowLayout';
-import { RUNWAY_DAYS, UPCOMING_DEBITS, typeColor, fmt, fmtDec } from './mockData';
+import {
+  fetchBills, fetchDebts, fetchDigitalSubs, fetchRunwayManual, fetchRunwayDeck,
+  addToDeck, updateDeck, deleteRow, updateRow, upsertRunwayManual, getPref, setPref,
+} from '../../lib/fin';
+import { fmt, fmtDec, fmtDate } from './format';
+import { DaysBadge } from './cells';
+import { Td } from './tableparts';
+import EditCell from './EditCell';
+import {
+  normalizeSources, upcomingItems, deckItems, withinWindow, bucketTotals,
+  advanceDate, itemKey, TABLE_FOR, DUE_COL_FOR, todayISO,
+} from './runway';
 
-// Short Term Needs & Planning — the day-by-day runway. Shows whether projected
-// earnings keep "ending available" above zero through the week, plus the dated
-// list of debits driving each day's need.
+const TYPE_COLOR = {
+  Bill: '#3b82f6', 'Debt/Loan': '#8b5cf6', 'Digital Sub.': '#ec4899',
+  'One-Time': '#f59e0b', 'Consumable Sub.': '#10b981',
+};
+const typeColor = (t) => TYPE_COLOR[t] || '#94a3b8';
+const MANUAL_TYPES = ['Bill', 'Debt/Loan', 'One-Time', 'Digital Sub.'];
+
+const WINDOW_PREF = 'runway_window';
+const WINDOWS = [7, 14, 30];
+
 export default function Runway() {
   const { privacy } = useOutletContext();
+  const [bills, setBills] = useState([]);
+  const [debts, setDebts] = useState([]);
+  const [digital, setDigital] = useState([]);
+  const [manual, setManual] = useState([]);
+  const [deck, setDeck] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [windowDays, setWindowDays] = useState(14);
 
-  const lowest   = Math.min(...RUNWAY_DAYS.map((d) => d.end));
-  const totalNeed = RUNWAY_DAYS.reduce((s, d) => s + d.needed, 0);
-  const totalEarn = RUNWAY_DAYS.reduce((s, d) => s + d.earnings, 0);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetchBills(), fetchDebts(), fetchDigitalSubs(), fetchRunwayManual(), fetchRunwayDeck(),
+    ]).then(([b, d, dig, man, dk]) => {
+      if (!active) return;
+      setBills(b.data || []); setDebts(d.data || []); setDigital(dig.data || []);
+      setManual(man.data || []); setDeck(dk.data || []);
+      setLoading(false);
+    });
+    getPref(WINDOW_PREF).then(({ data }) => { if (active && WINDOWS.includes(data)) setWindowDays(data); });
+    return () => { active = false; };
+  }, []);
+
+  const setWindow = (n) => { setWindowDays(n); setPref(WINDOW_PREF, n); };
+
+  // Derived views.
+  const items = normalizeSources({ bills, debts, digital, manual });
+  const deckSet = new Set(deck.map((r) => itemKey(r.source_kind, r.source_id)));
+  const upcoming = upcomingItems(items, windowDays, deckSet);
+  const onDeck = deckItems(deck, items);
+  const totals = bucketTotals(withinWindow(items, windowDays));
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const moveToDeck = async (it) => {
+    const { data } = await addToDeck(it.source_kind, it.source_id);
+    if (data?.[0]) setDeck((prev) => [...prev.filter((r) => r.id !== data[0].id), data[0]]);
+  };
+
+  const removeFromDeck = async (deckId) => {
+    setDeck((prev) => prev.filter((r) => r.id !== deckId));
+    await deleteRow('fin_runway_deck', deckId);
+  };
+
+  const togglePending = async (deckId, val) => {
+    setDeck((prev) => prev.map((r) => r.id === deckId ? { ...r, pending_withdrawal: val } : r));
+    await updateDeck(deckId, { pending_withdrawal: val });
+  };
+
+  // Patch the matching source row's due date in local state.
+  const patchSourceDue = (kind, id, iso) => {
+    const setter = { bill: setBills, debt: setDebts, digital: setDigital, manual: setManual }[kind];
+    const col = DUE_COL_FOR[kind];
+    setter?.((prev) => prev.map((r) => r.id === id ? { ...r, [col]: iso } : r));
+  };
+
+  // Roll an item to its next due date (and drop it from the deck if it was on
+  // it — it's been handled). One-Time items have no next date; the action is
+  // hidden for them.
+  const advance = async (it, deckId) => {
+    const next = advanceDate(it.dueISO, it.frequency);
+    if (!next) return;
+    patchSourceDue(it.source_kind, it.source_id, next);
+    if (deckId) { setDeck((prev) => prev.filter((r) => r.id !== deckId)); await deleteRow('fin_runway_deck', deckId); }
+    await updateRow(TABLE_FOR[it.source_kind], it.source_id, { [DUE_COL_FOR[it.source_kind]]: next });
+  };
+
+  const canAdvance = (it) => !!advanceDate(it.dueISO, it.frequency);
+
+  // ── Manual (ad-hoc) entries ──────────────────────────────────────────────────
+  const updateManual = async (id, field, value) => {
+    setManual((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
+    await upsertRunwayManual({ id, [field]: value });
+  };
+  const addManual = async () => {
+    const { data } = await upsertRunwayManual({
+      name: 'New item', amount: 0, bill_type: 'One-Time',
+      next_due_date: todayISO(), sort_order: manual.length,
+    });
+    if (data?.[0]) setManual((prev) => [...prev, data[0]]);
+  };
+  const removeManual = async (id) => {
+    setManual((prev) => prev.filter((m) => m.id !== id));
+    setDeck((prev) => prev.filter((r) => !(r.source_kind === 'manual' && r.source_id === id)));
+    await deleteRow('fin_runway_manual', id);
+  };
 
   return (
     <div className="space-y-6">
+      {/* Top: window selector + bill/debt/total headline for the window */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <CalendarClock size={17} className="text-amber-400" /> Short Term Needs
+        </h2>
+        <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
+          {WINDOWS.map((n) => (
+            <button
+              key={n}
+              onClick={() => setWindow(n)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                windowDays === n ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {n} days
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="Lowest balance" value={fmt(lowest)} privacy={privacy} tone={lowest < 100 ? 'text-amber-400' : 'text-emerald-400'} />
-        <Stat label="7-day needs" value={fmt(totalNeed)} privacy={privacy} tone="text-red-300" />
-        <Stat label="Projected earnings" value={fmt(totalEarn)} privacy={privacy} tone="text-emerald-400" />
-        <Stat label="Debits scheduled" value={UPCOMING_DEBITS.length} />
+        <Stat label={`Bills — next ${windowDays}d`} value={fmt(totals.bills)} privacy={privacy} tone="text-blue-400" />
+        <Stat label={`Debts — next ${windowDays}d`} value={fmt(totals.debt)} privacy={privacy} tone="text-violet-400" />
+        <Stat label={`Total — next ${windowDays}d`} value={fmt(totals.total)} privacy={privacy} tone="text-amber-400" />
+        <Stat label="On Deck" value={String(onDeck.length)} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6">
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <h2 className="text-base font-semibold mb-4">Daily Runway</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={RUNWAY_DAYS} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 11 }} />
-              <YAxis tickFormatter={(v) => privacy ? '●●' : `$${v}`} tick={{ fill: '#71717a', fontSize: 11 }} width={48} />
-              <Tooltip cursor={{ fill: '#ffffff08' }} content={(p) => <RunwayTooltip {...p} privacy={privacy} />} />
-              <Area type="monotone" dataKey="end" name="Ending available" stroke="#10b981" fill="#10b98122" strokeWidth={2} />
-              <Bar dataKey="needed" name="Needed" fill="#ef4444" radius={[3, 3, 0, 0]} barSize={18} />
-              <Bar dataKey="earnings" name="Earnings" fill="#3b82f6" radius={[3, 3, 0, 0]} barSize={18} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </section>
+      {/* On Deck / Pending Withdrawal */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+          <Layers size={15} className="text-emerald-400" />
+          <h3 className="text-sm font-semibold">On Deck</h3>
+          <span className="text-xs text-zinc-500">— staged to pay · mark Pending once triggered</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Due</th>
+                <th className="px-3 py-2 font-medium text-right">Amount</th>
+                <th className="px-3 py-2 font-medium">Type</th>
+                <th className="px-3 py-2 font-medium text-right">Days</th>
+                <th className="px-3 py-2 font-medium text-center">Pending</th>
+                <th className="px-3 py-2 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {onDeck.length === 0 ? (
+                <tr><td colSpan={7} className="px-3 py-6 text-center text-zinc-600 text-xs">Nothing on deck. Move items down from the upcoming list below.</td></tr>
+              ) : onDeck.map((it) => (
+                <tr key={it.deckId} className={`border-b border-zinc-800/60 last:border-0 group ${it.pending_withdrawal ? 'bg-amber-950/20' : 'hover:bg-zinc-800/30'}`}>
+                  <NameCell it={it} />
+                  <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
+                  <AmountCell amount={it.amount} privacy={privacy} />
+                  <TypeCell type={it.type} />
+                  <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
+                  <Td className="text-center">
+                    <input type="checkbox" checked={!!it.pending_withdrawal}
+                      onChange={(e) => togglePending(it.deckId, e.target.checked)}
+                      className="h-4 w-4 accent-amber-500 cursor-pointer" title="Pending Withdrawal" />
+                  </Td>
+                  <Td className="text-right">
+                    <span className="inline-flex items-center gap-2 justify-end">
+                      {canAdvance(it) && (
+                        <button onClick={() => advance(it, it.deckId)} title="Advance to next due date & clear"
+                          className="text-zinc-500 hover:text-emerald-400 transition-colors"><SkipForward size={14} /></button>
+                      )}
+                      <button onClick={() => removeFromDeck(it.deckId)} title="Remove from On Deck"
+                        className="text-zinc-500 hover:text-red-400 transition-colors"><X size={15} /></button>
+                    </span>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <h2 className="text-base font-semibold mb-4">Upcoming Debits</h2>
-          <div className="space-y-2">
-            {UPCOMING_DEBITS.map((d) => (
-              <div key={d.name + d.date} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(d.type) }} />
-                    <span className="text-sm text-zinc-200 truncate">{d.name}</span>
-                  </div>
-                  <span className="text-xs text-zinc-500 ml-4">{d.date} · {d.type}</span>
-                </div>
-                <Redacted on={privacy}>
-                  <span className="text-sm font-medium tabular-nums text-zinc-200 shrink-0">{fmtDec(d.amount)}</span>
-                </Redacted>
-              </div>
-            ))}
+      {/* Upcoming in window */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+          <CalendarClock size={15} className="text-amber-400" />
+          <h3 className="text-sm font-semibold">Coming Up — next {windowDays} days</h3>
+          <span className="text-xs text-zinc-500">— live from Bills, Debts, Subscriptions &amp; ad-hoc</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Due</th>
+                <th className="px-3 py-2 font-medium text-right">Amount</th>
+                <th className="px-3 py-2 font-medium">Type</th>
+                <th className="px-3 py-2 font-medium text-right">Days</th>
+                <th className="px-3 py-2 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+              ) : upcoming.length === 0 ? (
+                <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600 text-xs">Nothing due in the next {windowDays} days.</td></tr>
+              ) : upcoming.map((it) => (
+                <tr key={it.key} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <NameCell it={it} />
+                  <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
+                  <AmountCell amount={it.amount} privacy={privacy} />
+                  <TypeCell type={it.type} />
+                  <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
+                  <Td className="text-right">
+                    <span className="inline-flex items-center gap-2 justify-end">
+                      {canAdvance(it) && (
+                        <button onClick={() => advance(it)} title="Advance to next due date"
+                          className="text-zinc-500 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"><SkipForward size={14} /></button>
+                      )}
+                      <button onClick={() => moveToDeck(it)}
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-900/20 px-2 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-900/40 transition-colors">
+                        <ArrowDownToLine size={13} /> On Deck
+                      </button>
+                    </span>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Ad Hoc / Manual entry */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
+          <div className="flex items-center gap-2">
+            <Plus size={15} className="text-zinc-400" />
+            <h3 className="text-sm font-semibold">Ad Hoc / Manual Entry</h3>
+            <span className="text-xs text-zinc-500">— one-offs not on the Bills or Debts tabs</span>
           </div>
-        </section>
-      </div>
+          <button onClick={addManual} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+            <Plus size={14} /> Add item
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Due</th>
+                <th className="px-3 py-2 font-medium text-right">Amount</th>
+                <th className="px-3 py-2 font-medium">Type</th>
+                <th className="px-3 py-2 font-medium text-right">Days</th>
+                <th className="px-3 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {manual.length === 0 ? (
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">No manual items. Add rent-service or other one-off charges here.</td></tr>
+              ) : manual.map((m) => (
+                <tr key={m.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <Td>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(m.bill_type) }} />
+                      <EditCell value={m.name} onSave={(v) => updateManual(m.id, 'name', v)} className="text-zinc-200 font-medium" />
+                    </span>
+                  </Td>
+                  <Td><EditCell type="date" value={m.next_due_date} onSave={(v) => updateManual(m.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                  <Td className="text-right">
+                    <Redacted on={privacy}><EditCell type="number" value={m.amount} onSave={(v) => updateManual(m.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
+                  </Td>
+                  <Td>
+                    <EditCell type="select" value={m.bill_type} onSave={(v) => updateManual(m.id, 'bill_type', v)}
+                      options={MANUAL_TYPES.map((t) => ({ value: t, label: t }))} className="text-zinc-400" />
+                  </Td>
+                  <Td className="text-right"><DaysBadge iso={m.next_due_date} /></Td>
+                  <Td className="text-right">
+                    <button onClick={() => removeManual(m.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+            {manual.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-zinc-800 text-zinc-400">
+                  <Td className="font-medium text-zinc-300" colSpan={2}>Total</Td>
+                  <Td className="text-right font-semibold text-emerald-400">
+                    <Redacted on={privacy}><span className="tabular-nums">{fmtDec(manual.reduce((s, m) => s + (m.amount ?? 0), 0))}</span></Redacted>
+                  </Td>
+                  <Td colSpan={3} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </section>
+
+      <p className="text-[11px] text-zinc-600 flex flex-wrap gap-4">
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(0 85% 65%)' }} />Due soon / overdue</span>
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(60 80% 60%)' }} />Coming up</span>
+        <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(120 70% 55%)' }} />Plenty of runway</span>
+      </p>
     </div>
   );
 }
 
-function RunwayTooltip({ active, payload, label, privacy }) {
-  if (!active || !payload?.length) return null;
+// ── Small presentational cells ────────────────────────────────────────────────
+function NameCell({ it }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-xs shadow-xl">
-      <p className="text-zinc-300 font-medium mb-1.5">{label}</p>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex justify-between gap-4">
-          <span style={{ color: p.color || p.fill }}>{p.name}</span>
-          <Redacted on={privacy}><span className="text-white font-mono">{fmtDec(p.value)}</span></Redacted>
-        </div>
-      ))}
-    </div>
+    <Td>
+      <span className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(it.type) }} />
+        <span className="text-zinc-200 font-medium">{it.name}</span>
+      </span>
+    </Td>
+  );
+}
+
+function AmountCell({ amount, privacy }) {
+  return (
+    <Td className="text-right">
+      <Redacted on={privacy}><span className="tabular-nums text-zinc-200">{fmtDec(amount)}</span></Redacted>
+    </Td>
+  );
+}
+
+function TypeCell({ type }) {
+  return (
+    <Td>
+      <span className="text-xs font-medium" style={{ color: typeColor(type) }}>{type}</span>
+    </Td>
   );
 }
 

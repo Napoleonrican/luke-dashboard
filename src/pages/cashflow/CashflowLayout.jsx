@@ -104,7 +104,13 @@ export default function CashflowLayout() {
           ))}
         </nav>
 
-        <Outlet context={{ privacy }} />
+        {/* min-height keeps a switched-to tab from momentarily collapsing to a
+            single "Loading…" row while its data fetches — without it, the
+            browser clamps your scroll position to fit that sliver and never
+            un-clamps once the real (taller) content fills in below. */}
+        <div className="min-h-[75vh]">
+          <Outlet context={{ privacy }} />
+        </div>
       </main>
     </div>
   );
