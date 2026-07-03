@@ -41,6 +41,18 @@ export async function fetchSubSnapshots() {
   return s.from('fin_subscription_snapshots').select('*').order('taken_on', { ascending: false });
 }
 
+// ── Runway: ad-hoc manual items + On Deck state ───────────────────────────────
+
+export async function fetchRunwayManual() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_runway_manual').select('*').order('sort_order');
+}
+
+export async function fetchRunwayDeck() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_runway_deck').select('*');
+}
+
 // ── Upsert / update ───────────────────────────────────────────────────────────
 
 export async function upsertAccount(row) {
@@ -90,9 +102,36 @@ export async function insertSubSnapshot(row) {
   return s.from('fin_subscription_snapshots').insert(row).select();
 }
 
+export async function upsertRunwayManual(row) {
+  if (!s) return { error: { message: 'Not configured' } };
+  const { id, ...rest } = row;
+  if (id) return s.from('fin_runway_manual').update(rest).eq('id', id).select();
+  return s.from('fin_runway_manual').insert(rest).select();
+}
+
+// Move a source item On Deck (idempotent — one row per source item).
+export async function addToDeck(source_kind, source_id) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from('fin_runway_deck')
+    .upsert({ source_kind, source_id }, { onConflict: 'owner,source_kind,source_id' })
+    .select();
+}
+
+export async function updateDeck(id, fields) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from('fin_runway_deck').update(fields).eq('id', id).select();
+}
+
 export async function deleteRow(table, id) {
   if (!s) return { error: { message: 'Not configured' } };
   return s.from(table).delete().eq('id', id);
+}
+
+// Generic single-row update (used by the Runway "advance due date" action,
+// which writes back to whichever source table an item came from).
+export async function updateRow(table, id, fields) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from(table).update(fields).eq('id', id).select();
 }
 
 // ── UI preferences (cross-device, owner-scoped) ───────────────────────────────

@@ -1,40 +1,70 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { ArrowDownToLine, Wallet, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Wallet, Plus, Trash2, Banknote, PiggyBank } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
-import { INFLOW, BALANCES, WATERFALL, fmt, fmtDec } from './mockData';
+import { fetchAccounts, upsertAccount, deleteRow, getPref, setPref } from '../../lib/fin';
+import { fmt, fmtDec } from './format';
+import EditCell from './EditCell';
 
-// The Cash Waterfall — weekly allocation engine. Available funds pour through
-// prioritized steps (hard gates → surplus slices → absorbers). The hero answer
-// is "how much more DoorDash do I need to clear the hard gates this week?".
+const PAYCHECK_PREF = 'waterfall_paycheck';
+const INCLUDE_PREF = 'waterfall_include_paycheck';
+const SIDEGIG_PREF = 'waterfall_sidegig';
+
+// The Cash Waterfall — starts with the two things it needs before any allocation
+// logic: your live account balances and this week's income (paycheck, with a
+// toggle for off-weeks, plus side-gig earnings). "Available this week" rolls
+// those together; the account-routing engine builds on this next.
 export default function Waterfall() {
   const { privacy } = useOutletContext();
-  const [doordash, setDoordash] = useState(INFLOW.doordash);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [paycheck, setPaycheck] = useState(0);
+  const [includePaycheck, setIncludePaycheck] = useState(true);
+  const [sideGig, setSideGig] = useState(0);
+  const [synced, setSynced] = useState(false);
 
-  const cashOnHand = BALANCES.reduce((s, b) => s + b.balance, 0);
-  const available  = INFLOW.paycheck + doordash + cashOnHand;
+  useEffect(() => {
+    let active = true;
+    fetchAccounts().then(({ data }) => { if (active) { setAccounts(data || []); setLoading(false); } });
+    Promise.all([getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF)]).then(
+      ([pc, inc, sg]) => {
+        if (!active) return;
+        if (typeof pc.data === 'number') setPaycheck(pc.data);
+        if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
+        if (typeof sg.data === 'number') setSideGig(sg.data);
+        setSynced(true);
+      },
+    );
+    return () => { active = false; };
+  }, []);
 
-  // Hard gates are the must-fund tier; what's left to cover drives the goal.
-  const hardGates  = WATERFALL[0].steps.reduce((s, st) => s + st.need, 0);
-  const stillNeeded = Math.max(0, hardGates - available);
+  const savePaycheck = (v) => { setPaycheck(v); if (synced) setPref(PAYCHECK_PREF, v); };
+  const saveSideGig = (v) => { setSideGig(v); if (synced) setPref(SIDEGIG_PREF, v); };
+  const toggleInclude = () => setIncludePaycheck((p) => { const n = !p; if (synced) setPref(INCLUDE_PREF, n); return n; });
 
-  // Demo allocation: pour available down the steps in order until it runs out.
-  const allocated = useMemo(() => {
-    let pool = available;
-    const out = {};
-    for (const g of WATERFALL) for (const st of g.steps) {
-      const a = Math.min(pool, st.need);
-      out[st.id] = a; pool -= a;
-    }
-    return { map: out, leftover: pool };
-  }, [available]);
+  const cashOnHand = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  const available = (includePaycheck ? paycheck : 0) + sideGig + cashOnHand;
 
-  const gatesMet = stillNeeded <= 0;
+  // ── Accounts CRUD ────────────────────────────────────────────────────────────
+  const updateAccount = async (id, field, value) => {
+    setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, [field]: value } : a));
+    await upsertAccount({ id, [field]: value });
+  };
+  const addAccount = async () => {
+    const { data } = await upsertAccount({
+      name: 'New Account', slug: `acct-${Date.now()}`, balance: 0, sort_order: accounts.length,
+    });
+    if (data?.[0]) setAccounts((prev) => [...prev, data[0]]);
+  };
+  const removeAccount = async (id) => {
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    await deleteRow('fin_accounts', id);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Top strip: available, gates, goal */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.2fr] gap-4">
+      {/* Available this week */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <div className="flex items-center gap-2 text-zinc-500 mb-3">
             <Wallet size={15} className="text-emerald-400" /><span className="text-xs">Available this week</span>
@@ -42,101 +72,123 @@ export default function Waterfall() {
           <Redacted on={privacy}>
             <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmt(available)}</p>
           </Redacted>
-          <div className="mt-3 space-y-1 text-xs text-zinc-500">
-            <Line k="Paycheck" v={INFLOW.paycheck} privacy={privacy} />
-            <div className="flex justify-between items-center">
-              <span>DoorDash (editable)</span>
-              <div className="flex items-center gap-1">
+          <div className="mt-4 space-y-2.5 text-sm">
+            {/* Paycheck with include toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-zinc-400 cursor-pointer select-none">
+                <input type="checkbox" checked={includePaycheck} onChange={toggleInclude}
+                  className="h-4 w-4 accent-emerald-500 cursor-pointer" />
+                <span className={includePaycheck ? '' : 'line-through text-zinc-600'}>Paycheck</span>
+              </label>
+              <span className="flex items-center gap-1 text-zinc-500">
                 <span className="text-zinc-600">$</span>
-                <input type="number" value={doordash}
-                  onChange={(e) => setDoordash(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className={`w-20 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-right text-xs text-white focus:outline-none focus:border-emerald-500 ${privacy ? 'blur-sm' : ''}`} />
-              </div>
+                <Redacted on={privacy}>
+                  <EditCell type="number" value={paycheck} onSave={savePaycheck} display={(v) => fmtDec(v).replace('$', '')} className="text-zinc-200 tabular-nums" />
+                </Redacted>
+              </span>
             </div>
-            <Line k="Cash on hand" v={cashOnHand} privacy={privacy} />
+            {/* Side-gig earnings */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-zinc-400"><Banknote size={14} className="text-zinc-500" />Side-gig earnings</span>
+              <span className="flex items-center gap-1 text-zinc-500">
+                <span className="text-zinc-600">$</span>
+                <Redacted on={privacy}>
+                  <EditCell type="number" value={sideGig} onSave={saveSideGig} display={(v) => fmtDec(v).replace('$', '')} className="text-zinc-200 tabular-nums" />
+                </Redacted>
+              </span>
+            </div>
+            {/* Cash on hand (derived) */}
+            <div className="flex items-center justify-between gap-2 border-t border-zinc-800 pt-2.5">
+              <span className="flex items-center gap-2 text-zinc-400"><PiggyBank size={14} className="text-zinc-500" />Cash on hand</span>
+              <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(cashOnHand)}</span></Redacted>
+            </div>
           </div>
-        </div>
-
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <div className="flex items-center gap-2 text-zinc-500 mb-3">
-            <ArrowDownToLine size={15} className="text-blue-400" /><span className="text-xs">Hard gates to clear</span>
-          </div>
-          <Redacted on={privacy}>
-            <p className="text-3xl font-bold text-white tabular-nums">{fmt(hardGates)}</p>
-          </Redacted>
-          <p className="mt-3 text-xs text-zinc-500">
-            Essentials, 7-day bill & debt runway, and the core stability floor build.
-          </p>
-        </div>
-
-        <div className={`rounded-xl border p-5 ${gatesMet ? 'border-emerald-800/50 bg-emerald-950/20' : 'border-amber-800/50 bg-amber-950/20'}`}>
-          <div className="flex items-center gap-2 mb-3">
-            {gatesMet ? <CheckCircle2 size={15} className="text-emerald-400" /> : <AlertTriangle size={15} className="text-amber-400" />}
-            <span className="text-xs text-zinc-400">{gatesMet ? 'Gates covered' : 'DoorDash still needed'}</span>
-          </div>
-          {gatesMet ? (
-            <>
-              <Redacted on={privacy}><p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmt(allocated.leftover)}</p></Redacted>
-              <p className="mt-3 text-xs text-emerald-600/80">surplus flowing into savings & debt cleanup ✓</p>
-            </>
-          ) : (
-            <>
-              <Redacted on={privacy}><p className="text-3xl font-bold text-amber-400 tabular-nums">{fmt(stillNeeded)}</p></Redacted>
-              <p className="mt-3 text-xs text-amber-600/80">earn this much more to clear every hard gate</p>
-            </>
+          {!includePaycheck && (
+            <p className="mt-3 text-[11px] text-amber-500/80">Paycheck excluded — modeling an off-week on side-gig earnings only.</p>
           )}
         </div>
+
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-center">
+          <p className="text-xs text-zinc-500 mb-2">How &ldquo;Available&rdquo; is built</p>
+          <div className="space-y-1.5 text-sm text-zinc-400">
+            <Row k={includePaycheck ? 'Paycheck' : 'Paycheck (off)'} v={includePaycheck ? paycheck : 0} privacy={privacy} muted={!includePaycheck} />
+            <Row k="Side-gig earnings" v={sideGig} privacy={privacy} />
+            <Row k="Cash on hand" v={cashOnHand} privacy={privacy} />
+            <div className="flex justify-between border-t border-zinc-800 pt-1.5 font-semibold text-zinc-200">
+              <span>Available</span>
+              <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(available)}</span></Redacted>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* The waterfall steps */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
-        {WATERFALL.map((group) => (
-          <section key={group.group} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <h2 className="text-sm font-semibold text-zinc-200">{group.group}</h2>
-            <p className="text-xs text-zinc-500 mt-0.5 mb-4">{group.note}</p>
-            <div className="space-y-3">
-              {group.steps.map((st) => {
-                const a    = allocated.map[st.id] || 0;
-                const pct  = st.need > 0 ? Math.min(100, (a / st.need) * 100) : (a > 0 ? 100 : 0);
-                const full = st.need > 0 && a >= st.need - 0.01;
-                return (
-                  <div key={st.id}>
-                    <div className="flex justify-between items-baseline gap-2 mb-1">
-                      <span className="text-xs text-zinc-300 leading-snug">
-                        <span className="text-zinc-600 mr-1">{st.id}</span>{st.label}
-                        {st.pct && <span className="text-zinc-600"> · {st.pct}%</span>}
-                      </span>
-                      <Redacted on={privacy}>
-                        <span className="text-xs tabular-nums text-zinc-500 shrink-0">
-                          {st.need > 0 ? fmt(st.need) : '—'}
-                        </span>
-                      </Redacted>
-                    </div>
-                    <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className={`h-1.5 rounded-full transition-all ${full ? 'bg-emerald-500' : 'bg-blue-500'}`}
-                        style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
+      {/* Current balances (accounts) */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
+          <div>
+            <h3 className="text-sm font-semibold">Current Balances</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</p>
+          </div>
+          <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+            <Plus size={14} /> Add account
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-4 py-2 font-medium">Account</th>
+                <th className="px-4 py-2 font-medium text-right">Balance</th>
+                <th className="px-4 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
+              ) : accounts.length === 0 ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
+              ) : accounts.map((a) => (
+                <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <td className="px-4 py-2">
+                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <Redacted on={privacy}>
+                      <EditCell type="number" value={a.balance} onSave={(v) => updateAccount(a.id, 'balance', v)} display={fmtDec} className="text-zinc-200 tabular-nums" />
+                    </Redacted>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => removeAccount(a.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {!loading && accounts.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
+                  <td className="px-4 py-2.5">Total cash on hand</td>
+                  <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </section>
 
       <p className="text-xs text-zinc-600">
-        Demo: allocation pours available funds top-down until they run out. The real engine
-        applies the surplus percentages (5a/5b/5c) and self-limiting absorber targets from your Inputs sheet.
+        Next up: the allocation engine that routes &ldquo;Available&rdquo; into each account using the 14-day
+        bill &amp; debt totals from the Runway tab.
       </p>
     </div>
   );
 }
 
-function Line({ k, v, privacy }) {
+function Row({ k, v, privacy, muted }) {
   return (
-    <div className="flex justify-between">
+    <div className={`flex justify-between ${muted ? 'text-zinc-600' : ''}`}>
       <span>{k}</span>
-      <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(v)}</span></Redacted>
+      <Redacted on={privacy}><span className="tabular-nums">{fmtDec(v)}</span></Redacted>
     </div>
   );
 }
