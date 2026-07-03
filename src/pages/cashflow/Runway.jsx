@@ -76,22 +76,28 @@ export default function Runway() {
     await updateDeck(deckId, { pending_withdrawal: val });
   };
 
-  // Patch the matching source row's due date in local state.
-  const patchSourceDue = (kind, id, iso) => {
+  // Patch the matching source row's due date (+ updated_on, where the table
+  // has one) in local state.
+  const patchSourceDue = (kind, id, fields) => {
     const setter = { bill: setBills, debt: setDebts, digital: setDigital, manual: setManual }[kind];
-    const col = DUE_COL_FOR[kind];
-    setter?.((prev) => prev.map((r) => r.id === id ? { ...r, [col]: iso } : r));
+    setter?.((prev) => prev.map((r) => r.id === id ? { ...r, ...fields } : r));
   };
 
+  // Tables that track a manual "last verified" date, distinct from updated_at.
+  const HAS_UPDATED_ON = { bill: true, debt: true, digital: true, manual: false };
+
   // Roll an item to its next due date (and drop it from the deck if it was on
-  // it — it's been handled). One-Time items have no next date; the action is
-  // hidden for them.
+  // it — it's been handled). Also stamps "Updated" to today, since advancing
+  // is effectively confirming the item as current. One-Time items have no
+  // next date; the action is hidden for them.
   const advance = async (it, deckId) => {
     const next = advanceDate(it.dueISO, it.frequency);
     if (!next) return;
-    patchSourceDue(it.source_kind, it.source_id, next);
+    const fields = { [DUE_COL_FOR[it.source_kind]]: next };
+    if (HAS_UPDATED_ON[it.source_kind]) fields.updated_on = todayISO();
+    patchSourceDue(it.source_kind, it.source_id, fields);
     if (deckId) { setDeck((prev) => prev.filter((r) => r.id !== deckId)); await deleteRow('fin_runway_deck', deckId); }
-    await updateRow(TABLE_FOR[it.source_kind], it.source_id, { [DUE_COL_FOR[it.source_kind]]: next });
+    await updateRow(TABLE_FOR[it.source_kind], it.source_id, fields);
   };
 
   const canAdvance = (it) => !!advanceDate(it.dueISO, it.frequency);
