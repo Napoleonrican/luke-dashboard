@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { fmt } from './format';
 
 // Labeled field wrapper for the full-row editor modals.
 export function Field({ label, children }) {
@@ -92,4 +93,35 @@ export function ModalEdit({ value, type = 'text', options = [], onCommit }) {
   }
 
   return input;
+}
+
+// Always-editable dollar amount, tuned for quick numeric entry in a row/line:
+// no click-to-start (just focus it), no native number spinner (it's a text
+// input under the hood, so nothing to disable), right-justified, and once you
+// click away it collapses to a rounded whole-dollar figure — the fiddly cents
+// only show up while you're actually typing.
+export function AmountEdit({ value, onCommit, className = '' }) {
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState(String(value ?? 0));
+  const [prev, setPrev] = useState(value);
+  if (value !== prev && !focused) { setPrev(value); setDraft(String(value ?? 0)); }
+
+  const commit = () => {
+    setFocused(false);
+    const parsed = draft === '' ? 0 : (parseFloat(draft) || 0);
+    if (parsed !== (value ?? 0)) onCommit(parsed);
+    else setDraft(String(value ?? 0));
+  };
+
+  return (
+    <input
+      type="text" inputMode="decimal"
+      value={focused ? draft : fmt(value)}
+      onFocus={(e) => { setDraft(String(value ?? 0)); setFocused(true); e.target.select(); }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      className={`w-full bg-transparent text-right tabular-nums rounded px-1.5 py-1 -mx-1.5 border border-transparent hover:border-zinc-700 focus:border-emerald-600 focus:bg-zinc-800 focus:outline-none transition-colors ${className}`}
+    />
+  );
 }

@@ -4,7 +4,8 @@ import { Wallet, Plus, Trash2, Banknote, PiggyBank } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import { fetchAccounts, upsertAccount, deleteRow, getPref, setPref } from '../../lib/fin';
 import { fmt, fmtDec } from './format';
-import { ModalEdit } from './ModalField';
+import { AmountEdit } from './ModalField';
+import EditCell from './EditCell';
 
 const PAYCHECK_PREF = 'waterfall_paycheck';
 const INCLUDE_PREF = 'waterfall_include_paycheck';
@@ -80,18 +81,18 @@ export default function Waterfall() {
                   className="h-4 w-4 accent-emerald-500 cursor-pointer" />
                 <span className={includePaycheck ? '' : 'line-through text-zinc-600'}>Paycheck</span>
               </label>
-              <span className="w-28">
+              <span className="w-24">
                 <Redacted on={privacy}>
-                  <ModalEdit type="currency" value={paycheck} onCommit={savePaycheck} />
+                  <AmountEdit value={paycheck} onCommit={savePaycheck} className="text-zinc-200" />
                 </Redacted>
               </span>
             </div>
             {/* Side-gig earnings */}
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-zinc-400"><Banknote size={14} className="text-zinc-500" />Side-gig earnings</span>
-              <span className="w-28">
+              <span className="w-24">
                 <Redacted on={privacy}>
-                  <ModalEdit type="currency" value={sideGig} onCommit={saveSideGig} />
+                  <AmountEdit value={sideGig} onCommit={saveSideGig} className="text-zinc-200" />
                 </Redacted>
               </span>
             </div>
@@ -148,11 +149,11 @@ export default function Waterfall() {
               ) : accounts.map((a) => (
                 <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <td className="px-4 py-2">
-                    <ModalEdit value={a.name} onCommit={(v) => updateAccount(a.id, 'name', v)} />
+                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 text-right">
                     <Redacted on={privacy}>
-                      <ModalEdit type="currency" value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} />
+                      <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
                     </Redacted>
                   </td>
                   <td className="px-4 py-2 text-right">
