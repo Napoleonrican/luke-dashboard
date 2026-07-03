@@ -4,7 +4,7 @@ import { Wallet, Plus, Trash2, Banknote, PiggyBank } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import { fetchAccounts, upsertAccount, deleteRow, getPref, setPref } from '../../lib/fin';
 import { fmt, fmtDec } from './format';
-import EditCell from './EditCell';
+import { ModalEdit } from './ModalField';
 
 const PAYCHECK_PREF = 'waterfall_paycheck';
 const INCLUDE_PREF = 'waterfall_include_paycheck';
@@ -80,20 +80,18 @@ export default function Waterfall() {
                   className="h-4 w-4 accent-emerald-500 cursor-pointer" />
                 <span className={includePaycheck ? '' : 'line-through text-zinc-600'}>Paycheck</span>
               </label>
-              <span className="flex items-center gap-1 text-zinc-500">
-                <span className="text-zinc-600">$</span>
+              <span className="w-28">
                 <Redacted on={privacy}>
-                  <EditCell type="number" value={paycheck} onSave={savePaycheck} display={(v) => fmtDec(v).replace('$', '')} className="text-zinc-200 tabular-nums" />
+                  <ModalEdit type="currency" value={paycheck} onCommit={savePaycheck} />
                 </Redacted>
               </span>
             </div>
             {/* Side-gig earnings */}
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-zinc-400"><Banknote size={14} className="text-zinc-500" />Side-gig earnings</span>
-              <span className="flex items-center gap-1 text-zinc-500">
-                <span className="text-zinc-600">$</span>
+              <span className="w-28">
                 <Redacted on={privacy}>
-                  <EditCell type="number" value={sideGig} onSave={saveSideGig} display={(v) => fmtDec(v).replace('$', '')} className="text-zinc-200 tabular-nums" />
+                  <ModalEdit type="currency" value={sideGig} onCommit={saveSideGig} />
                 </Redacted>
               </span>
             </div>
@@ -150,11 +148,11 @@ export default function Waterfall() {
               ) : accounts.map((a) => (
                 <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <td className="px-4 py-2">
-                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                    <ModalEdit value={a.name} onCommit={(v) => updateAccount(a.id, 'name', v)} />
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2">
                     <Redacted on={privacy}>
-                      <EditCell type="number" value={a.balance} onSave={(v) => updateAccount(a.id, 'balance', v)} display={fmtDec} className="text-zinc-200 tabular-nums" />
+                      <ModalEdit type="currency" value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} />
                     </Redacted>
                   </td>
                   <td className="px-4 py-2 text-right">
