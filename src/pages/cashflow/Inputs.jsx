@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Redacted } from './CashflowLayout';
 import { fetchInputs, upsertInput } from '../../lib/fin';
 import EditCell from './EditCell';
+import WipNotice from './WipNotice';
 
 // Inputs & Targets — the Cashflow "Inputs" sheet as editable config. Parked on
 // its own tab for now; the Waterfall/Runway mappings that consume these values
@@ -25,6 +26,11 @@ export default function Inputs() {
 
   return (
     <div className="space-y-4">
+      <WipNotice>
+        Not yet wired into calculations — editing these values doesn&rsquo;t affect
+        the Waterfall or Runway yet.
+      </WipNotice>
+
       <div>
         <h2 className="text-base font-semibold">Inputs &amp; Targets</h2>
         <p className="text-xs text-zinc-500 mt-0.5">

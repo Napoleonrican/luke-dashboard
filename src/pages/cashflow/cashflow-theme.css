@@ -40,3 +40,8 @@
 /* Inputs sit on bg-zinc-800 (remapped); keep their text dark for contrast */
 .cf-light input,
 .cf-light select { color: #0f172a; }
+
+/* Work-in-progress banner (WipNotice): the amber-300 text reads fine on the
+   dark shell but washes out on the white card bg, so darken it under light. */
+.cf-light .cf-wip { color: #92400e; border-color: rgba(245, 158, 11, 0.5); }
+.cf-light .cf-wip svg { color: #b45309; }
