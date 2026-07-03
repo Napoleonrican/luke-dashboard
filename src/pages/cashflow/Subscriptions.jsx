@@ -14,7 +14,7 @@ import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
-import { Field, ModalEdit, MoreDetails } from './ModalField';
+import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 import {
   monthlyDigital, monthlyConsumable, categoryBreakdown, buildSnapshot, diffSnapshots,
   weeksOf, costPerType, ordersPerYear, costPerYear,
@@ -241,7 +241,7 @@ function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
                 <Td className="text-right"><EditCell type="number" value={s.day_due} onSave={(v) => update(s.id, 'day_due', v)} className="text-zinc-500 tabular-nums" /></Td>
                 <Td><EditCell type="date" value={s.next_due_date} onSave={(v) => update(s.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
                 <Td className="text-right"><DaysBadge iso={s.next_due_date} /></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={s.amount} onSave={(v) => update(s.id, 'amount', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
+                <Td className="text-right"><Redacted on={privacy}><AmountEdit value={s.amount} onCommit={(v) => update(s.id, 'amount', v)} className="text-zinc-400" /></Redacted></Td>
                 <Td>
                   <EditCell type="select" value={s.frequency} onSave={(v) => update(s.id, 'frequency', v)}
                     options={FREQUENCIES.map((f) => ({ value: f, label: f }))} className="text-zinc-500" />
@@ -396,7 +396,7 @@ function ConsumableTable({ rows, setRows, privacy, loading, activeOnly }) {
                     <Td className="text-right"><EditCell type="number" value={s.count} onSave={(v) => update(s.id, 'count', v)} className="text-zinc-500 tabular-nums" /></Td>
                     <Td><EditCell value={s.unit} onSave={(v) => update(s.id, 'unit', v)} className="text-zinc-500" /></Td>
                   </>}
-                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={s.cost_per_order} onSave={(v) => update(s.id, 'cost_per_order', v)} display={fmtDec} className="text-zinc-300 tabular-nums" /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={s.cost_per_order} onCommit={(v) => update(s.id, 'cost_per_order', v)} className="text-zinc-300" /></Redacted></Td>
                   <Td className="text-right"><EditCell type="number" value={Math.round(weeksOf(s))} onSave={(v) => updateWeeks(s.id, v)} className="text-zinc-400 tabular-nums" /></Td>
                   <Td className="text-right">
                     <Redacted on={privacy}>

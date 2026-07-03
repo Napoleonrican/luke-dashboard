@@ -12,7 +12,7 @@ import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
-import { Field, ModalEdit, MoreDetails } from './ModalField';
+import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 
 const CREDIT_TYPES = ['BNPL', 'Loan', 'Credit Card'];
 const TYPE_COLOR = { BNPL: '#a855f7', Loan: '#f59e0b', 'Credit Card': '#3b82f6' };
@@ -199,8 +199,8 @@ export default function Debts() {
                     options={CREDIT_TYPES.map((c) => ({ value: c, label: c }))} className="text-zinc-400" />
                 </Td>
                 <Td><EditCell value={d.lender} onSave={(v) => update(d.id, 'lender', v)} className="text-zinc-400" /></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.balance} onSave={(v) => update(d.id, 'balance', v)} display={fmtDec} className="text-zinc-200 font-medium tabular-nums" /></Redacted></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.normal_payment} onSave={(v) => update(d.id, 'normal_payment', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted></Td>
+                <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.balance} onCommit={(v) => update(d.id, 'balance', v)} className="text-zinc-200 font-medium" /></Redacted></Td>
+                <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.normal_payment} onCommit={(v) => update(d.id, 'normal_payment', v)} className="text-zinc-200" /></Redacted></Td>
                 <Td><EditCell type="date" value={d.next_due_date} onSave={(v) => update(d.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
                 <Td className="text-right"><DaysBadge iso={d.next_due_date} /></Td>
                 <Td className="text-right"><EditCell type="number" value={d.day_due} onSave={(v) => update(d.id, 'day_due', v)} className="text-zinc-400 tabular-nums" /></Td>
@@ -215,15 +215,15 @@ export default function Debts() {
                   <span style={epC ? { color: epC.color } : undefined} className="tabular-nums">{fmtDate(ep)}</span>
                 </Td>
                 <Td><EditCell type="date" value={d.last_date} onSave={(v) => update(d.id, 'last_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
-                <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.new_min} onSave={(v) => update(d.id, 'new_min', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
+                <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.new_min} onCommit={(v) => update(d.id, 'new_min', v)} className="text-zinc-400" nullable /></Redacted></Td>
                 {showAll && <>
                   <Td><EditCell type="date" value={d.origination_date} onSave={(v) => update(d.id, 'origination_date', v)} display={fmtDate} className="text-zinc-500 tabular-nums" /></Td>
                   <Td className="text-right"><ColorCell value={d.apr} type="number" colorFn={aprColor} display={fmtApr} onSave={(v) => update(d.id, 'apr', v)} /></Td>
                   <Td className="text-right"><EditCell type="number" value={d.term_months} onSave={(v) => update(d.id, 'term_months', v)} className="text-zinc-500 tabular-nums" /></Td>
-                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.finance_charge} onSave={(v) => update(d.id, 'finance_charge', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
-                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.credit_limit} onSave={(v) => update(d.id, 'credit_limit', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
-                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.total_due} onSave={(v) => update(d.id, 'total_due', v)} display={fmtDec} className="text-zinc-500 tabular-nums" /></Redacted></Td>
-                  <Td className="text-right"><Redacted on={privacy}><EditCell type="number" value={d.available_credit} onSave={(v) => update(d.id, 'available_credit', v)} display={fmtDec} className="text-zinc-400 tabular-nums" /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.finance_charge} onCommit={(v) => update(d.id, 'finance_charge', v)} className="text-zinc-500" nullable /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.credit_limit} onCommit={(v) => update(d.id, 'credit_limit', v)} className="text-zinc-500" nullable /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.total_due} onCommit={(v) => update(d.id, 'total_due', v)} className="text-zinc-500" nullable /></Redacted></Td>
+                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.available_credit} onCommit={(v) => update(d.id, 'available_credit', v)} className="text-zinc-400" nullable /></Redacted></Td>
                 </>}
                 <Td className="text-right">
                   <button onClick={() => remove(d.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
