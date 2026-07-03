@@ -10,7 +10,7 @@ import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
-import { Field, ModalEdit, MoreDetails } from './ModalField';
+import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
@@ -185,7 +185,7 @@ export default function Bills() {
                   </Td>
                   <Td className="text-right">
                     <Redacted on={privacy}>
-                      <EditCell type="number" value={b.amount} onSave={(v) => update(b.id, 'amount', v)} display={fmtDec} className="text-zinc-400 tabular-nums" />
+                      <AmountEdit value={b.amount} onCommit={(v) => update(b.id, 'amount', v)} className="text-zinc-400" />
                     </Redacted>
                   </Td>
                 </>}
