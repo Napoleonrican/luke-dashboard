@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Radar, Inbox, ClipboardList, ListTodo, RefreshCw } from 'lucide-react';
+import { Radar, Inbox, FolderKanban, ListTodo, RefreshCw } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 import InboxTab from './mission-control/InboxTab';
-import BriefingsTab from './mission-control/BriefingsTab';
+import ProjectsTab from './mission-control/ProjectsTab';
 import BacklogTab from './mission-control/BacklogTab';
 
 // Mission Control — one command center over the Sidekick's digested layer.
@@ -23,7 +23,7 @@ export default function MissionControl() {
     const [{ data: t }, { data: m }, { data: p }] = await Promise.all([
       supabase.from('mc_threads').select('*').order('updated_at', { ascending: false }),
       supabase.from('mc_messages').select('*').order('created_at', { ascending: true }),
-      supabase.from('mc_project_status').select('*').order('repo', { ascending: true }),
+      supabase.from('mc_projects').select('*').order('last_activity_at', { ascending: true }),
     ]);
     setThreads(t || []);
     setMessages(m || []);
@@ -33,13 +33,19 @@ export default function MissionControl() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openThreadCount     = threads.filter(t => t.status !== 'resolved').length;
-  const attentionProjects   = projects.filter(p => p.health !== 'green').length;
+  const openThreadCount = threads.filter(t => t.status !== 'resolved').length;
+  // Nudge count = projects still in the main list that have gone quiet (14–30 days).
+  // Past 30 they drop into the collapsed Dormant section and stop nagging here.
+  const stalledProjects = projects.filter(p => {
+    if (p.status === 'shipped') return false;
+    const days = (Date.now() - new Date(p.last_activity_at).getTime()) / 86400000;
+    return days >= 14 && days < 30;
+  }).length;
 
   const tabs = [
-    { key: 'inbox',     label: 'Inbox',     Icon: Inbox,         count: openThreadCount,   accent: 'text-amber-300 border-amber-500',  badge: 'bg-amber-900/50 text-amber-300' },
-    { key: 'briefings', label: 'Briefings', Icon: ClipboardList, count: attentionProjects, accent: 'text-cyan-300 border-cyan-500',     badge: 'bg-cyan-900/50 text-cyan-300' },
-    { key: 'backlog',   label: 'Backlog',   Icon: ListTodo,      count: 0,                 accent: 'text-violet-300 border-violet-500', badge: 'bg-violet-900/50 text-violet-300' },
+    { key: 'inbox',    label: 'Inbox',    Icon: Inbox,        count: openThreadCount,  accent: 'text-amber-300 border-amber-500',  badge: 'bg-amber-900/50 text-amber-300' },
+    { key: 'projects', label: 'Projects', Icon: FolderKanban, count: stalledProjects,  accent: 'text-cyan-300 border-cyan-500',     badge: 'bg-cyan-900/50 text-cyan-300' },
+    { key: 'backlog',  label: 'Backlog',  Icon: ListTodo,     count: 0,                accent: 'text-violet-300 border-violet-500', badge: 'bg-violet-900/50 text-violet-300' },
   ];
 
   return (
@@ -96,8 +102,8 @@ export default function MissionControl() {
           <div className="text-center py-16 text-zinc-600 text-sm">Loading…</div>
         ) : activeTab === 'inbox' ? (
           <InboxTab threads={threads} messages={messages} reload={load} />
-        ) : activeTab === 'briefings' ? (
-          <BriefingsTab projects={projects} />
+        ) : activeTab === 'projects' ? (
+          <ProjectsTab projects={projects} messages={messages} reload={load} />
         ) : (
           <BacklogTab />
         )}
