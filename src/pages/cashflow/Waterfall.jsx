@@ -6,6 +6,7 @@ import { fetchAccounts, upsertAccount, deleteRow, getPref, setPref } from '../..
 import { fmt, fmtDec } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
+import WipNotice from './WipNotice';
 
 const PAYCHECK_PREF = 'waterfall_paycheck';
 const INCLUDE_PREF = 'waterfall_include_paycheck';
@@ -64,6 +65,11 @@ export default function Waterfall() {
 
   return (
     <div className="space-y-6">
+      <WipNotice>
+        Work in progress — your balances and income are live, but the allocation
+        engine that routes &ldquo;Available&rdquo; into each account isn&rsquo;t built yet.
+      </WipNotice>
+
       {/* Available this week */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">

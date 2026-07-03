@@ -12,6 +12,7 @@ import { fmt, fmtDec, fmtDate } from './format';
 import { DaysBadge } from './cells';
 import { Td } from './tableparts';
 import EditCell from './EditCell';
+import WipNotice from './WipNotice';
 import {
   normalizeSources, upcomingItems, deckItems, withinWindow, bucketTotals,
   advanceDate, itemKey, TABLE_FOR, DUE_COL_FOR, todayISO,
@@ -122,6 +123,11 @@ export default function Runway() {
 
   return (
     <div className="space-y-6">
+      <WipNotice>
+        Work in progress — this pulls live from your Bills, Debts &amp; Subscriptions,
+        but is still being refined; don&rsquo;t treat it as final yet.
+      </WipNotice>
+
       {/* Top: window selector + bill/debt/total headline for the window */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold flex items-center gap-2">
