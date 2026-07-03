@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ChevronDown, Grid3x3, Wallet, ExternalLink, Lock } from 'lucide-react';
+import { ChevronDown, Grid3x3, Wallet, ExternalLink, Lock, Bot } from 'lucide-react';
 import { byPlacement, MODULES } from '../../pages/homeModules';
 
 function greeting() {
@@ -125,7 +125,19 @@ function AllModulesButton() {
   );
 }
 
-export default function DashboardTopRow() {
+// Small read-only stat chip — for ambient state that doesn't need its own
+// button/row (e.g. Claude-week pace). Not a nav target.
+function StatChip({ icon: Icon, label, value, accent }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-xs">
+      <Icon size={14} className={accent} strokeWidth={1.75} />
+      <span className="text-zinc-500">{label}</span>
+      <span className="font-semibold tabular-nums text-zinc-200">{value}</span>
+    </div>
+  );
+}
+
+export default function DashboardTopRow({ claude }) {
   const gig = MODULES.find((m) => m.id === 'gig');
   return (
     <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -135,7 +147,10 @@ export default function DashboardTopRow() {
         </h1>
         <p className="text-xs text-zinc-500">{greeting()} — {todayLabel()}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {claude && (
+          <StatChip icon={Bot} label="Claude week" value={`${claude.pct.toFixed(0)}% elapsed`} accent="text-amber-400" />
+        )}
         <ActionButton icon={gig.icon} label="Gig" to={gig.to} accent={gig.accent} />
         <MoneyButton />
         <AllModulesButton />

@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Thermometer, Cloud, ArrowRight, History } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import Sparkline from '../Sparkline';
 
 // Source → color for the agent-log line (mirrors Climate's AgentLog view).
@@ -23,29 +21,12 @@ function timeAgo(iso) {
 
 // Left-rail Climate panel: the three things Luke opens Climate for kept in
 // constant view — living-room temp, current AC setting, and the last agent
-// action — plus an inline Dashboard-control toggle. Header links into the module.
+// action. Header links into the module. (No quick-toggle for AC control here
+// by design — that's a deliberate action, not a dashboard-glance one.)
 export default function ClimateRail({ climate, outdoor }) {
-  const [executor, setExecutor] = useState(climate?.executorEnabled ?? false);
-  const [saving, setSaving] = useState(false);
-
   if (!climate?.indoorTemp) return null;
   const comfort = climate.comfortActive;
-  const stateLabel = comfort ? 'Comfort Mode' : executor ? 'Dashboard control' : 'Manual control';
-
-  async function toggleExecutor() {
-    if (comfort || saving || !supabase) return;
-    const next = !executor;
-    setExecutor(next);
-    setSaving(true);
-    try {
-      const { error } = await supabase.from('ac_preferences').update({ executor_enabled: next }).eq('id', 1);
-      if (error) setExecutor(!next);
-    } catch {
-      setExecutor(!next);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const stateLabel = comfort ? 'Comfort Mode' : climate.executorEnabled ? 'Dashboard control' : 'Manual control';
 
   const s = climate.acSetting;
   const settingLine = s && (s.setpointF != null || s.mode || s.power)
@@ -83,22 +64,6 @@ export default function ClimateRail({ climate, outdoor }) {
         <p className="text-sm font-medium text-zinc-200">{stateLabel}</p>
         {settingLine && <p className="mt-0.5 text-xs tabular-nums text-zinc-400">Set to {settingLine}</p>}
       </div>
-
-      {/* Inline Dashboard-control toggle */}
-      <button
-        type="button"
-        onClick={toggleExecutor}
-        disabled={comfort || saving}
-        className={`mt-2 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
-          comfort ? 'cursor-not-allowed border-zinc-800 text-zinc-600' : 'border-zinc-700 text-zinc-200 hover:border-cyan-500/60 hover:bg-cyan-500/5'
-        }`}
-        title={comfort ? 'Comfort Mode is running the AC' : 'Toggle dashboard control of the AC'}
-      >
-        <span>Dashboard control</span>
-        <span className={`relative inline-block h-5 w-9 rounded-full transition-colors ${executor && !comfort ? 'bg-cyan-500' : 'bg-zinc-700'}`}>
-          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${executor && !comfort ? 'left-[18px]' : 'left-0.5'}`} />
-        </span>
-      </button>
 
       {/* Last agent action */}
       {climate.lastLog && (
