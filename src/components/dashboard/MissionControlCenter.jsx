@@ -1,17 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Radar, Lock, ArrowRight, AlertTriangle, XCircle, CheckCircle2, CircleDot,
-} from 'lucide-react';
+import { Radar, Lock, ArrowRight, CircleDot } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/useAuth';
 import AuthModal from './AuthModal';
 
-const HEALTH = {
-  green: { dot: 'bg-green-500', Icon: CheckCircle2, color: 'text-green-400' },
-  attention: { dot: 'bg-amber-500', Icon: AlertTriangle, color: 'text-amber-400' },
-  blocked: { dot: 'bg-red-500', Icon: XCircle, color: 'text-red-400' },
+// Mirrors the Projects tab (mc_projects, migration 033): status → dot color.
+const STATUS = {
+  active: 'bg-emerald-500',
+  paused: 'bg-amber-500',
+  shipped: 'bg-sky-500',
+  idea: 'bg-zinc-500',
 };
+const STALLED_DAYS = 14;
+
+const daysSince = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+function ago(iso) {
+  const d = daysSince(iso);
+  if (d <= 0) return 'today';
+  if (d === 1) return 'yesterday';
+  if (d < 30) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
 
 function Shell({ children }) {
   return (
@@ -59,7 +69,9 @@ function LiveContent() {
     if (!supabase) return; // loading already starts false when Supabase is absent
     const [{ data: t }, { data: p }] = await Promise.all([
       supabase.from('mc_threads').select('*').order('updated_at', { ascending: false }),
-      supabase.from('mc_project_status').select('*').order('repo', { ascending: true }),
+      // Projects now live in mc_projects (033), sorted oldest-activity-first so
+      // stalled initiatives surface — same ordering as the Projects tab.
+      supabase.from('mc_projects').select('*').order('last_activity_at', { ascending: true }),
     ]);
     setThreads(t || []);
     setProjects(p || []);
@@ -70,7 +82,8 @@ function LiveContent() {
   if (loading) return <Shell><p className="py-12 text-center text-sm text-zinc-600">Loading…</p></Shell>;
 
   const needsYou = threads.filter((t) => t.status === 'needs_you');
-  const attention = projects.filter((p) => p.health !== 'green');
+  // Surface what's live (not shipped) — the initiatives actually in flight.
+  const live = projects.filter((p) => p.status !== 'shipped');
 
   return (
     <Shell>
@@ -95,25 +108,26 @@ function LiveContent() {
         </div>
       )}
 
-      {/* Recent developments across projects */}
+      {/* Projects in flight — the major initiatives (mc_projects) */}
       <div className="mb-2 flex items-center gap-2 border-t border-zinc-800 pt-3">
         <Radar size={13} className="text-cyan-400" />
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Projects</h3>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Projects in flight</h3>
       </div>
-      {projects.length === 0 ? (
-        <p className="text-xs text-zinc-600">No briefings yet — your Sidekick fills these in on its next run.</p>
+      {live.length === 0 ? (
+        <p className="text-xs text-zinc-600">No active projects — your Sidekick fills these in on its next run.</p>
       ) : (
         <div className="space-y-2">
-          {(attention.length ? attention : projects).slice(0, 4).map((p) => {
-            const h = HEALTH[p.health] || HEALTH.green;
+          {live.slice(0, 4).map((p) => {
+            const stalled = p.status !== 'shipped' && daysSince(p.last_activity_at) >= STALLED_DAYS;
             return (
-              <div key={p.repo} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5">
+              <div key={p.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5">
                 <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${h.dot}`} />
-                  <span className="flex-1 truncate text-sm font-medium text-zinc-200">{p.repo}</span>
-                  {p.open_actions > 0 && <span className="rounded-full bg-amber-900/40 px-1.5 text-[9px] font-semibold text-amber-300">{p.open_actions} for you</span>}
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS[p.status] || STATUS.active}`} />
+                  <span className="flex-1 truncate text-sm font-medium text-zinc-200">{p.title}</span>
+                  {stalled && <span className="rounded-full bg-amber-900/40 px-1.5 text-[9px] font-semibold text-amber-300">stalled</span>}
+                  <span className="shrink-0 text-[10px] text-zinc-600">{ago(p.last_activity_at)}</span>
                 </div>
-                {p.headline && <p className="mt-1 text-xs leading-relaxed text-zinc-400">{p.headline}</p>}
+                {(p.current || p.blurb) && <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-400">{p.current || p.blurb}</p>}
               </div>
             );
           })}
