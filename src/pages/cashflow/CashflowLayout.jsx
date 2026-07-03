@@ -43,18 +43,17 @@ export default function CashflowLayout() {
   return (
     <div className={`min-h-screen bg-zinc-950 text-zinc-100 ${theme === 'light' ? 'cf-light' : ''}`}>
       <TopNav
-        title="Luke's Dashboard · Cashflow Plan"
+        title="Cashflow Plan"
         subtitle="Budget, accounts & weekly dash goals — your data, live from Supabase"
-      />
-      <main className="w-full px-6 pb-12">
-        <div className="flex justify-end pt-4 pb-2">
+        right={
           <SettingsMenu
             theme={theme} onToggleTheme={toggleTheme}
             privacy={privacy} onTogglePrivacy={() => setPrivacy((p) => !p)}
             onSignOut={signOut}
           />
-        </div>
-
+        }
+      />
+      <main className="w-full px-6 pb-12 pt-4">
         {/* Horizontal tab bar — scrolls on narrow screens instead of
             overflowing, and drops down to icon-only below sm so it fits
             mobile widths without wrapping or clipping. Scrollbar hidden

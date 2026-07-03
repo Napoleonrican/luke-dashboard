@@ -163,7 +163,6 @@ export default function Runway() {
                 <th className="px-3 py-2 font-medium">Item</th>
                 <th className="px-3 py-2 font-medium">Due</th>
                 <th className="px-3 py-2 font-medium text-right">Amount</th>
-                <th className="px-3 py-2 font-medium">Type</th>
                 <th className="px-3 py-2 font-medium text-right">Days</th>
                 <th className="px-3 py-2 font-medium text-center">Pending</th>
                 <th className="px-3 py-2 font-medium text-right">Actions</th>
@@ -171,13 +170,12 @@ export default function Runway() {
             </thead>
             <tbody>
               {onDeck.length === 0 ? (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-zinc-600 text-xs">Nothing on deck. Move items down from the upcoming list below.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">Nothing on deck. Move items down from the upcoming list below.</td></tr>
               ) : onDeck.map((it) => (
                 <tr key={it.deckId} className={`border-b border-zinc-800/60 last:border-0 group ${it.pending_withdrawal ? 'bg-amber-950/20' : 'hover:bg-zinc-800/30'}`}>
                   <NameCell it={it} />
                   <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
                   <AmountCell amount={it.amount} privacy={privacy} />
-                  <TypeCell type={it.type} />
                   <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
                   <Td className="text-center">
                     <input type="checkbox" checked={!!it.pending_withdrawal}
@@ -215,22 +213,20 @@ export default function Runway() {
                 <th className="px-3 py-2 font-medium">Item</th>
                 <th className="px-3 py-2 font-medium">Due</th>
                 <th className="px-3 py-2 font-medium text-right">Amount</th>
-                <th className="px-3 py-2 font-medium">Type</th>
                 <th className="px-3 py-2 font-medium text-right">Days</th>
                 <th className="px-3 py-2 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
               ) : upcoming.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-zinc-600 text-xs">Nothing due in the next {windowDays} days.</td></tr>
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-zinc-600 text-xs">Nothing due in the next {windowDays} days.</td></tr>
               ) : upcoming.map((it) => (
                 <tr key={it.key} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <NameCell it={it} />
                   <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
                   <AmountCell amount={it.amount} privacy={privacy} />
-                  <TypeCell type={it.type} />
                   <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
                   <Td className="text-right">
                     <span className="inline-flex items-center gap-2 justify-end">
@@ -270,29 +266,31 @@ export default function Runway() {
                 <th className="px-3 py-2 font-medium">Item</th>
                 <th className="px-3 py-2 font-medium">Due</th>
                 <th className="px-3 py-2 font-medium text-right">Amount</th>
-                <th className="px-3 py-2 font-medium">Type</th>
                 <th className="px-3 py-2 font-medium text-right">Days</th>
                 <th className="px-3 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
               {manual.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">No manual items. Add rent-service or other one-off charges here.</td></tr>
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-zinc-600 text-xs">No manual items. Add rent-service or other one-off charges here.</td></tr>
               ) : manual.map((m) => (
                 <tr key={m.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <Td>
                     <span className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(m.bill_type) }} />
+                      <select
+                        value={m.bill_type} onChange={(e) => updateManual(m.id, 'bill_type', e.target.value)}
+                        title={`${m.bill_type} — click to change`}
+                        className="h-2.5 w-2.5 shrink-0 rounded-full border-0 p-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900"
+                        style={{ background: typeColor(m.bill_type) }}
+                      >
+                        {MANUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
                       <EditCell value={m.name} onSave={(v) => updateManual(m.id, 'name', v)} className="text-zinc-200 font-medium" />
                     </span>
                   </Td>
                   <Td><EditCell type="date" value={m.next_due_date} onSave={(v) => updateManual(m.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
                   <Td className="text-right">
                     <Redacted on={privacy}><EditCell type="number" value={m.amount} onSave={(v) => updateManual(m.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
-                  </Td>
-                  <Td>
-                    <EditCell type="select" value={m.bill_type} onSave={(v) => updateManual(m.id, 'bill_type', v)}
-                      options={MANUAL_TYPES.map((t) => ({ value: t, label: t }))} className="text-zinc-400" />
                   </Td>
                   <Td className="text-right"><DaysBadge iso={m.next_due_date} /></Td>
                   <Td className="text-right">
@@ -308,7 +306,7 @@ export default function Runway() {
                   <Td className="text-right font-semibold text-emerald-400">
                     <Redacted on={privacy}><span className="tabular-nums">{fmtDec(manual.reduce((s, m) => s + (m.amount ?? 0), 0))}</span></Redacted>
                   </Td>
-                  <Td colSpan={3} />
+                  <Td colSpan={2} />
                 </tr>
               </tfoot>
             )}
@@ -326,11 +324,13 @@ export default function Runway() {
 }
 
 // ── Small presentational cells ────────────────────────────────────────────────
+// The colored dot doubles as the type indicator — hover it for the type name
+// instead of a dedicated column.
 function NameCell({ it }) {
   return (
     <Td>
       <span className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(it.type) }} />
+        <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(it.type) }} title={it.type} />
         <span className="text-zinc-200 font-medium">{it.name}</span>
       </span>
     </Td>
@@ -341,14 +341,6 @@ function AmountCell({ amount, privacy }) {
   return (
     <Td className="text-right">
       <Redacted on={privacy}><span className="tabular-nums text-zinc-200">{fmtDec(amount)}</span></Redacted>
-    </Td>
-  );
-}
-
-function TypeCell({ type }) {
-  return (
-    <Td>
-      <span className="text-xs font-medium" style={{ color: typeColor(type) }}>{type}</span>
     </Td>
   );
 }

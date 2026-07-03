@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 // stacking a second one below — the title sits centered, and `subtitle`
 // becomes a native hover tooltip rather than always-visible text. Omit both
 // for the plain "Back to Hub … Luke's Dashboard" bar every other page uses.
-export default function TopNav({ title, subtitle }) {
+export default function TopNav({ title, subtitle, right }) {
   if (title) {
     return (
       <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 py-4 border-b border-zinc-800/60">
@@ -22,7 +22,7 @@ export default function TopNav({ title, subtitle }) {
         >
           {title}
         </span>
-        <span />
+        <span className="justify-self-end">{right}</span>
       </nav>
     );
   }
