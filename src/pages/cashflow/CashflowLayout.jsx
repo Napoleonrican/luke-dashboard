@@ -82,14 +82,17 @@ export default function CashflowLayout() {
           </div>
         </header>
 
-        {/* Horizontal tab bar (full width), each tab faintly color-coded */}
-        <nav aria-label="Cashflow sections" className="flex gap-1 border-b border-zinc-800 mb-6">
+        {/* Horizontal tab bar — scrolls on narrow screens instead of
+            overflowing, and drops down to icon-only below sm so it fits
+            mobile widths without wrapping or clipping. */}
+        <nav aria-label="Cashflow sections" className="flex gap-1 overflow-x-auto border-b border-zinc-800 mb-6 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
           {NAV_ITEMS.map(({ to, label, icon: Icon, color }) => (
             <NavLink
               key={to}
               to={to}
+              title={label}
               className={({ isActive }) =>
-                `flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors rounded-t-lg border-b-2 -mb-px ${
+                `flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium whitespace-nowrap shrink-0 transition-colors rounded-t-lg border-b-2 -mb-px ${
                   isActive ? 'text-white' : 'text-zinc-400 hover:text-zinc-100'
                 }`
               }
@@ -99,7 +102,7 @@ export default function CashflowLayout() {
               })}
             >
               <Icon size={15} className="shrink-0" style={{ color }} />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
             </NavLink>
           ))}
         </nav>

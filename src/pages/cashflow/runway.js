@@ -2,7 +2,7 @@
 // shape, window them by due date, and split the "Debt/Loan" bucket out from
 // everything else. Kept out of the component so it's plain data in / data out.
 
-import { daysUntil, todayISO } from './format';
+import { daysUntil, todayISO, monthlyOf } from './format';
 
 // Type buckets. Debt/Loan is totaled on its own; everything else (Bill,
 // subscriptions, One-Time, ad-hoc) rolls into the "bills" total.
@@ -18,7 +18,10 @@ export function normalizeSources({ bills = [], debts = [], digital = [], manual 
   for (const b of bills) {
     out.push({
       source_kind: 'bill', source_id: b.id, name: b.name,
-      amount: b.amount ?? 0, type: 'Bill',
+      // Monthly equivalent (matches the "Mon." column on the Bills tab), not
+      // the raw per-frequency amount — a quarterly bill shouldn't show its
+      // full quarterly charge as if it were due every occurrence here.
+      amount: monthlyOf(b.amount, b.frequency), type: 'Bill',
       dueISO: b.next_due_date, frequency: b.frequency,
     });
   }
