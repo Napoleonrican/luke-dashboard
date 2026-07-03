@@ -77,18 +77,41 @@ async function loadClimate(unit) {
       .eq('active', true)
       .limit(1);
     const comfortActive = Boolean(comfort?.length);
-    let acState = 'Manual control';
-    let executorEnabled = false;
-    if (comfortActive) {
-      acState = 'Comfort Mode';
-    } else {
-      const { data: prefs } = await supabase
-        .from('ac_preferences')
-        .select('executor_enabled')
-        .eq('id', 1)
-        .limit(1);
-      executorEnabled = Boolean(prefs?.[0]?.executor_enabled);
-      acState = executorEnabled ? 'Dashboard control' : 'Manual control';
+
+    // AC preferences: executor kill-switch + the last confirmed AC settings
+    // (power/setpoint/mode/fan) so the rail can show what the AC is actually set to.
+    const { data: prefs } = await supabase
+      .from('ac_preferences')
+      .select('executor_enabled,ac_confirmed_power,ac_confirmed_setpoint_f,ac_confirmed_mode,ac_confirmed_fan')
+      .eq('id', 1)
+      .limit(1);
+    const pref = prefs?.[0] ?? null;
+    const executorEnabled = Boolean(pref?.executor_enabled);
+    const acState = comfortActive
+      ? 'Comfort Mode'
+      : executorEnabled ? 'Dashboard control' : 'Manual control';
+
+    // Confirmed AC setting (null fields collapse to nulls the rail can skip).
+    const acSetting = pref
+      ? {
+          power: pref.ac_confirmed_power ?? null,
+          setpointF: pref.ac_confirmed_setpoint_f ?? null,
+          mode: pref.ac_confirmed_mode ?? null,
+          fan: pref.ac_confirmed_fan ?? null,
+        }
+      : null;
+
+    // Latest agent-log entry (ac_change_log) — the "last thing an agent did"
+    // Luke opens Climate to check.
+    let lastLog = null;
+    const { data: logRows } = await supabase
+      .from('ac_change_log')
+      .select('ts,source,action,detail,reason')
+      .order('ts', { ascending: false })
+      .limit(1);
+    if (logRows?.[0]) {
+      const r = logRows[0];
+      lastLog = { ts: r.ts, source: r.source, text: r.detail || r.action, reason: r.reason || null };
     }
 
     return {
@@ -97,6 +120,8 @@ async function loadClimate(unit) {
       acState,
       comfortActive,
       executorEnabled,
+      acSetting,
+      lastLog,
       stale,
       spark,
     };
