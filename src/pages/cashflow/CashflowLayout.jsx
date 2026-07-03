@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, SlidersHorizontal, Eye, EyeOff, LogOut, Sun, Moon } from 'lucide-react';
+import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, SlidersHorizontal, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 import { getPref, setPref } from '../../lib/fin';
@@ -42,50 +42,25 @@ export default function CashflowLayout() {
 
   return (
     <div className={`min-h-screen bg-zinc-950 text-zinc-100 ${theme === 'light' ? 'cf-light' : ''}`}>
-      <TopNav />
+      <TopNav
+        title="Luke's Dashboard · Cashflow Plan"
+        subtitle="Budget, accounts & weekly dash goals — your data, live from Supabase"
+      />
       <main className="w-full px-6 pb-12">
-        <header className="mt-6 mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">Cashflow Plan</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              Budget, accounts &amp; weekly dash goals — your data, live from Supabase
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-200 hover:border-zinc-500"
-            >
-              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              {theme === 'dark' ? 'Light' : 'Dark'}
-            </button>
-            <button
-              onClick={() => setPrivacy((p) => !p)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                privacy
-                  ? 'bg-amber-900/30 border-amber-600 text-amber-400 hover:bg-amber-900/50'
-                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-              }`}
-            >
-              {privacy ? <Eye size={15} /> : <EyeOff size={15} />}
-              {privacy ? 'Show' : 'Hide'}
-            </button>
-            <button
-              onClick={signOut}
-              title="Sign out of financial access"
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-200 hover:border-zinc-500"
-            >
-              <LogOut size={15} />
-              Sign out
-            </button>
-          </div>
-        </header>
+        <div className="flex justify-end pt-4 pb-2">
+          <SettingsMenu
+            theme={theme} onToggleTheme={toggleTheme}
+            privacy={privacy} onTogglePrivacy={() => setPrivacy((p) => !p)}
+            onSignOut={signOut}
+          />
+        </div>
 
         {/* Horizontal tab bar — scrolls on narrow screens instead of
             overflowing, and drops down to icon-only below sm so it fits
-            mobile widths without wrapping or clipping. */}
-        <nav aria-label="Cashflow sections" className="flex gap-1 overflow-x-auto border-b border-zinc-800 mb-6 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
+            mobile widths without wrapping or clipping. Scrollbar hidden
+            (still scrollable via touch/trackpad) so it doesn't stack a second
+            bar under the tabs. */}
+        <nav aria-label="Cashflow sections" className="flex gap-1 overflow-x-auto border-b border-zinc-800 mb-6 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {NAV_ITEMS.map(({ to, label, icon: Icon, color }) => (
             <NavLink
               key={to}
@@ -123,4 +98,63 @@ export default function CashflowLayout() {
 export function Redacted({ children, on }) {
   if (!on) return <>{children}</>;
   return <span className="blur-sm select-none pointer-events-none">{children}</span>;
+}
+
+// Collapses Light/Dark, Show/Hide, and Sign out into one menu button so they
+// don't eat horizontal space next to the tab bar.
+function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Cashflow settings"
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+          open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+        }`}
+      >
+        <Menu size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-xl shadow-black/40">
+          <MenuItem
+            icon={theme === 'dark' ? Sun : Moon}
+            label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            onClick={() => { onToggleTheme(); setOpen(false); }}
+          />
+          <MenuItem
+            icon={privacy ? Eye : EyeOff}
+            label={privacy ? 'Show figures' : 'Hide figures'}
+            tone={privacy ? 'text-amber-400' : undefined}
+            onClick={() => { onTogglePrivacy(); setOpen(false); }}
+          />
+          <div className="my-1 border-t border-zinc-800" />
+          <MenuItem icon={LogOut} label="Sign out" onClick={() => { setOpen(false); onSignOut(); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({ icon: Icon, label, onClick, tone = 'text-zinc-300' }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-zinc-800 ${tone}`}
+    >
+      <Icon size={15} className="shrink-0" />
+      {label}
+    </button>
+  );
 }
