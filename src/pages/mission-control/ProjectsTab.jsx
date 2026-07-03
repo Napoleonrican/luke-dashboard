@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronDown, ChevronUp, Send, Bot, User, CircleDot,
-  Check, PauseCircle, Rocket, Lightbulb, History, Loader, ArrowRight, Clock,
+  PauseCircle, Rocket, Lightbulb, History, Loader, ArrowRight, Clock, Moon,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -22,6 +22,9 @@ const DRIVER = {
   luke:   'You',
   collab: 'You + Claude',
 };
+
+const STALLED_DAYS = 14; // shows a "stalled" badge while still in the main list
+const DORMANT_DAYS = 30; // moves down into the collapsed Dormant section
 
 function daysSince(iso) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
@@ -48,14 +51,16 @@ function DetailRow({ Icon, label, text, accent }) {
   );
 }
 
-function Project({ project, messages, reload }) {
+function Project({ project, messages, reload, muted = false }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
 
   const st = STATUS[project.status] || STATUS.active;
   const St = st.Icon;
-  const stale = project.status !== 'shipped' && daysSince(project.last_activity_at) >= 14;
+  // In the Dormant/Shipped sections the grouping already says it's inactive, so
+  // don't also flag "stalled" — keep those cards calm.
+  const stale = !muted && project.status !== 'shipped' && daysSince(project.last_activity_at) >= STALLED_DAYS;
 
   async function postReply() {
     if (!reply.trim() || !supabase) return;
@@ -166,16 +171,41 @@ function Project({ project, messages, reload }) {
   );
 }
 
-export default function ProjectsTab({ projects, messages, reload }) {
-  const [showShipped, setShowShipped] = useState(false);
+function CollapsibleSection({ label, Icon, items, byProject, reload }) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+  return (
+    <div className="pt-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors mb-2"
+      >
+        <Icon size={11} />
+        {open ? 'Hide' : 'Show'} {label} ({items.length})
+        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+      </button>
+      {open && (
+        <div className="space-y-3">
+          {items.map(p => (
+            <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} muted />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
+export default function ProjectsTab({ projects, messages, reload }) {
   const byProject = (id) => messages.filter(m => m.project_id === id);
   // Oldest activity first — stalled work rises to the top as a reminder.
   const sorted = [...projects].sort(
     (a, b) => new Date(a.last_activity_at) - new Date(b.last_activity_at)
   );
-  const live    = sorted.filter(p => p.status !== 'shipped');
   const shipped = sorted.filter(p => p.status === 'shipped');
+  // Dormant: not shipped, but quiet for 30+ days — tucked away, still retrievable.
+  const dormant = sorted.filter(p => p.status !== 'shipped' && daysSince(p.last_activity_at) >= DORMANT_DAYS);
+  // Live main list: everything else.
+  const live    = sorted.filter(p => p.status !== 'shipped' && daysSince(p.last_activity_at) < DORMANT_DAYS);
 
   if (projects.length === 0) {
     return (
@@ -187,25 +217,15 @@ export default function ProjectsTab({ projects, messages, reload }) {
 
   return (
     <div className="space-y-3">
-      {live.map(p => <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} />)}
-
-      {shipped.length > 0 && (
-        <div className="pt-2">
-          <button
-            onClick={() => setShowShipped(s => !s)}
-            className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors mb-2"
-          >
-            <Clock size={11} />
-            {showShipped ? 'Hide' : 'Show'} shipped ({shipped.length})
-            {showShipped ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-          </button>
-          {showShipped && (
-            <div className="space-y-3">
-              {shipped.map(p => <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} />)}
-            </div>
-          )}
+      {live.length === 0 && (
+        <div className="text-center py-8 text-zinc-600 text-xs">
+          Nothing active up here right now — check Dormant below for projects that have gone quiet.
         </div>
       )}
+      {live.map(p => <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} />)}
+
+      <CollapsibleSection label="dormant" Icon={Moon}  items={dormant} byProject={byProject} reload={reload} />
+      <CollapsibleSection label="shipped" Icon={Clock} items={shipped} byProject={byProject} reload={reload} />
     </div>
   );
 }

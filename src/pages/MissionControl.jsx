@@ -34,11 +34,12 @@ export default function MissionControl() {
   useEffect(() => { load(); }, [load]);
 
   const openThreadCount = threads.filter(t => t.status !== 'resolved').length;
-  // Nudge count = live projects that have gone quiet for 14+ days.
+  // Nudge count = projects still in the main list that have gone quiet (14–30 days).
+  // Past 30 they drop into the collapsed Dormant section and stop nagging here.
   const stalledProjects = projects.filter(p => {
     if (p.status === 'shipped') return false;
     const days = (Date.now() - new Date(p.last_activity_at).getTime()) / 86400000;
-    return days >= 14;
+    return days >= 14 && days < 30;
   }).length;
 
   const tabs = [
