@@ -120,7 +120,18 @@ export function AmountEdit({ value, onCommit, className = '', nullable = false }
       else setDraft('');
       return;
     }
-    const parsed = draft === '' ? 0 : (parseFloat(draft) || 0);
+    // Empty on a non-nullable field means "clear to $0" (intended). Any
+    // non-empty but unparseable text — a stray keystroke, pasted garbage —
+    // is rejected: revert to the last committed value rather than silently
+    // writing $0, which is indistinguishable from an intentional zero and a
+    // live data-loss risk on balances/payments. (cc-review #85)
+    let parsed;
+    if (draft === '') {
+      parsed = 0;
+    } else {
+      parsed = parseFloat(draft);
+      if (Number.isNaN(parsed)) { setDraft(draftFor(value)); return; }
+    }
     if (parsed !== (value ?? 0)) onCommit(parsed);
     else setDraft(draftFor(value));
   };
