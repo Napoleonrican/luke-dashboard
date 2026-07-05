@@ -24,3 +24,30 @@ export function Th({ children, className = '', sortKey, sort, onSort, align = 'l
 export function Td({ children, className = '', colSpan }) {
   return <td colSpan={colSpan} className={`px-3 py-2 whitespace-nowrap ${className}`}>{children}</td>;
 }
+
+// Full-width message row for a table's loading / empty state.
+export function StateRow({ colSpan, children }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">{children}</td>
+    </tr>
+  );
+}
+
+// Distinct load-failure row so a fetch error doesn't masquerade as an empty
+// table ("No X yet…"). Offers an explicit Retry that re-runs the fetch.
+export function LoadErrorRow({ colSpan, onRetry }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-3 py-8 text-center">
+        <span className="text-red-400/90">Couldn&rsquo;t load this data.</span>{' '}
+        <button
+          onClick={onRetry}
+          className="font-medium text-emerald-400 underline underline-offset-2 transition-colors hover:text-emerald-300"
+        >
+          Retry
+        </button>
+      </td>
+    </tr>
+  );
+}

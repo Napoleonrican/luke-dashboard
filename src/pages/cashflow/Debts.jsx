@@ -10,9 +10,10 @@ import {
 } from './format';
 import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
-import { Th, Td } from './tableparts';
+import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
+import { notifyError } from './toast';
 
 const CREDIT_TYPES = ['BNPL', 'Loan', 'Credit Card'];
 const TYPE_COLOR = { BNPL: '#a855f7', Loan: '#f59e0b', 'Credit Card': '#3b82f6' };
@@ -71,36 +72,53 @@ export default function Debts() {
   const { privacy } = useOutletContext();
   const [debts, setDebts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [sort, setSort] = useState(null);
 
   useEffect(() => {
     let active = true;
-    fetchDebts().then(({ data }) => { if (active) { if (data) setDebts(data); setLoading(false); } });
+    fetchDebts().then(({ data, error }) => {
+      if (!active) return;
+      if (error) setError(error);
+      else { setError(null); if (data) setDebts(data); }
+      setLoading(false);
+    });
     getPref(SORT_PREF_KEY).then(({ data }) => { if (active && data?.key) setSort(data); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
+
+  const reload = () => { setLoading(true); setError(null); setReloadKey((k) => k + 1); };
 
   const toggleSort = makeToggleSort(setSort, (next) => setPref(SORT_PREF_KEY, next));
   const sortedDebts = sortRows(debts, sort, SORT_ACCESSORS);
 
   const update = async (id, field, value) => {
+    const prevValue = debts.find((d) => d.id === id)?.[field];
     setDebts((prev) => prev.map((d) => d.id === id ? { ...d, [field]: value } : d));
-    await upsertDebt({ id, [field]: value });
+    const { error } = await upsertDebt({ id, [field]: value });
+    if (error) {
+      setDebts((prev) => prev.map((d) => d.id === id ? { ...d, [field]: prevValue } : d));
+      notifyError('Couldn’t save that change — reverted. Please retry.');
+    }
   };
 
   const add = async () => {
-    const { data } = await upsertDebt({
+    const { data, error } = await upsertDebt({
       purchase: 'New Debt', credit_type: 'BNPL', balance: 0, normal_payment: 0,
       pending_withdrawal: false, updated_on: todayISO(), sort_order: debts.length,
     });
-    if (data?.[0]) setDebts((prev) => [...prev, data[0]]);
+    if (error || !data?.[0]) { notifyError('Couldn’t add the debt. Please retry.'); return; }
+    setDebts((prev) => [...prev, data[0]]);
   };
 
   const remove = async (id) => {
+    const snapshot = debts;
     setDebts((prev) => prev.filter((d) => d.id !== id));
-    await deleteRow('fin_debts', id);
+    const { error } = await deleteRow('fin_debts', id);
+    if (error) { setDebts(snapshot); notifyError('Couldn’t delete that debt — restored. Please retry.'); }
   };
 
   const totalBal  = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
@@ -174,9 +192,11 @@ export default function Debts() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+              <StateRow colSpan={colSpan}>Loading…</StateRow>
+            ) : error ? (
+              <LoadErrorRow colSpan={colSpan} onRetry={reload} />
             ) : debts.length === 0 ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">No debts yet — add one or run the seed.</td></tr>
+              <StateRow colSpan={colSpan}>No debts yet — add one or run the seed.</StateRow>
             ) : sortedDebts.map((d) => {
               const pr = paymentsRemaining(d);
               const prC = paymentsRemainingColor(pr);
@@ -226,7 +246,7 @@ export default function Debts() {
                   <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.available_credit} onCommit={(v) => update(d.id, 'available_credit', v)} className="text-zinc-400" nullable /></Redacted></Td>
                 </>}
                 <Td className="text-right">
-                  <button onClick={() => remove(d.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  <button onClick={() => remove(d.id)} aria-label={`Delete ${d.purchase || 'debt'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>
               </tr>
               );
