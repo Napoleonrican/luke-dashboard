@@ -13,14 +13,21 @@ export default function EditCell({
 
   const start = () => { setDraft(value ?? ''); setEditing(true); };
   const cancel = () => { setDraft(value ?? ''); setEditing(false); };
-  const commit = () => {
-    let out = draft;
-    if (type === 'number') out = draft === '' ? null : (parseFloat(draft) || 0);
-    if (type === 'date') out = draft === '' ? null : draft;
-    if (type === 'text' || type === 'select') out = draft === '' ? null : draft;
-    onSave(out);
+  const normalize = (raw) => {
+    if (type === 'number') return raw === '' ? null : (parseFloat(raw) || 0);
+    if (type === 'date') return raw === '' ? null : raw;
+    return raw === '' ? null : raw; // text / select
+  };
+  const commit = (raw = draft) => {
+    onSave(normalize(raw));
     setEditing(false);
   };
+
+  // Commit on blur (click-away) to match ModalEdit's behavior. The Check/X
+  // buttons preventDefault on mousedown so they don't steal focus / fire a
+  // blur-commit before their own click handler runs — otherwise clicking
+  // Cancel would commit first, defeating the cancel.
+  const keepFocus = (e) => e.preventDefault();
 
   if (editing) {
     if (type === 'select') {
@@ -28,14 +35,13 @@ export default function EditCell({
         <span className="flex items-center gap-1">
           <select
             autoFocus value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => { setDraft(e.target.value); commit(e.target.value); }}
             onKeyDown={(e) => { if (e.key === 'Escape') cancel(); }}
             className="rounded border border-emerald-600 bg-zinc-800 px-1 py-0.5 text-xs text-white focus:outline-none"
           >
             {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <button onClick={commit} className="text-emerald-400 hover:text-emerald-300"><Check size={13} /></button>
-          <button onClick={cancel} className="text-zinc-500 hover:text-zinc-300"><X size={13} /></button>
+          <button onMouseDown={keepFocus} onClick={cancel} className="text-zinc-500 hover:text-zinc-300"><X size={13} /></button>
         </span>
       );
     }
@@ -47,11 +53,12 @@ export default function EditCell({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
+          onBlur={() => commit()}
           step={type === 'number' ? '0.01' : undefined}
           className="w-full min-w-[5rem] rounded border border-emerald-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-white focus:outline-none"
         />
-        <button onClick={commit} className="text-emerald-400 hover:text-emerald-300 shrink-0"><Check size={13} /></button>
-        <button onClick={cancel} className="text-zinc-500 hover:text-zinc-300 shrink-0"><X size={13} /></button>
+        <button onMouseDown={keepFocus} onClick={() => commit()} className="text-emerald-400 hover:text-emerald-300 shrink-0"><Check size={13} /></button>
+        <button onMouseDown={keepFocus} onClick={cancel} className="text-zinc-500 hover:text-zinc-300 shrink-0"><X size={13} /></button>
       </span>
     );
   }

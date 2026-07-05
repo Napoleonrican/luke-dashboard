@@ -8,9 +8,10 @@ import {
 } from './format';
 import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
-import { Th, Td } from './tableparts';
+import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
 import { makeToggleSort, sortRows } from './sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
+import { notifyError } from './toast';
 
 const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
@@ -49,16 +50,25 @@ export default function Bills() {
   const { privacy } = useOutletContext();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [sort, setSort] = useState(null);   // { key, dir } — null = DB order
 
   useEffect(() => {
     let active = true;
-    fetchBills().then(({ data }) => { if (active) { if (data) setBills(data); setLoading(false); } });
+    fetchBills().then(({ data, error }) => {
+      if (!active) return;
+      if (error) setError(error);
+      else { setError(null); if (data) setBills(data); }
+      setLoading(false);
+    });
     getPref(SORT_PREF_KEY).then(({ data }) => { if (active && data?.key) setSort(data); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
+
+  const reload = () => { setLoading(true); setError(null); setReloadKey((k) => k + 1); };
 
   // Click a header: sort asc → desc → off. Persisted cross-device via fin_prefs.
   const toggleSort = makeToggleSort(setSort, (next) => setPref(SORT_PREF_KEY, next));
@@ -66,21 +76,29 @@ export default function Bills() {
   const sortedBills = sortRows(bills, sort, SORT_ACCESSORS);
 
   const update = async (id, field, value) => {
+    const prevValue = bills.find((b) => b.id === id)?.[field];
     setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: value } : b));
-    await upsertBill({ id, [field]: value });
+    const { error } = await upsertBill({ id, [field]: value });
+    if (error) {
+      setBills((prev) => prev.map((b) => b.id === id ? { ...b, [field]: prevValue } : b));
+      notifyError('Couldn’t save that change — reverted. Please retry.');
+    }
   };
 
   const add = async () => {
-    const { data } = await upsertBill({
+    const { data, error } = await upsertBill({
       name: 'New Bill', amount: 0, frequency: 'Monthly', category: 'Bill',
       updated_on: todayISO(), sort_order: bills.length,
     });
-    if (data?.[0]) setBills((prev) => [...prev, data[0]]);
+    if (error || !data?.[0]) { notifyError('Couldn’t add the bill. Please retry.'); return; }
+    setBills((prev) => [...prev, data[0]]);
   };
 
   const remove = async (id) => {
+    const snapshot = bills;
     setBills((prev) => prev.filter((b) => b.id !== id));
-    await deleteRow('fin_bills', id);
+    const { error } = await deleteRow('fin_bills', id);
+    if (error) { setBills(snapshot); notifyError('Couldn’t delete that bill — restored. Please retry.'); }
   };
 
   const monthlyTotal = bills.reduce((s, b) => s + monthlyOf(b.amount, b.frequency), 0);
@@ -140,9 +158,11 @@ export default function Bills() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+              <StateRow colSpan={showAll ? 16 : 8}>Loading…</StateRow>
+            ) : error ? (
+              <LoadErrorRow colSpan={showAll ? 16 : 8} onRetry={reload} />
             ) : bills.length === 0 ? (
-              <tr><td colSpan={showAll ? 16 : 8} className="px-3 py-8 text-center text-zinc-600">No bills yet — add one or run the seed.</td></tr>
+              <StateRow colSpan={showAll ? 16 : 8}>No bills yet — add one or run the seed.</StateRow>
             ) : sortedBills.map((b) => (
               <tr key={b.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                 <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={b.updated_on} onSave={(v) => update(b.id, 'updated_on', v)} /></Td>
@@ -193,7 +213,12 @@ export default function Bills() {
                   <Redacted on={privacy}><span className="text-zinc-200 font-medium tabular-nums">{fmtDec(monthlyOf(b.amount, b.frequency))}</span></Redacted>
                 </Td>
                 <Td className="text-right">
-                  <button onClick={() => remove(b.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity">
+                  <button
+                    onClick={() => remove(b.id)}
+                    aria-label={`Delete ${b.name || 'bill'}`}
+                    title="Delete"
+                    className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"
+                  >
                     <Trash2 size={13} />
                   </button>
                 </Td>

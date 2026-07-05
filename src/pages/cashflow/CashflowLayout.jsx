@@ -4,6 +4,7 @@ import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, SlidersHo
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 import { getPref, setPref } from '../../lib/fin';
+import { ToastHost } from './toast';
 import './cashflow-theme.css';
 
 // Each permanent tab carries a subtle accent color — a faint tint always, a
@@ -89,6 +90,7 @@ export default function CashflowLayout() {
           <Outlet context={{ privacy }} />
         </div>
       </main>
+      <ToastHost />
     </div>
   );
 }

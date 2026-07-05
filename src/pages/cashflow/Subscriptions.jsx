@@ -12,7 +12,8 @@ import {
 } from './format';
 import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
-import { Th, Td } from './tableparts';
+import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
+import { notifyError } from './toast';
 import { makeToggleSort, sortRows } from './sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 import {
@@ -66,6 +67,8 @@ export default function Subscriptions() {
   const [consumable, setConsumable] = useState([]);
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [view, setView] = useState('digital');
   const [activeOnly, setActiveOnly] = useState(false);
 
@@ -74,16 +77,23 @@ export default function Subscriptions() {
     Promise.all([fetchDigitalSubs(), fetchConsumableSubs(), fetchSubSnapshots()]).then(
       ([d, c, snap]) => {
         if (!active) return;
-        if (d.data) setDigital(d.data);
-        if (c.data) setConsumable(c.data);
-        if (snap.data) setSnapshots(snap.data);
+        if (d.error || c.error || snap.error) {
+          setError(d.error || c.error || snap.error);
+        } else {
+          setError(null);
+          if (d.data) setDigital(d.data);
+          if (c.data) setConsumable(c.data);
+          if (snap.data) setSnapshots(snap.data);
+        }
         setLoading(false);
       },
     );
     getPref(VIEW_PREF).then(({ data }) => { if (active && (data === 'digital' || data === 'consumable')) setView(data); });
     getPref(ACTIVE_PREF).then(({ data }) => { if (active && typeof data === 'boolean') setActiveOnly(data); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
+
+  const reload = () => { setLoading(true); setError(null); setReloadKey((k) => k + 1); };
 
   const switchView = (v) => { setView(v); setPref(VIEW_PREF, v); };
   const toggleActiveOnly = () => setActiveOnly((p) => { const next = !p; setPref(ACTIVE_PREF, next); return next; });
@@ -132,9 +142,9 @@ export default function Subscriptions() {
       </div>
 
       {view === 'digital' ? (
-        <DigitalTable rows={digital} setRows={setDigital} privacy={privacy} loading={loading} activeOnly={activeOnly} />
+        <DigitalTable rows={digital} setRows={setDigital} privacy={privacy} loading={loading} error={error} onRetry={reload} activeOnly={activeOnly} />
       ) : (
-        <ConsumableTable rows={consumable} setRows={setConsumable} privacy={privacy} loading={loading} activeOnly={activeOnly} />
+        <ConsumableTable rows={consumable} setRows={setConsumable} privacy={privacy} loading={loading} error={error} onRetry={reload} activeOnly={activeOnly} />
       )}
     </div>
   );
@@ -143,7 +153,7 @@ export default function Subscriptions() {
 // ── Digital subscriptions table ───────────────────────────────────────────────
 // Column order mirrors the workbook: Updated · Priority · Active · Bill ·
 // Category · Day Due · Next Due · Days · Amt. · Frequency · Mon.
-function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
+function DigitalTable({ rows, setRows, privacy, loading, error, onRetry, activeOnly }) {
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [sort, setSort] = useState(null);
@@ -152,19 +162,27 @@ function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
   const toggleSort = makeToggleSort(setSort, (next) => setPref(DIG_SORT, next));
 
   const update = async (id, field, value) => {
+    const prevValue = rows.find((s) => s.id === id)?.[field];
     setRows((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
-    await upsertDigitalSub({ id, [field]: value });
+    const { error: err } = await upsertDigitalSub({ id, [field]: value });
+    if (err) {
+      setRows((prev) => prev.map((s) => s.id === id ? { ...s, [field]: prevValue } : s));
+      notifyError('Couldn’t save that change — reverted. Please retry.');
+    }
   };
   const add = async () => {
-    const { data } = await upsertDigitalSub({
+    const { data, error: err } = await upsertDigitalSub({
       name: 'New Subscription', amount: 0, frequency: 'Monthly', active: true,
       updated_on: todayISO(), sort_order: rows.length,
     });
-    if (data?.[0]) setRows((prev) => [...prev, data[0]]);
+    if (err || !data?.[0]) { notifyError('Couldn’t add the subscription. Please retry.'); return; }
+    setRows((prev) => [...prev, data[0]]);
   };
   const remove = async (id) => {
+    const snapshot = rows;
     setRows((prev) => prev.filter((s) => s.id !== id));
-    await deleteRow('fin_digital_subscriptions', id);
+    const { error: err } = await deleteRow('fin_digital_subscriptions', id);
+    if (err) { setRows(snapshot); notifyError('Couldn’t delete that subscription — restored. Please retry.'); }
   };
 
   const visible = activeOnly ? rows.filter((s) => s.active) : rows;
@@ -218,9 +236,11 @@ function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+              <StateRow colSpan={colSpan}>Loading…</StateRow>
+            ) : error ? (
+              <LoadErrorRow colSpan={colSpan} onRetry={onRetry} />
             ) : sorted.length === 0 ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">No subscriptions — add one or run the seed.</td></tr>
+              <StateRow colSpan={colSpan}>No subscriptions — add one or run the seed.</StateRow>
             ) : sorted.map((s) => (
               <tr key={s.id} className={`border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group ${s.active ? '' : 'opacity-50'}`}>
                 <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={s.updated_on} onSave={(v) => update(s.id, 'updated_on', v)} /></Td>
@@ -249,7 +269,7 @@ function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
                 {showAll && <Td><EditCell value={s.account} onSave={(v) => update(s.id, 'account', v)} className="text-zinc-500" /></Td>}
                 <Td className="text-right"><Redacted on={privacy}><span className="text-zinc-200 font-medium tabular-nums">{fmtDec(monthlyDigital(s))}</span></Redacted></Td>
                 <Td className="text-right">
-                  <button onClick={() => remove(s.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  <button onClick={() => remove(s.id)} aria-label={`Delete ${s.name || 'subscription'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>
               </tr>
             ))}
@@ -278,7 +298,7 @@ function DigitalTable({ rows, setRows, privacy, loading, activeOnly }) {
 // Cost Per Type · Cost/Year. The rest (Category, Count, Type, Active, Orders/Yr,
 // Mon.) live behind "All columns". Heat scales: Cost Per Type (range), Cost/Year
 // (above the average is flagged).
-function ConsumableTable({ rows, setRows, privacy, loading, activeOnly }) {
+function ConsumableTable({ rows, setRows, privacy, loading, error, onRetry, activeOnly }) {
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [sort, setSort] = useState(null);
@@ -287,21 +307,29 @@ function ConsumableTable({ rows, setRows, privacy, loading, activeOnly }) {
   const toggleSort = makeToggleSort(setSort, (next) => setPref(CON_SORT, next));
 
   const update = async (id, field, value) => {
+    const prevValue = rows.find((s) => s.id === id)?.[field];
     setRows((prev) => prev.map((s) => s.id === id ? { ...s, [field]: value } : s));
-    await upsertConsumableSub({ id, [field]: value });
+    const { error: err } = await upsertConsumableSub({ id, [field]: value });
+    if (err) {
+      setRows((prev) => prev.map((s) => s.id === id ? { ...s, [field]: prevValue } : s));
+      notifyError('Couldn’t save that change — reverted. Please retry.');
+    }
   };
   // Frequency is entered/edited in weeks; stored as days.
   const updateWeeks = (id, weeks) => update(id, 'order_frequency_days', Math.max(1, Math.round((weeks || 0) * 7)));
   const add = async () => {
-    const { data } = await upsertConsumableSub({
+    const { data, error: err } = await upsertConsumableSub({
       name: 'New Item', store: 'Amazon', cost_per_order: 0, order_frequency_days: 28,
       active: true, updated_on: todayISO(), sort_order: rows.length,
     });
-    if (data?.[0]) setRows((prev) => [...prev, data[0]]);
+    if (err || !data?.[0]) { notifyError('Couldn’t add the item. Please retry.'); return; }
+    setRows((prev) => [...prev, data[0]]);
   };
   const remove = async (id) => {
+    const snapshot = rows;
     setRows((prev) => prev.filter((s) => s.id !== id));
-    await deleteRow('fin_consumable_subscriptions', id);
+    const { error: err } = await deleteRow('fin_consumable_subscriptions', id);
+    if (err) { setRows(snapshot); notifyError('Couldn’t delete that item — restored. Please retry.'); }
   };
 
   const visible = activeOnly ? rows.filter((s) => s.active) : rows;
@@ -366,9 +394,11 @@ function ConsumableTable({ rows, setRows, privacy, loading, activeOnly }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">Loading…</td></tr>
+              <StateRow colSpan={colSpan}>Loading…</StateRow>
+            ) : error ? (
+              <LoadErrorRow colSpan={colSpan} onRetry={onRetry} />
             ) : sorted.length === 0 ? (
-              <tr><td colSpan={colSpan} className="px-3 py-8 text-center text-zinc-600">No items — add one or run the seed.</td></tr>
+              <StateRow colSpan={colSpan}>No items — add one or run the seed.</StateRow>
             ) : sorted.map((s) => {
               const cpt = costPerType(s);
               const cpy = costPerYear(s);
@@ -410,7 +440,7 @@ function ConsumableTable({ rows, setRows, privacy, loading, activeOnly }) {
                     </Redacted>
                   </Td>
                   <Td className="text-right">
-                    <button onClick={() => remove(s.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                    <button onClick={() => remove(s.id)} aria-label={`Delete ${s.name || 'item'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                   </Td>
                 </tr>
               );
