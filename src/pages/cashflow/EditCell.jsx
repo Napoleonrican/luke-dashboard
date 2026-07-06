@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check, X, Pencil } from 'lucide-react';
 
 // Inline-editable cell. Click to edit; Enter commits, Escape cancels.
@@ -10,17 +10,30 @@ export default function EditCell({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
+  // Leaving edit mode (Escape/Enter/Check/X) unmounts the focused input, which
+  // fires a synchronous blur. Without this guard that blur re-runs commit() with
+  // the still-typed draft — silently saving an edit the user just cancelled with
+  // Escape (and double-firing onSave after a real commit). Set on every
+  // programmatic exit; the blur handler consumes and clears it.
+  const skipBlurCommit = useRef(false);
 
-  const start = () => { setDraft(value ?? ''); setEditing(true); };
-  const cancel = () => { setDraft(value ?? ''); setEditing(false); };
+  const start = () => { skipBlurCommit.current = false; setDraft(value ?? ''); setEditing(true); };
+  const cancel = () => { skipBlurCommit.current = true; setDraft(value ?? ''); setEditing(false); };
   const normalize = (raw) => {
     if (type === 'number') return raw === '' ? null : (parseFloat(raw) || 0);
     if (type === 'date') return raw === '' ? null : raw;
     return raw === '' ? null : raw; // text / select
   };
   const commit = (raw = draft) => {
+    skipBlurCommit.current = true;
     onSave(normalize(raw));
     setEditing(false);
+  };
+  // A real click-away blur commits; a blur fired by unmounting on
+  // cancel()/commit() is suppressed (and the flag reset for next time).
+  const handleBlur = () => {
+    if (skipBlurCommit.current) { skipBlurCommit.current = false; return; }
+    commit();
   };
 
   // Commit on blur (click-away) to match ModalEdit's behavior. The Check/X
@@ -53,7 +66,7 @@ export default function EditCell({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
-          onBlur={() => commit()}
+          onBlur={handleBlur}
           step={type === 'number' ? '0.01' : undefined}
           className="w-full min-w-[5rem] rounded border border-emerald-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-white focus:outline-none"
         />
