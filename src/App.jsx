@@ -30,6 +30,11 @@ const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
 const Inputs = lazy(() => import('./pages/cashflow/Inputs'));
+const WatchTrackerLayout = lazy(() => import('./pages/watchtracker/WatchTrackerLayout'));
+const Shows = lazy(() => import('./pages/watchtracker/Shows'));
+const Movies = lazy(() => import('./pages/watchtracker/Movies'));
+const WtHistory = lazy(() => import('./pages/watchtracker/History'));
+const WtStats = lazy(() => import('./pages/watchtracker/Stats'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -79,6 +84,15 @@ export default function App() {
           <Route path="debts" element={<Debts />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="inputs" element={<Inputs />} />
+        </Route>
+        <Route path="/watch-tracker" element={
+          <ProtectedRoute><WatchTrackerLayout /></ProtectedRoute>
+        }>
+          <Route index element={<Navigate to="shows" replace />} />
+          <Route path="shows" element={<Shows />} />
+          <Route path="movies" element={<Movies />} />
+          <Route path="history" element={<WtHistory />} />
+          <Route path="stats" element={<WtStats />} />
         </Route>
         <Route path="/mission-control" element={
           <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">
