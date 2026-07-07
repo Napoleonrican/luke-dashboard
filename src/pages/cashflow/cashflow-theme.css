@@ -40,3 +40,8 @@
 /* Inputs sit on bg-zinc-800 (remapped); keep their text dark for contrast */
 .cf-light input,
 .cf-light select { color: #0f172a; }
+
+/* Focus-state backgrounds are separate utilities (`focus:bg-zinc-800`) the
+   plain `.bg-zinc-800` remap above doesn't cover — without this an AmountEdit
+   turns near-black on focus in light mode, hiding what you're typing. */
+.cf-light .focus\:bg-zinc-800:focus { background-color: #e2e8f0; }
