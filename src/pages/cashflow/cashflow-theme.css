@@ -14,11 +14,19 @@
 .cf-light .bg-zinc-800 { background-color: #e2e8f0; }
 .cf-light .bg-zinc-700 { background-color: #cbd5e1; }
 .cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
-.cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
 
 /* Faint accent button/badge backgrounds → light tints */
 .cf-light .bg-emerald-900\/30 { background-color: #d1fae5; }
 .cf-light .bg-amber-900\/30 { background-color: #fef3c7; }
+
+/* Accent text on the (now-white) card bg: the Tailwind -400 accents are tuned
+   for the dark shell and drop below WCAG AA on white. Darken to ~-700 tones. */
+.cf-light .text-emerald-400 { color: #047857; }
+.cf-light .text-amber-400   { color: #b45309; }
+.cf-light .text-violet-400  { color: #6d28d9; }
+.cf-light .text-blue-400    { color: #1d4ed8; }
+.cf-light .text-pink-400    { color: #be185d; }
+.cf-light .text-red-400     { color: #b91c1c; }
 
 .cf-light .text-white,
 .cf-light .text-zinc-100,
@@ -45,3 +53,11 @@
    dark shell but washes out on the white card bg, so darken it under light. */
 .cf-light .cf-wip { color: #92400e; border-color: rgba(245, 158, 11, 0.5); }
 .cf-light .cf-wip svg { color: #b45309; }
+
+/* Conditional-formatting heat colors (days-to-due badges, cost scales, freshness
+   dots, legend swatches) are emitted as inline hsl() with a lightness (~62–70%)
+   tuned for the dark shell, so they wash out on white. Inline styles can't be
+   remapped by a class rule, so darken them in-place with a scoped filter that
+   preserves each cell's hue. Only heat/legend elements use inline hsl() in this
+   module (category dots and Summary group tints use hex), so the match is exact. */
+.cf-light [style*="hsl"] { filter: brightness(0.58) saturate(1.3); }
