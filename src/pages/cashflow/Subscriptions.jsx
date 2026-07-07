@@ -449,7 +449,7 @@ function ConsumableTable({ rows, setRows, privacy, loading, error, onRetry, acti
           {!loading && sorted.length > 0 && (
             <tfoot>
               <tr className="border-t border-zinc-800 text-zinc-400">
-                <Td className="font-medium text-zinc-300" colSpan={showAll ? 12 : 8}>Active / yr · /mo est.</Td>
+                <Td className="font-medium text-zinc-300" colSpan={showAll ? 12 : 7}>Active / yr · /mo est.</Td>
                 <Td className="text-right font-semibold text-emerald-400" colSpan={2}>
                   <Redacted on={privacy}><span className="tabular-nums">{fmt(cpys.reduce((a, b) => a + b, 0))} · {fmtDec(monthlyTotal)}</span></Redacted>
                 </Td>

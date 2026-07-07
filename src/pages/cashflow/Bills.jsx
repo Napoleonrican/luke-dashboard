@@ -13,9 +13,12 @@ import { makeToggleSort, sortRows } from './sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 import { notifyError } from './toast';
 
-const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981', Subscription: '#ec4899' };
+// Subscriptions live on their own tab (and feed the Summary from there), so
+// they're intentionally not a Bills category — keeping it here double-counted
+// them in the Summary's Subscription group. Legacy rows fall back to the gray dot.
+const CAT_COLOR = { Bill: '#3b82f6', Operating: '#10b981' };
 const catColor = (c) => CAT_COLOR[c] || '#94a3b8';
-const CATEGORIES = ['Bill', 'Operating', 'Subscription'];
+const CATEGORIES = ['Bill', 'Operating'];
 
 const SORT_PREF_KEY = 'bills_sort';
 
@@ -228,8 +231,7 @@ export default function Bills() {
           {!loading && bills.length > 0 && (
             <tfoot>
               <tr className="border-t border-zinc-800 text-zinc-400">
-                <Td className="font-medium text-zinc-300" colSpan={showAll ? 14 : 6}>Total</Td>
-                <Td />
+                <Td className="font-medium text-zinc-300" colSpan={showAll ? 14 : 5}>Total</Td>
                 <Td className="text-right font-semibold text-emerald-400">
                   <Redacted on={privacy}><span className="tabular-nums">{fmtDec(monthlyTotal)}</span></Redacted>
                 </Td>
