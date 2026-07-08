@@ -27,7 +27,7 @@ const INPUTS_PREF = 'waterfall_inputs';   // the separate "Plan Inputs" panel va
 
 const INPUT_FIELDS = [
   { group: 'What you currently owe', fields: [
-    { key: 'earninOwed', label: 'Earnin — payback owed', hint: 'Temporary manual field until Earnin gets its own tab.' },
+    { key: 'earninOwed', label: 'Earnin — payback owed', hint: 'Not linked to the Earnin tab yet — copy the running balance over manually.' },
     { key: 'uberBackupOwed', label: 'Uber Pro — backup balance owed' },
   ] },
   { group: 'Targets (from your Inputs sheet)', fields: [
