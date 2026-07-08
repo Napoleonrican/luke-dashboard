@@ -254,6 +254,74 @@ export default function Waterfall() {
         </div>
       </div>
 
+      {/* Current balances (accounts) — collapsible, sits above Plan Inputs since
+          balances are the input those Needs are computed against. */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <button
+            onClick={() => setBalancesOpen((o) => !o)}
+            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
+          >
+            <PiggyBank size={15} className="text-emerald-400 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Current Balances</span>
+              <span className="block text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</span>
+            </span>
+          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+              <Plus size={14} /> Add account
+            </button>
+            <button onClick={() => setBalancesOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              {balancesOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </button>
+          </div>
+        </div>
+        {balancesOpen && (
+        <div className="overflow-x-auto border-t border-zinc-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-4 py-2 font-medium">Account</th>
+                <th className="px-4 py-2 font-medium text-right">Balance</th>
+                <th className="px-4 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
+              ) : accounts.length === 0 ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
+              ) : accounts.map((a) => (
+                <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <td className="px-4 py-2">
+                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <Redacted on={privacy}>
+                      <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
+                    </Redacted>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => removeAccount(a.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {!loading && accounts.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
+                  <td className="px-4 py-2.5">Total cash on hand</td>
+                  <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+        )}
+      </section>
+
       {/* Plan Inputs — the only place non-flat needs get edited (never the table) */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <button
@@ -367,73 +435,6 @@ export default function Waterfall() {
           )}
         </section>
       </div>
-
-      {/* Current balances (accounts) — collapsible, same pattern as Plan Inputs */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-3">
-          <button
-            onClick={() => setBalancesOpen((o) => !o)}
-            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
-          >
-            <PiggyBank size={15} className="text-emerald-400 shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Current Balances</span>
-              <span className="block text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</span>
-            </span>
-          </button>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-              <Plus size={14} /> Add account
-            </button>
-            <button onClick={() => setBalancesOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-              {balancesOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            </button>
-          </div>
-        </div>
-        {balancesOpen && (
-        <div className="overflow-x-auto border-t border-zinc-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-                <th className="px-4 py-2 font-medium">Account</th>
-                <th className="px-4 py-2 font-medium text-right">Balance</th>
-                <th className="px-4 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
-              ) : accounts.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
-              ) : accounts.map((a) => (
-                <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                  <td className="px-4 py-2">
-                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <Redacted on={privacy}>
-                      <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
-                    </Redacted>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={() => removeAccount(a.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {!loading && accounts.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
-                  <td className="px-4 py-2.5">Total cash on hand</td>
-                  <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-        )}
-      </section>
 
       <p className="text-xs text-zinc-600">
         Every <span className="text-amber-400">live</span> Need is a formula against your accounts, 7-day bill/debt
