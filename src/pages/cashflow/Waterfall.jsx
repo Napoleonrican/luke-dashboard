@@ -1,65 +1,92 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine } from 'lucide-react';
+import {
+  Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
+} from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
   fetchAccounts, upsertAccount, deleteRow, getPref, setPref,
-  fetchBills, fetchDebts, fetchDigitalSubs, fetchRunwayManual,
+  fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchRunwayManual, fetchRunwayDeck,
 } from '../../lib/fin';
 import { fmt, fmtDec } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
-import { normalizeSources, withinWindow, isDebtType } from './runway';
+import { normalizeSources, withinWindow, isDebtType, itemKey, deckItems } from './runway';
+import { monthlyDigital, monthlyConsumable } from './subsAgg';
 import WipNotice from './WipNotice';
 import {
-  applyOverrides, allocate, byAccount, TIER_META, TIER_ORDER,
+  DEFAULT_INPUTS, applyOverrides, allocate, byAccount, TIER_META, TIER_ORDER,
+  fuelWeeklyDynamic, grocWeeklyDynamic,
 } from './waterfallCalc';
 
 const PAYCHECK_PREF = 'waterfall_paycheck';
 const INCLUDE_PREF = 'waterfall_include_paycheck';
 const SIDEGIG_PREF = 'waterfall_sidegig';
-const ALLOC_PREF = 'waterfall_alloc';   // { over, fuelWeekly, grocWeekly }
+const OVER_PREF = 'waterfall_over';       // { '5a': { pct }, '7': { need } } — the only overridable cells
+const INPUTS_PREF = 'waterfall_inputs';   // the separate "Plan Inputs" panel values
+
+const INPUT_FIELDS = [
+  { group: 'What you currently owe', fields: [
+    { key: 'earninOwed', label: 'Earnin — payback owed', hint: 'Temporary manual field until Earnin gets its own tab.' },
+    { key: 'uberBackupOwed', label: 'Uber Pro — backup balance owed' },
+  ] },
+  { group: 'Targets (from your Inputs sheet)', fields: [
+    { key: 'totalFixedBills', label: 'Total fixed bills (monthly)' },
+    { key: 'operatingBufferStage1', label: 'Operating buffer target' },
+    { key: 'debtBuffer', label: 'Debt/loan account buffer' },
+    { key: 'vehicleMaintTarget', label: 'Ongoing vehicle maintenance target' },
+    { key: 'outstandingCX5', label: 'Outstanding CX-5 repairs' },
+    { key: 'outstandingVersa', label: 'Outstanding Versa repairs' },
+    { key: 'emergencyFundGoal', label: 'Emergency fund goal' },
+    { key: 'fuelWeeklyBase', label: 'Fuel — full week need' },
+    { key: 'grocWeeklyBase', label: 'Groceries — full week need' },
+  ] },
+];
 
 // The Cash Waterfall — this week's income poured through prioritized steps into
 // each account. You set income + balances up top; the plan below shows exactly
-// how much to move where, mirroring the workbook's Waterfall sheet.
+// how much to move where, mirroring the workbook's Waterfall sheet. Every Need
+// is computed from live data — you edit the Plan Inputs panel or your account
+// balances, never the table itself (the workbook's two literal exceptions —
+// the surplus %s and the flat Credit Union need — stay editable in place).
 export default function Waterfall() {
   const { privacy } = useOutletContext();
   const [accounts, setAccounts] = useState([]);
   const [bills, setBills] = useState([]);
   const [debts, setDebts] = useState([]);
   const [digital, setDigital] = useState([]);
+  const [consumable, setConsumable] = useState([]);
   const [manual, setManual] = useState([]);
+  const [deck, setDeck] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paycheck, setPaycheck] = useState(0);
   const [includePaycheck, setIncludePaycheck] = useState(true);
   const [sideGig, setSideGig] = useState(0);
   const [over, setOver] = useState({});
-  const [fuelWeekly, setFuelWeekly] = useState(40);
-  const [grocWeekly, setGrocWeekly] = useState(17);
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsOpen, setInputsOpen] = useState(false);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchAccounts(), fetchBills(), fetchDebts(), fetchDigitalSubs(), fetchRunwayManual()]).then(
-      ([acc, b, d, dig, man]) => {
-        if (!active) return;
-        setAccounts(acc.data || []); setBills(b.data || []); setDebts(d.data || []);
-        setDigital(dig.data || []); setManual(man.data || []);
-        setLoading(false);
-      },
-    );
-    Promise.all([getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF), getPref(ALLOC_PREF)]).then(
-      ([pc, inc, sg, al]) => {
+    Promise.all([
+      fetchAccounts(), fetchBills(), fetchDebts(), fetchDigitalSubs(),
+      fetchConsumableSubs(), fetchRunwayManual(), fetchRunwayDeck(),
+    ]).then(([acc, b, d, dig, cons, man, dk]) => {
+      if (!active) return;
+      setAccounts(acc.data || []); setBills(b.data || []); setDebts(d.data || []);
+      setDigital(dig.data || []); setConsumable(cons.data || []);
+      setManual(man.data || []); setDeck(dk.data || []);
+      setLoading(false);
+    });
+    Promise.all([getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF), getPref(OVER_PREF), getPref(INPUTS_PREF)]).then(
+      ([pc, inc, sg, ov, inp]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
         if (typeof sg.data === 'number') setSideGig(sg.data);
-        if (al.data && typeof al.data === 'object') {
-          if (al.data.over) setOver(al.data.over);
-          if (typeof al.data.fuelWeekly === 'number') setFuelWeekly(al.data.fuelWeekly);
-          if (typeof al.data.grocWeekly === 'number') setGrocWeekly(al.data.grocWeekly);
-        }
+        if (ov.data && typeof ov.data === 'object') setOver(ov.data);
+        if (inp.data && typeof inp.data === 'object') setInputs({ ...DEFAULT_INPUTS, ...inp.data });
         setSynced(true);
       },
     );
@@ -70,37 +97,56 @@ export default function Waterfall() {
   const saveSideGig = (v) => { setSideGig(v); if (synced) setPref(SIDEGIG_PREF, v); };
   const toggleInclude = () => setIncludePaycheck((p) => { const n = !p; if (synced) setPref(INCLUDE_PREF, n); return n; });
 
-  const persistAlloc = (next) => { if (synced) setPref(ALLOC_PREF, next); };
-  const setNeed = (id, v) => {
-    const nextOver = { ...over, [id]: { ...over[id], need: v } };
-    setOver(nextOver); persistAlloc({ over: nextOver, fuelWeekly, grocWeekly });
-  };
   const setPct = (id, v) => {
     const nextOver = { ...over, [id]: { ...over[id], pct: v } };
-    setOver(nextOver); persistAlloc({ over: nextOver, fuelWeekly, grocWeekly });
+    setOver(nextOver); if (synced) setPref(OVER_PREF, nextOver);
   };
-  const setFuel = (v) => { setFuelWeekly(v); persistAlloc({ over, fuelWeekly: v, grocWeekly }); };
-  const setGroc = (v) => { setGrocWeekly(v); persistAlloc({ over, fuelWeekly, grocWeekly: v }); };
+  const setFlatNeed = (id, v) => {
+    const nextOver = { ...over, [id]: { ...over[id], need: v } };
+    setOver(nextOver); if (synced) setPref(OVER_PREF, nextOver);
+  };
+  const setInput = (key, v) => {
+    const next = { ...inputs, [key]: v };
+    setInputs(next); if (synced) setPref(INPUTS_PREF, next);
+  };
 
   const cashOnHand = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
   const available = (includePaycheck ? paycheck : 0) + sideGig + cashOnHand;
 
-  // ── Allocation ───────────────────────────────────────────────────────────────
+  // ── Allocation context ───────────────────────────────────────────────────────
   const items = normalizeSources({ bills, debts, digital, manual });
-  const in7 = withinWindow(items, 7);
+  const deckSet = new Set(deck.map((r) => itemKey(r.source_kind, r.source_id)));
+  const onDeck = deckItems(deck, items);
+  const onDeckBillSum = onDeck.filter((it) => !isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
+  const onDeckDebtSum = onDeck.filter((it) => isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
+
+  // 7-day bill/debt totals EXCLUDING items already on deck — the workbook
+  // counts an on-deck item once (via the sums above), not twice.
+  const in7 = withinWindow(items, 7).filter((it) => !deckSet.has(it.key));
   const bills7 = in7.filter((it) => !isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
   const debts7 = in7.filter((it) => isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
-  const ctx = { fuelWeekly, grocWeekly, bills7, debts7 };
+
+  const subsFloor = (
+    digital.filter((s) => s.active).reduce((t, s) => t + monthlyDigital(s), 0)
+    + consumable.filter((s) => s.active).reduce((t, s) => t + monthlyConsumable(s), 0)
+  ) / 2;
+
+  const fuelWeekly = fuelWeeklyDynamic(inputs.fuelWeeklyBase);
+  const grocWeekly = grocWeeklyDynamic(inputs.grocWeeklyBase);
+
+  const balanceFor = (name) => {
+    const a = accounts.find((x) => (x.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+    return a ? (a.balance ?? 0) : 0;
+  };
+
+  const ctx = {
+    bal: balanceFor, inputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
+  };
   const pool = (includePaycheck ? paycheck : 0) + sideGig;
   const steps = applyOverrides(over);
   const { rows, leftover } = allocate(steps, pool, ctx);
   const accountPlan = byAccount(rows);
   const totalAllocated = pool - leftover;
-
-  const balanceFor = (name) => {
-    const a = accounts.find((x) => (x.name || '').trim().toLowerCase() === name.trim().toLowerCase());
-    return a ? (a.balance ?? 0) : null;
-  };
 
   // ── Accounts CRUD ────────────────────────────────────────────────────────────
   const updateAccount = async (id, field, value) => {
@@ -118,13 +164,15 @@ export default function Waterfall() {
     await deleteRow('fin_accounts', id);
   };
 
-  // Need cell renderer (kept inline so it can reach setNeed/setPct/privacy).
+  // Need cell — read-only "live" figure for every computed step; the surplus
+  // %s and Step 7's flat need are the only fields that stay editable here,
+  // matching how the workbook itself hard-codes those two directly in-sheet.
   const renderNeed = ({ step, need }) => {
     if (step.auto) {
       return (
         <span className="inline-flex items-center gap-1.5 justify-end">
           <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(need)}</span></Redacted>
-          <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400" title="Calculated live from your data">live</span>
+          <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400" title="Computed from your accounts, Plan Inputs & 7-day totals">live</span>
         </span>
       );
     }
@@ -137,15 +185,15 @@ export default function Waterfall() {
       );
     }
     if (step.tier === 'remainder') return <span className="text-zinc-600">sweep</span>;
-    return <Redacted on={privacy}><AmountEdit value={step.need} onCommit={(v) => setNeed(step.id, v)} className="text-zinc-300" /></Redacted>;
+    // Only Step 7 (flat, literal in the workbook) reaches here.
+    return <Redacted on={privacy}><AmountEdit value={step.need} onCommit={(v) => setFlatNeed(step.id, v)} className="text-zinc-300" /></Redacted>;
   };
 
   return (
     <div className="space-y-6">
       <WipNotice>
-        First pass at the allocation engine — the plan pours live from your income,
-        balances &amp; 7-day bill/debt totals, but the fixed needs are still being
-        dialed in; sanity-check before you move real money.
+        Needs now compute from your accounts, 7-day bill/debt totals &amp; the Plan Inputs panel below —
+        double-check the inputs match your real targets before you move money.
       </WipNotice>
 
       {/* Available this week */}
@@ -205,6 +253,42 @@ export default function Waterfall() {
         </div>
       </div>
 
+      {/* Plan Inputs — the only place non-flat needs get edited (never the table) */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <button
+          onClick={() => setInputsOpen((o) => !o)}
+          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <SlidersHorizontal size={15} className="text-emerald-400" />
+            <span className="text-sm font-semibold">Plan Inputs</span>
+            <span className="text-xs text-zinc-500">— feeds every &ldquo;live&rdquo; Need below</span>
+          </span>
+          {inputsOpen ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
+        </button>
+        {inputsOpen && (
+          <div className="border-t border-zinc-800 px-4 py-4 space-y-4">
+            {INPUT_FIELDS.map((g) => (
+              <div key={g.group}>
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">{g.group}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {g.fields.map((f) => (
+                    <label key={f.key} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                      <span className="text-xs text-zinc-400" title={f.hint}>{f.label}</span>
+                      <span className="w-20 shrink-0">
+                        <Redacted on={privacy}>
+                          <AmountEdit value={inputs[f.key]} onCommit={(v) => setInput(f.key, v)} className="text-zinc-200" />
+                        </Redacted>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Allocation: steps + per-account rollup */}
       <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4 items-start">
         {/* Steps */}
@@ -212,7 +296,7 @@ export default function Waterfall() {
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
             <div>
               <h3 className="text-sm font-semibold">This week&rsquo;s plan</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Income pours top-down. Needs are editable; <span className="text-amber-400">live</span> ones come from your data.</p>
+              <p className="text-xs text-zinc-500 mt-0.5"><span className="text-amber-400">Live</span> needs are computed — edit Plan Inputs above, not the table.</p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -238,16 +322,6 @@ export default function Waterfall() {
               </tbody>
             </table>
           </div>
-          {/* Essentials inputs (feed the "Weekly Essentials" live need) */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-zinc-800 px-4 py-3 text-xs text-zinc-500">
-            <span className="uppercase tracking-wide text-[10px]">Weekly essentials</span>
-            <label className="flex items-center gap-2">Fuel
-              <span className="w-20"><Redacted on={privacy}><AmountEdit value={fuelWeekly} onCommit={setFuel} className="text-zinc-300" /></Redacted></span>
-            </label>
-            <label className="flex items-center gap-2">Groceries
-              <span className="w-20"><Redacted on={privacy}><AmountEdit value={grocWeekly} onCommit={setGroc} className="text-zinc-300" /></Redacted></span>
-            </label>
-          </div>
         </section>
 
         {/* Per-account rollup — what to move where */}
@@ -268,13 +342,11 @@ export default function Waterfall() {
                       <span className="text-sm font-medium text-zinc-200">{g.account}</span>
                       <Redacted on={privacy}><span className="text-sm font-bold tabular-nums text-emerald-400">{fmtDec(g.total)}</span></Redacted>
                     </div>
-                    {bal != null && (
-                      <p className="mt-0.5 text-[11px] text-zinc-500">
-                        <Redacted on={privacy}><span className="tabular-nums">{fmtDec(bal)}</span></Redacted>
-                        {' → '}
-                        <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(bal + g.total)}</span></Redacted>
-                      </p>
-                    )}
+                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                      <Redacted on={privacy}><span className="tabular-nums">{fmtDec(bal)}</span></Redacted>
+                      {' → '}
+                      <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(bal + g.total)}</span></Redacted>
+                    </p>
                     <div className="mt-2 space-y-0.5">
                       {g.steps.map((st) => (
                         <div key={st.id} className="flex items-center justify-between gap-2 text-[11px] text-zinc-500">
@@ -350,9 +422,9 @@ export default function Waterfall() {
       </section>
 
       <p className="text-xs text-zinc-600">
-        First pass at the allocation engine. The <span className="text-amber-400">live</span> needs (essentials, 7-day
-        bills &amp; debts) come straight from your data; the rest are editable and saved as you go. Tell me which fixed
-        needs should also auto-derive and I&rsquo;ll wire them up.
+        Every <span className="text-amber-400">live</span> Need is a formula against your accounts, 7-day bill/debt
+        totals, on-deck amounts &amp; the Plan Inputs panel above — matching the workbook. The surplus %s (5a/5b/5c)
+        and Step 7&rsquo;s flat need stay directly editable, same as the original sheet.
       </p>
     </div>
   );
