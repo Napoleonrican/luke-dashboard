@@ -65,6 +65,7 @@ export default function Waterfall() {
   const [over, setOver] = useState({});
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [inputsOpen, setInputsOpen] = useState(false);
+  const [balancesOpen, setBalancesOpen] = useState(false);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => {
@@ -367,18 +368,30 @@ export default function Waterfall() {
         </section>
       </div>
 
-      {/* Current balances (accounts) */}
+      {/* Current balances (accounts) — collapsible, same pattern as Plan Inputs */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
-          <div>
-            <h3 className="text-sm font-semibold">Current Balances</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</p>
-          </div>
-          <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-            <Plus size={14} /> Add account
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <button
+            onClick={() => setBalancesOpen((o) => !o)}
+            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
+          >
+            <PiggyBank size={15} className="text-emerald-400 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Current Balances</span>
+              <span className="block text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</span>
+            </span>
           </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+              <Plus size={14} /> Add account
+            </button>
+            <button onClick={() => setBalancesOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              {balancesOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
+        {balancesOpen && (
+        <div className="overflow-x-auto border-t border-zinc-800">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
@@ -419,6 +432,7 @@ export default function Waterfall() {
             )}
           </table>
         </div>
+        )}
       </section>
 
       <p className="text-xs text-zinc-600">
