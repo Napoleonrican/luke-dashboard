@@ -29,7 +29,6 @@ const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
-const Inputs = lazy(() => import('./pages/cashflow/Inputs'));
 const Earnin = lazy(() => import('./pages/cashflow/Earnin'));
 
 export default function App() {
@@ -79,8 +78,10 @@ export default function App() {
           <Route path="bills" element={<Bills />} />
           <Route path="debts" element={<Debts />} />
           <Route path="subscriptions" element={<Subscriptions />} />
-          <Route path="inputs" element={<Inputs />} />
           <Route path="earnin" element={<Earnin />} />
+          {/* Inputs & Targets was retired — Waterfall's Plan Inputs panel replaced it
+              with the same values, actually wired into the live calculations. */}
+          <Route path="inputs" element={<Navigate to="../waterfall" replace />} />
         </Route>
         <Route path="/mission-control" element={
           <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, SlidersHorizontal, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
+import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 import { getPref, setPref } from '../../lib/fin';
@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { to: 'bills',         label: 'Bills',         icon: Receipt,           color: '#3b82f6' },
   { to: 'debts',         label: 'Debts',         icon: CreditCard,        color: '#8b5cf6' },
   { to: 'subscriptions', label: 'Subscriptions', icon: Repeat,            color: '#ec4899' },
-  { to: 'inputs',        label: 'Inputs',        icon: SlidersHorizontal, color: '#10b981' },
   { to: 'earnin',        label: 'Earnin',        icon: Banknote,          color: '#f59e0b' },
 ];
 
