@@ -11,6 +11,7 @@ import {
 import EditCell from './EditCell';
 import { UpdatedCell, DaysBadge } from './cells';
 import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
+import { CardList, Card, CardField, CardState, CardLoadError } from './cardparts';
 import { makeToggleSort, sortRows } from './sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from './ModalField';
 import { notifyError } from './toast';
@@ -144,9 +145,11 @@ export default function Debts() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Column toggle only affects the table, which is hidden on phones —
+              so it's desktop-only, matching where the card view takes over. */}
           <button
             onClick={() => setShowAll((v) => !v)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
               showAll ? 'bg-emerald-900/30 border-emerald-600 text-emerald-400' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -158,8 +161,8 @@ export default function Debts() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-x-auto">
+      {/* Table (desktop) — hidden on phones, where the card list below takes over */}
+      <div className="hidden md:block rounded-xl border border-zinc-800 bg-zinc-900 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
@@ -264,6 +267,59 @@ export default function Debts() {
           )}
         </table>
       </div>
+
+      {/* Card list (phones) — stacked, read-first; tap a card to open its full
+          editor (single-column on mobile), or use the trash icon to delete. */}
+      <CardList>
+        {loading ? (
+          <CardState>Loading…</CardState>
+        ) : error ? (
+          <CardLoadError onRetry={reload} />
+        ) : debts.length === 0 ? (
+          <CardState>No debts yet — add one or run the seed.</CardState>
+        ) : sortedDebts.map((d) => {
+          const pr = paymentsRemaining(d);
+          const prC = paymentsRemainingColor(pr);
+          const ep = expectedPayoffDate(d);
+          const epC = payoffColor(ep);
+          return (
+            <Card
+              key={d.id}
+              dotColor={typeColor(d.credit_type)}
+              title={d.purchase || 'Debt'}
+              deleteLabel={`Delete ${d.purchase || 'debt'}`}
+              onOpen={() => setEditingId(d.id)}
+              onDelete={() => remove(d.id)}
+              headline={
+                <Redacted on={privacy}>
+                  <span className="text-sm font-semibold text-zinc-100 tabular-nums whitespace-nowrap">{fmt(d.balance)}</span>
+                </Redacted>
+              }
+            >
+              <CardField label="Credit Type">{d.credit_type || '—'}</CardField>
+              <CardField label="Lender">{d.lender || '—'}</CardField>
+              <CardField label="Next Due" full>
+                <span className="inline-flex items-center gap-2">
+                  <span className="tabular-nums">{fmtDate(d.next_due_date)}</span>
+                  <DaysBadge iso={d.next_due_date} />
+                </span>
+              </CardField>
+              <CardField label="Normal Pmt">
+                <Redacted on={privacy}>{fmtDec(d.normal_payment)}</Redacted>
+              </CardField>
+              <CardField label="New Min.">
+                <Redacted on={privacy}>{d.new_min == null ? '—' : fmtDec(d.new_min)}</Redacted>
+              </CardField>
+              <CardField label="Pmts Rem.">
+                <span style={prC ? { color: prC.color } : undefined}>{pr == null ? '—' : Math.round(pr)}</span>
+              </CardField>
+              <CardField label="Exp. Payoff">
+                <span style={epC ? { color: epC.color } : undefined}>{fmtDate(ep)}</span>
+              </CardField>
+            </Card>
+          );
+        })}
+      </CardList>
 
       <p className="text-[11px] text-zinc-600 flex flex-wrap gap-4">
         <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(0 85% 65%)' }} />Needs attention / high APR / far payoff</span>
