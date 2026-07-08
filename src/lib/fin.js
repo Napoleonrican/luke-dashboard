@@ -53,6 +53,20 @@ export async function fetchRunwayDeck() {
   return s.from('fin_runway_deck').select('*');
 }
 
+// ── Earnin transaction log ────────────────────────────────────────────────────
+
+export async function fetchEarninTransactions() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_earnin_transactions').select('*').order('txn_date', { ascending: false }).order('created_at', { ascending: false });
+}
+
+export async function upsertEarninTransaction(row) {
+  if (!s) return { error: { message: 'Not configured' } };
+  const { id, ...rest } = row;
+  if (id) return s.from('fin_earnin_transactions').update(rest).eq('id', id).select();
+  return s.from('fin_earnin_transactions').insert(rest).select();
+}
+
 // ── Upsert / update ───────────────────────────────────────────────────────────
 
 export async function upsertAccount(row) {
