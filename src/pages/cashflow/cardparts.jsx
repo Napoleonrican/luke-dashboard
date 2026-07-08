@@ -65,7 +65,7 @@ export function Card({ dotColor, title, headline, onOpen, onDelete, deleteLabel,
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             aria-label={deleteLabel}
             title="Delete"
-            className="text-red-400/70 hover:text-red-400 transition-colors p-1 -m-1"
+            className="text-red-400/70 hover:text-red-400 transition-colors p-3 -m-3"
           >
             <Trash2 size={15} />
           </button>
