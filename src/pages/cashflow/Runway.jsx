@@ -61,6 +61,13 @@ export default function Runway() {
   const onDeck = deckItems(deck, items);
   const totals = bucketTotals(withinWindow(items, windowDays));
 
+  // What's staged On Deck, broken out by type — so you can make sure each
+  // account holds enough to cover the pieces you've triggered. Highest first.
+  const onDeckTotal = onDeck.reduce((s, it) => s + (it.amount ?? 0), 0);
+  const onDeckByType = Object.entries(
+    onDeck.reduce((acc, it) => { acc[it.type] = (acc[it.type] ?? 0) + (it.amount ?? 0); return acc; }, {}),
+  ).sort((a, b) => b[1] - a[1]);
+
   // ── Actions ────────────────────────────────────────────────────────────────
   const moveToDeck = async (it) => {
     const { data } = await addToDeck(it.source_kind, it.source_id);
@@ -87,12 +94,18 @@ export default function Runway() {
   // Tables that track a manual "last verified" date, distinct from updated_at.
   const HAS_UPDATED_ON = { bill: true, debt: true, digital: true, manual: false };
 
+  // Bills always roll forward exactly one month for planning, regardless of
+  // their stored billing frequency (an annually-billed line still gets
+  // re-dated monthly here). Debts, subs, and ad-hoc items keep their own
+  // cadence via the frequency logic in advanceDate().
+  const advanceFreqFor = (it) => (it.source_kind === 'bill' ? 'Monthly' : it.frequency);
+
   // Roll an item to its next due date (and drop it from the deck if it was on
   // it — it's been handled). Also stamps "Updated" to today, since advancing
   // is effectively confirming the item as current. One-Time items have no
   // next date; the action is hidden for them.
   const advance = async (it, deckId) => {
-    const next = advanceDate(it.dueISO, it.frequency);
+    const next = advanceDate(it.dueISO, advanceFreqFor(it));
     if (!next) return;
     const fields = { [DUE_COL_FOR[it.source_kind]]: next };
     if (HAS_UPDATED_ON[it.source_kind]) fields.updated_on = todayISO();
@@ -101,7 +114,7 @@ export default function Runway() {
     await updateRow(TABLE_FOR[it.source_kind], it.source_id, fields);
   };
 
-  const canAdvance = (it) => !!advanceDate(it.dueISO, it.frequency);
+  const canAdvance = (it) => !!advanceDate(it.dueISO, advanceFreqFor(it));
 
   // ── Manual (ad-hoc) entries ──────────────────────────────────────────────────
   const updateManual = async (id, field, value) => {
@@ -152,7 +165,7 @@ export default function Runway() {
         <Stat label={`Bills — next ${windowDays}d`} value={fmt(totals.bills)} privacy={privacy} tone="text-blue-400" />
         <Stat label={`Debts — next ${windowDays}d`} value={fmt(totals.debt)} privacy={privacy} tone="text-violet-400" />
         <Stat label={`Total — next ${windowDays}d`} value={fmt(totals.total)} privacy={privacy} tone="text-amber-400" />
-        <Stat label="On Deck" value={String(onDeck.length)} />
+        <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}
@@ -348,6 +361,30 @@ function AmountCell({ amount, privacy }) {
     <Td className="text-right">
       <Redacted on={privacy}><span className="tabular-nums text-zinc-200">{fmtDec(amount)}</span></Redacted>
     </Td>
+  );
+}
+
+// On Deck headline: total staged, then the split by type so you know how much
+// to have sitting in each account to cover what you've triggered.
+function OnDeckCard({ total, byType, count, privacy }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+      <p className="text-xs text-zinc-500 mb-1">On Deck <span className="text-zinc-600">· {count}</span></p>
+      <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(total)}</span></Redacted>
+      {byType.length > 0 && (
+        <div className="mt-2 space-y-0.5">
+          {byType.map(([type, amt]) => (
+            <div key={type} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: typeColor(type) }} />
+                <span className="truncate text-zinc-400">{type}</span>
+              </span>
+              <Redacted on={privacy}><span className="tabular-nums text-zinc-400 shrink-0">{fmt(amt)}</span></Redacted>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

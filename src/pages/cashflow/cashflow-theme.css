@@ -68,3 +68,8 @@
    preserves each cell's hue. Only heat/legend elements use inline hsl() in this
    module (category dots and Summary group tints use hex), so the match is exact. */
 .cf-light [style*="hsl"] { filter: brightness(0.58) saturate(1.3); }
+
+/* Focus-state backgrounds are separate utilities (`focus:bg-zinc-800`) the
+   plain `.bg-zinc-800` remap above doesn't cover — without this an AmountEdit
+   turns near-black on focus in light mode, hiding what you're typing. */
+.cf-light .focus\:bg-zinc-800:focus { background-color: #e2e8f0; }
