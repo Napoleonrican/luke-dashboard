@@ -28,6 +28,13 @@
 .cf-light .text-pink-400    { color: #be185d; }
 .cf-light .text-red-400     { color: #b91c1c; }
 
+/* Opacity-modified reds (text-red-400/70, /90) are their own utility classes —
+   the plain .text-red-400 rule above doesn't touch them — so the mobile card's
+   delete icon and "couldn't load" error text stayed pale red on white without
+   these. (cc-review #101) */
+.cf-light .text-red-400\/70 { color: #b91c1c; }
+.cf-light .text-red-400\/90 { color: #b91c1c; }
+
 .cf-light .text-white,
 .cf-light .text-zinc-100,
 .cf-light .text-zinc-200,
