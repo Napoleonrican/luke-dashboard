@@ -140,10 +140,22 @@ export default function Waterfall() {
     return a ? (a.balance ?? 0) : 0;
   };
 
+  // "Already in Bill Pay" mode sweeps whatever's actually sitting in Bill Pay
+  // Checking into this week's pool, then treats that account as if it started
+  // the week at $0 — the plan below decides how much of it comes back into
+  // Bill Pay (via 0b/2/4) versus flows to every other account. Every other
+  // account's balance is untouched (real, not swept). `effectiveBalFor` is
+  // what the plan reasons with; `balanceFor` (real) stays for Current
+  // Balances and anywhere else that should show what's actually in the bank.
+  const billPayBalance = balanceFor('Bill Pay Checking');
+  const effectiveBalFor = (name) => (
+    !includePaycheck && name.trim().toLowerCase() === 'bill pay checking' ? 0 : balanceFor(name)
+  );
+
   const ctx = {
-    bal: balanceFor, inputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
+    bal: effectiveBalFor, inputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
   };
-  const pool = (includePaycheck ? paycheck : 0) + sideGig;
+  const pool = includePaycheck ? (paycheck + sideGig) : (billPayBalance + sideGig);
   const steps = applyOverrides(over);
   const { rows, leftover } = allocate(steps, pool, ctx);
   const accountPlan = byAccount(rows);
@@ -176,7 +188,7 @@ export default function Waterfall() {
       // that down on hover so a $0 Earnin balance doesn't read as a bug when
       // on-deck bills are still driving the number.
       const liveTitle = step.auto === 'earninCoverage'
-        ? `Earnin owed ${fmtDec(inputs.earninOwed)} + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(balanceFor('Bill Pay Checking'))}`
+        ? `Earnin owed ${fmtDec(inputs.earninOwed)} + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(effectiveBalFor('Bill Pay Checking'))}`
         : 'Computed from your accounts, Plan Inputs & 7-day totals';
       return (
         <span className="inline-flex items-center gap-1.5 justify-end">
@@ -263,8 +275,9 @@ export default function Waterfall() {
             </p>
           ) : (
             <p className="mt-3 text-[11px] text-amber-500/80">
-              &ldquo;Already in Bill Pay&rdquo; — the paycheck is excluded from this week&rsquo;s pour. Make sure Bill Pay Checking&rsquo;s
-              balance below already includes the deposit, or needs will look smaller than they really are.
+              &ldquo;Already in Bill Pay&rdquo; — Bill Pay Checking&rsquo;s current balance
+              (<Redacted on={privacy}><span className="tabular-nums">{fmtDec(billPayBalance)}</span></Redacted>) becomes this week&rsquo;s pool,
+              treated as if that account started the week at $0. The plan below decides how much comes back into it versus flows elsewhere.
             </p>
           )}
         </div>
@@ -275,7 +288,11 @@ export default function Waterfall() {
             <ArrowDownToLine size={15} className="text-cyan-400" /><span className="text-xs">To distribute this week</span>
           </div>
           <Redacted on={privacy}><p className="text-3xl font-bold text-cyan-400 tabular-nums">{fmt(pool)}</p></Redacted>
-          <p className="mt-2 text-[11px] text-zinc-500">New income poured through the plan below (paycheck {includePaycheck ? '+' : 'off,'} side-gig). Cash on hand stays put.</p>
+          <p className="mt-2 text-[11px] text-zinc-500">
+            {includePaycheck
+              ? 'New income poured through the plan below (paycheck + side-gig). Cash on hand stays put.'
+              : 'Bill Pay Checking’s balance, swept + side-gig, poured through the plan below. Every other account’s balance stays put.'}
+          </p>
           <div className="mt-3 flex items-center gap-4 text-xs">
             <span className="text-zinc-500">Allocated <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(totalAllocated)}</span></Redacted></span>
             <span className="text-zinc-500">Left <Redacted on={privacy}><span className={`tabular-nums ${leftover > 0.005 ? 'text-amber-400' : 'text-zinc-500'}`}>{fmtDec(leftover)}</span></Redacted></span>
@@ -433,7 +450,7 @@ export default function Waterfall() {
           ) : (
             <div className="space-y-2.5">
               {accountPlan.map((g) => {
-                const bal = balanceFor(g.account);
+                const bal = effectiveBalFor(g.account);
                 return (
                   <div key={g.account} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
                     <div className="flex items-center justify-between gap-2">
