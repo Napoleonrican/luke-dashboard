@@ -170,10 +170,18 @@ export default function Waterfall() {
   // matching how the workbook itself hard-codes those two directly in-sheet.
   const renderNeed = ({ step, need }) => {
     if (step.auto) {
+      // Step 0b bundles two things (matching the workbook): what's owed to
+      // Earnin, plus whatever's already staged On Deck (Bill-type) on the
+      // Runway tab — both netted against the Bill Pay Checking balance. Break
+      // that down on hover so a $0 Earnin balance doesn't read as a bug when
+      // on-deck bills are still driving the number.
+      const liveTitle = step.auto === 'earninCoverage'
+        ? `Earnin owed ${fmtDec(inputs.earninOwed)} + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(balanceFor('Bill Pay Checking'))}`
+        : 'Computed from your accounts, Plan Inputs & 7-day totals';
       return (
         <span className="inline-flex items-center gap-1.5 justify-end">
           <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(need)}</span></Redacted>
-          <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400" title="Computed from your accounts, Plan Inputs & 7-day totals">live</span>
+          <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400" title={liveTitle}>live</span>
         </span>
       );
     }
@@ -207,18 +215,32 @@ export default function Waterfall() {
             <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmt(available)}</p>
           </Redacted>
           <div className="mt-4 space-y-2.5 text-sm">
-            {/* Paycheck with include toggle */}
-            <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-zinc-400 cursor-pointer select-none">
-                <input type="checkbox" checked={includePaycheck} onChange={toggleInclude}
-                  className="h-4 w-4 accent-emerald-500 cursor-pointer" />
-                <span className={includePaycheck ? '' : 'line-through text-zinc-600'}>Paycheck</span>
-              </label>
+            {/* Paycheck: amount + planning-vs-landed toggle */}
+            <div className={`flex items-center justify-between gap-2 ${includePaycheck ? '' : 'opacity-50'}`}>
+              <span className="text-zinc-400">Paycheck</span>
               <span className="w-24">
                 <Redacted on={privacy}>
                   <AmountEdit value={paycheck} onCommit={savePaycheck} className="text-zinc-200" />
                 </Redacted>
               </span>
+            </div>
+            <div className="inline-flex w-full rounded-lg border border-zinc-700 bg-zinc-800 p-0.5 text-xs">
+              <button
+                onClick={() => { if (!includePaycheck) toggleInclude(); }}
+                className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
+                  includePaycheck ? 'bg-emerald-900/40 text-emerald-300' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                Planning ahead
+              </button>
+              <button
+                onClick={() => { if (includePaycheck) toggleInclude(); }}
+                className={`flex-1 rounded-md px-2 py-1.5 font-medium transition-colors ${
+                  !includePaycheck ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                Already in Bill Pay
+              </button>
             </div>
             {/* Side-gig earnings */}
             <div className="flex items-center justify-between gap-2">
@@ -235,8 +257,15 @@ export default function Waterfall() {
               <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(cashOnHand)}</span></Redacted>
             </div>
           </div>
-          {!includePaycheck && (
-            <p className="mt-3 text-[11px] text-amber-500/80">Paycheck excluded — modeling an off-week on side-gig earnings only.</p>
+          {includePaycheck ? (
+            <p className="mt-3 text-[11px] text-zinc-500">
+              &ldquo;Planning ahead&rdquo; — the paycheck hasn&rsquo;t landed yet, so it&rsquo;s poured as new money on top of your current balances.
+            </p>
+          ) : (
+            <p className="mt-3 text-[11px] text-amber-500/80">
+              &ldquo;Already in Bill Pay&rdquo; — the paycheck is excluded from this week&rsquo;s pour. Make sure Bill Pay Checking&rsquo;s
+              balance below already includes the deposit, or needs will look smaller than they really are.
+            </p>
           )}
         </div>
 

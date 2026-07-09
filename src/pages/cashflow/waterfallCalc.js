@@ -18,7 +18,7 @@
 
 export const DEFAULT_STEPS = [
   { id: '0a', label: 'Uber Pro Card — Backup Balance Repayment',      account: 'Uber Pro Card',      tier: 'gate', auto: 'uberBackup' },
-  { id: '0b', label: 'Bill Pay — Earnin Repayment Coverage',          account: 'Bill Pay Checking',  tier: 'gate', auto: 'earninCoverage' },
+  { id: '0b', label: 'Bill Pay — Earnin Repayment + On-Deck Bills',    account: 'Bill Pay Checking',  tier: 'gate', auto: 'earninCoverage' },
   { id: '1',  label: 'Weekly Essentials (Fuel + Groceries)',          account: 'Operating Checking', tier: 'gate', auto: 'essentials' },
   { id: '2',  label: 'Bill Pay — Immediate Bills (7-Day Runway)',     account: 'Bill Pay Checking',  tier: 'gate', auto: 'bills7' },
   { id: '3',  label: 'Debt Pay — Debt / Loan Radar (7-Day)',          account: 'Debt Pay Checking',  tier: 'gate', auto: 'debtRadar7' },
