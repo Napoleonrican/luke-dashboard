@@ -719,47 +719,50 @@ export default function Waterfall() {
         )}
       </section>
 
-      {/* Balance freshness check — sits right above Current Balances, only
-          shows when something's stale, dismissible for the day. */}
+      {/* Balance freshness check — blocking modal on landing, until addressed
+          (Not now / Looks good / Update now). No backdrop-click dismiss on
+          purpose: it needs an explicit choice, not an accidental tap-away. */}
       {showBalanceCheck && (
-        <section className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
-          <div className="flex items-start gap-2 mb-3">
-            <BadgeCheck size={16} className="text-amber-400 mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-amber-200">Still accurate?</h3>
-              <p className="text-xs text-amber-300/70 mt-0.5">Last recorded balances — confirm they&rsquo;re right, or jump in and update them.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-amber-700/40 bg-zinc-900 shadow-2xl p-5" role="alertdialog" aria-modal="true">
+            <div className="flex items-start gap-2 mb-3">
+              <BadgeCheck size={18} className="text-amber-400 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-amber-200">Still accurate?</h3>
+                <p className="text-xs text-amber-300/70 mt-0.5">Last recorded balances — confirm they&rsquo;re right, or jump in and update them.</p>
+              </div>
+            </div>
+            <div className="space-y-1.5 mb-4 max-h-[50vh] overflow-y-auto">
+              {accounts.map((a) => {
+                const since = daysSince(a.updated_at);
+                const c = updatedColor(a.updated_at);
+                return (
+                  <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} />
+                      <span className="text-zinc-300 truncate">{a.name}</span>
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(a.balance)}</span></Redacted>
+                      <span className="text-[11px] text-zinc-600 w-14 text-right">{since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button onClick={dismissBalanceCheck} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+                Not now
+              </button>
+              <button onClick={confirmBalancesFresh} className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3.5 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+                Looks good
+              </button>
+              <button onClick={jumpToBalances} className="rounded-lg border border-amber-600 bg-amber-900/30 px-3.5 py-2 text-sm font-medium text-amber-300 hover:bg-amber-900/50 transition-colors">
+                Update now
+              </button>
             </div>
           </div>
-          <div className="space-y-1.5 mb-3">
-            {accounts.map((a) => {
-              const since = daysSince(a.updated_at);
-              const c = updatedColor(a.updated_at);
-              return (
-                <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} />
-                    <span className="text-zinc-300 truncate">{a.name}</span>
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(a.balance)}</span></Redacted>
-                    <span className="text-[11px] text-zinc-600 w-14 text-right">{since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={dismissBalanceCheck} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors">
-              Not now
-            </button>
-            <button onClick={confirmBalancesFresh} className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-              Looks good
-            </button>
-            <button onClick={jumpToBalances} className="rounded-lg border border-amber-600 bg-amber-900/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-900/50 transition-colors">
-              Update now
-            </button>
-          </div>
-        </section>
+        </div>
       )}
 
       {/* Current balances (accounts) — collapsible, closed by default */}
