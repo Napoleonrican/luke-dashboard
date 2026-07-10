@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
-  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck,
+  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
@@ -66,7 +66,7 @@ const INPUT_FIELDS = [
 // Plan Inputs (the config-ish, occasionally-touched pieces) collapse by
 // default at the bottom.
 export default function Waterfall() {
-  const { privacy } = useOutletContext();
+  const { privacy, onTogglePrivacy } = useOutletContext();
   const [accounts, setAccounts] = useState([]);
   const [bills, setBills] = useState([]);
   const [debts, setDebts] = useState([]);
@@ -727,10 +727,20 @@ export default function Waterfall() {
           <div className="w-full max-w-sm rounded-2xl border border-amber-700/40 bg-zinc-900 shadow-2xl p-5" role="alertdialog" aria-modal="true">
             <div className="flex items-start gap-2 mb-3">
               <BadgeCheck size={18} className="text-amber-400 mt-0.5 shrink-0" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-semibold text-amber-200">Still accurate?</h3>
                 <p className="text-xs text-amber-300/70 mt-0.5">Last recorded balances — confirm they&rsquo;re right, or jump in and update them.</p>
               </div>
+              {/* The menu's privacy toggle sits behind this modal — give it its
+                  own eye button here so the figures aren't permanently blurred
+                  with no way to check them before answering. */}
+              <button
+                onClick={onTogglePrivacy}
+                title={privacy ? 'Show figures' : 'Hide figures'}
+                className="shrink-0 text-zinc-500 hover:text-zinc-200 transition-colors p-1.5 -m-1.5"
+              >
+                {privacy ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
             </div>
             <div className="space-y-1.5 mb-4 max-h-[50vh] overflow-y-auto">
               {accounts.map((a) => {
