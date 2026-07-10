@@ -18,6 +18,12 @@
 /* Faint accent button/badge backgrounds → light tints */
 .cf-light .bg-emerald-900\/30 { background-color: #d1fae5; }
 .cf-light .bg-amber-900\/30 { background-color: #fef3c7; }
+.cf-light .bg-red-900\/30 { background-color: #fee2e2; }
+.cf-light .bg-red-900\/40 { background-color: #fecaca; }
+.cf-light .hover\:bg-red-900\/60:hover { background-color: #fca5a5; }
+.cf-light .border-red-700 { border-color: #fca5a5; }
+.cf-light .text-red-300 { color: #b91c1c; }
+.cf-light .hover\:text-red-200:hover { color: #991b1b; }
 
 /* Accent text on the (now-white) card bg: the Tailwind -400 accents are tuned
    for the dark shell and drop below WCAG AA on white. Darken to ~-700 tones. */

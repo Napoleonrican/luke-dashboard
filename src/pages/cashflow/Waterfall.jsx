@@ -14,6 +14,7 @@ import EditCell from './EditCell';
 import { normalizeSources, withinWindow, isDebtType, itemKey, deckItems } from './runway';
 import { monthlyDigital, monthlyConsumable } from './subsAgg';
 import WipNotice from './WipNotice';
+import ConfirmDialog from './ConfirmDialog';
 import {
   DEFAULT_INPUTS, applyOverrides, allocate, byAccount, TIER_META, TIER_ORDER,
   fuelWeeklyDynamic, grocWeeklyDynamic,
@@ -67,6 +68,7 @@ export default function Waterfall() {
   const [inputsOpen, setInputsOpen] = useState(false);
   const [balancesOpen, setBalancesOpen] = useState(false);
   const [synced, setSynced] = useState(false);
+  const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -330,7 +332,7 @@ export default function Waterfall() {
               <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
                 <th className="px-4 py-2 font-medium">Account</th>
                 <th className="px-4 py-2 font-medium text-right">Balance</th>
-                <th className="px-4 py-2 font-medium" />
+                <th className="w-10 px-2 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -348,8 +350,18 @@ export default function Waterfall() {
                       <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
                     </Redacted>
                   </td>
-                  <td className="px-4 py-2 text-right">
-                    <button onClick={() => removeAccount(a.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                  {/* Its own narrow column, well clear of the balance input, with a
+                      generously padded tap target (invisible hit-slop via negative
+                      margin) — separated on purpose after the amount field turned
+                      out to sit right next to it. */}
+                  <td className="px-2 py-2 text-right">
+                    <button
+                      onClick={() => setConfirmRemoveAccount(a)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"
+                      title="Delete account"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -487,6 +499,15 @@ export default function Waterfall() {
         totals, on-deck amounts &amp; the Plan Inputs panel above — matching the workbook. The surplus %s (5a/5b/5c)
         and Step 7&rsquo;s flat need stay directly editable, same as the original sheet.
       </p>
+
+      <ConfirmDialog
+        open={confirmRemoveAccount}
+        title={`Delete “${confirmRemoveAccount?.name || 'this account'}”?`}
+        message="This removes it from Current Balances and from every Waterfall calculation that reads its balance. This can’t be undone."
+        confirmLabel="Delete account"
+        onCancel={() => setConfirmRemoveAccount(null)}
+        onConfirm={() => { removeAccount(confirmRemoveAccount.id); setConfirmRemoveAccount(null); }}
+      />
     </div>
   );
 }

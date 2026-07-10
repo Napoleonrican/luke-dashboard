@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  ArrowDownToLine, SkipForward, X, Plus, Trash2, Layers, CalendarClock,
+  ArrowDownToLine, SkipForward, X, Plus, Trash2, Layers, CalendarClock, CheckCircle2,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
@@ -13,6 +13,7 @@ import { DaysBadge } from './cells';
 import { Td } from './tableparts';
 import EditCell from './EditCell';
 import WipNotice from './WipNotice';
+import ConfirmDialog from './ConfirmDialog';
 import {
   normalizeSources, upcomingItems, deckItems, withinWindow, bucketTotals,
   advanceDate, itemKey, TABLE_FOR, DUE_COL_FOR, todayISO,
@@ -37,6 +38,7 @@ export default function Runway() {
   const [deck, setDeck] = useState([]);
   const [loading, setLoading] = useState(true);
   const [windowDays, setWindowDays] = useState(14);
+  const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -207,7 +209,11 @@ export default function Runway() {
                         <button onClick={() => advance(it, it.deckId)} title="Advance to next due date & clear"
                           className="text-zinc-500 hover:text-emerald-400 transition-colors"><SkipForward size={14} /></button>
                       )}
-                      <button onClick={() => removeFromDeck(it.deckId)} title="Remove from On Deck"
+                      {it.source_kind === 'manual' && (
+                        <button onClick={() => setConfirmRemoveManual(it)} title="Mark paid & remove — one-off items don't recur"
+                          className="text-zinc-500 hover:text-emerald-400 transition-colors"><CheckCircle2 size={14} /></button>
+                      )}
+                      <button onClick={() => removeFromDeck(it.deckId)} title="Take off deck (keeps it on the upcoming list)"
                         className="text-zinc-500 hover:text-red-400 transition-colors"><X size={15} /></button>
                     </span>
                   </Td>
@@ -252,6 +258,10 @@ export default function Runway() {
                       {canAdvance(it) && (
                         <button onClick={() => advance(it)} title="Advance to next due date"
                           className="text-zinc-500 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"><SkipForward size={14} /></button>
+                      )}
+                      {it.source_kind === 'manual' && (
+                        <button onClick={() => setConfirmRemoveManual(it)} title="Mark paid & remove — one-off items don't recur"
+                          className="text-zinc-500 hover:text-emerald-400 transition-colors opacity-0 group-hover:opacity-100"><CheckCircle2 size={14} /></button>
                       )}
                       <button onClick={() => moveToDeck(it)}
                         className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-900/20 px-2 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-900/40 transition-colors">
@@ -313,7 +323,7 @@ export default function Runway() {
                   </Td>
                   <Td className="text-right"><DaysBadge iso={m.next_due_date} /></Td>
                   <Td className="text-right">
-                    <button onClick={() => removeManual(m.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
+                    <button onClick={() => setConfirmRemoveManual(m)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
                   </Td>
                 </tr>
               ))}
@@ -338,6 +348,21 @@ export default function Runway() {
         <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(60 80% 60%)' }} />Coming up</span>
         <span><span className="inline-block h-2 w-2 rounded-full align-middle mr-1" style={{ background: 'hsl(120 70% 55%)' }} />Plenty of runway</span>
       </p>
+
+      {/* Confirms deletes from anywhere an ad-hoc item shows up (On Deck,
+          Coming Up, or the Ad Hoc table itself) — the two shapes passed in
+          differ (normalized `it.source_id` vs. the raw row's `.id`). */}
+      <ConfirmDialog
+        open={confirmRemoveManual}
+        title={`Remove “${confirmRemoveManual?.name || 'this item'}”?`}
+        message="This deletes it from the Ad Hoc list and off the Runway entirely — for a paid one-off, that's the point. This can't be undone."
+        confirmLabel="Mark paid & remove"
+        onCancel={() => setConfirmRemoveManual(null)}
+        onConfirm={() => {
+          removeManual(confirmRemoveManual.source_id ?? confirmRemoveManual.id);
+          setConfirmRemoveManual(null);
+        }}
+      />
     </div>
   );
 }
