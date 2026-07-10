@@ -52,7 +52,6 @@ export const DEFAULT_INPUTS = {
   uberBackupOwed:       96,     // Inputs!B22 — how much is currently owed back to Uber Pro
   earninOwed:           0,      // Earnin_Debit — total currently owed back to Earnin
   debtBuffer:           0,      // "Debt Payment Acct Buffer" helper cell (J10), usually 0
-  totalFixedBills:      1573,   // Inputs!B2 — monthly fixed bills total
   operatingBufferStage1: 250,   // Inputs!B16
   vehicleMaintTarget:   109,    // Inputs!B24
   outstandingCX5:       1613,   // Inputs!B25
@@ -110,7 +109,10 @@ export function needOf(step, ctx, allocatedById = {}) {
       return Math.max(0, (ctx.debts7 + ctx.onDeckDebtSum + inputs.debtBuffer) - bal('Debt/Loan Checking'));
     case 'floorBuild': {
       const step2Alloc = allocatedById['2'] || 0;
-      return mround(Math.max(0, inputs.totalFixedBills - (bal('Bill Pay Checking') + step2Alloc)), 10);
+      // ctx.totalFixedBills is computed live from the Bills tab (category
+      // "Bill"), not a manual Plan Inputs figure — no reason to duplicate a
+      // number the Bills tab already tracks and keep it in sync by hand.
+      return mround(Math.max(0, ctx.totalFixedBills - (bal('Bill Pay Checking') + step2Alloc)), 10);
     }
     case 'operatingBuffer': {
       const uberSurplus = Math.min(Math.max(0, bal('Uber Pro Card') - inputs.uberBackupOwed), inputs.operatingBufferStage1);
