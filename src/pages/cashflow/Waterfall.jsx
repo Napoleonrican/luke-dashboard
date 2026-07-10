@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
-  SkipForward, X, Layers, CalendarClock, CheckCircle2,
+  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
@@ -10,7 +10,7 @@ import {
   fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchRunwayManual, fetchRunwayDeck,
   addToDeck, updateDeck, upsertRunwayManual,
 } from '../../lib/fin';
-import { fmt, fmtDec, fmtDate, monthlyOf } from './format';
+import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { DaysBadge } from './cells';
@@ -33,6 +33,7 @@ const SIDEGIG_PREF = 'waterfall_sidegig';
 const OVER_PREF = 'waterfall_over';       // { '5a': { pct }, '7': { need } } — the only overridable cells
 const INPUTS_PREF = 'waterfall_inputs';   // the separate "Plan Inputs" panel values
 const WINDOW_PREF = 'runway_window';
+const BALANCE_CHECK_PREF = 'waterfall_balance_check_dismissed_on';   // an ISO date
 const WINDOWS = [7, 14, 30];
 
 const TYPE_COLOR = {
@@ -87,6 +88,8 @@ export default function Waterfall() {
   const [synced, setSynced] = useState(false);
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
   const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
+  const [balanceCheckDismissedOn, setBalanceCheckDismissedOn] = useState(null);
+  const balancesSectionRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -102,9 +105,9 @@ export default function Waterfall() {
     });
     Promise.all([
       getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF),
-      getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF),
+      getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF), getPref(BALANCE_CHECK_PREF),
     ]).then(
-      ([pc, inc, sg, ov, inp, win]) => {
+      ([pc, inc, sg, ov, inp, win, bal]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
@@ -112,6 +115,7 @@ export default function Waterfall() {
         if (ov.data && typeof ov.data === 'object') setOver(ov.data);
         if (inp.data && typeof inp.data === 'object') setInputs({ ...DEFAULT_INPUTS, ...inp.data });
         if (WINDOWS.includes(win.data)) setWindowDays(win.data);
+        if (typeof bal.data === 'string') setBalanceCheckDismissedOn(bal.data);
         setSynced(true);
       },
     );
@@ -219,6 +223,33 @@ export default function Waterfall() {
     await deleteRow('fin_accounts', id);
   };
 
+  // Accounts whose balance hasn't been touched today — drives the "still
+  // accurate?" banner above Current Balances. Skipped once dismissed for the
+  // day, or once every account is already confirmed fresh.
+  const today = todayISO();
+  const staleAccounts = accounts.filter((a) => (a.updated_at || '').slice(0, 10) !== today);
+  const showBalanceCheck = !loading && accounts.length > 0 && staleAccounts.length > 0 && balanceCheckDismissedOn !== today;
+
+  const dismissBalanceCheck = () => {
+    setBalanceCheckDismissedOn(today);
+    setPref(BALANCE_CHECK_PREF, today);
+  };
+  // "Looks good" — re-saves each stale balance as-is, which bumps updated_at
+  // via the same trigger a real edit would, so it reads as freshly confirmed
+  // without changing any figure.
+  const confirmBalancesFresh = async () => {
+    dismissBalanceCheck();
+    await Promise.all(staleAccounts.map((a) => upsertAccount({ id: a.id, balance: a.balance })));
+    setAccounts((prev) => prev.map((a) =>
+      staleAccounts.some((s) => s.id === a.id) ? { ...a, updated_at: new Date().toISOString() } : a,
+    ));
+  };
+  const jumpToBalances = () => {
+    dismissBalanceCheck();
+    setBalancesOpen(true);
+    balancesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   // ── Runway actions ───────────────────────────────────────────────────────────
   const moveToDeck = async (it) => {
     const { data } = await addToDeck(it.source_kind, it.source_id);
@@ -309,7 +340,7 @@ export default function Waterfall() {
       </WipNotice>
 
       {/* Available this week */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <div className="flex items-center gap-2 text-zinc-500 mb-3">
             <Wallet size={15} className="text-emerald-400" /><span className="text-xs">Available this week</span>
@@ -533,7 +564,7 @@ export default function Waterfall() {
       </section>
 
       {/* Allocation: steps + per-account rollup — the core output, always open */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 items-start">
         <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
             <div>
@@ -688,8 +719,51 @@ export default function Waterfall() {
         )}
       </section>
 
+      {/* Balance freshness check — sits right above Current Balances, only
+          shows when something's stale, dismissible for the day. */}
+      {showBalanceCheck && (
+        <section className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <BadgeCheck size={16} className="text-amber-400 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-amber-200">Still accurate?</h3>
+              <p className="text-xs text-amber-300/70 mt-0.5">Last recorded balances — confirm they&rsquo;re right, or jump in and update them.</p>
+            </div>
+          </div>
+          <div className="space-y-1.5 mb-3">
+            {accounts.map((a) => {
+              const since = daysSince(a.updated_at);
+              const c = updatedColor(a.updated_at);
+              return (
+                <div key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} />
+                    <span className="text-zinc-300 truncate">{a.name}</span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(a.balance)}</span></Redacted>
+                    <span className="text-[11px] text-zinc-600 w-14 text-right">{since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={dismissBalanceCheck} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors">
+              Not now
+            </button>
+            <button onClick={confirmBalancesFresh} className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+              Looks good
+            </button>
+            <button onClick={jumpToBalances} className="rounded-lg border border-amber-600 bg-amber-900/30 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-900/50 transition-colors">
+              Update now
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* Current balances (accounts) — collapsible, closed by default */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+      <section ref={balancesSectionRef} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-4 py-3">
           <button
             onClick={() => setBalancesOpen((o) => !o)}
