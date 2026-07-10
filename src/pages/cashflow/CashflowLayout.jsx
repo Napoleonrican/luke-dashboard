@@ -86,7 +86,7 @@ export default function CashflowLayout() {
             browser clamps your scroll position to fit that sliver and never
             un-clamps once the real (taller) content fills in below. */}
         <div className="min-h-[75vh]">
-          <Outlet context={{ privacy }} />
+          <Outlet context={{ privacy, onTogglePrivacy: () => setPrivacy((p) => !p) }} />
         </div>
       </main>
       <ToastHost />
