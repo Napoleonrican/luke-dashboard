@@ -14,11 +14,32 @@
 .cf-light .bg-zinc-800 { background-color: #e2e8f0; }
 .cf-light .bg-zinc-700 { background-color: #cbd5e1; }
 .cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
-.cf-light .bg-zinc-950\/40 { background-color: #f8fafc; }
 
 /* Faint accent button/badge backgrounds → light tints */
 .cf-light .bg-emerald-900\/30 { background-color: #d1fae5; }
 .cf-light .bg-amber-900\/30 { background-color: #fef3c7; }
+.cf-light .bg-red-900\/30 { background-color: #fee2e2; }
+.cf-light .bg-red-900\/40 { background-color: #fecaca; }
+.cf-light .hover\:bg-red-900\/60:hover { background-color: #fca5a5; }
+.cf-light .border-red-700 { border-color: #fca5a5; }
+.cf-light .text-red-300 { color: #b91c1c; }
+.cf-light .hover\:text-red-200:hover { color: #991b1b; }
+
+/* Accent text on the (now-white) card bg: the Tailwind -400 accents are tuned
+   for the dark shell and drop below WCAG AA on white. Darken to ~-700 tones. */
+.cf-light .text-emerald-400 { color: #047857; }
+.cf-light .text-amber-400   { color: #b45309; }
+.cf-light .text-violet-400  { color: #6d28d9; }
+.cf-light .text-blue-400    { color: #1d4ed8; }
+.cf-light .text-pink-400    { color: #be185d; }
+.cf-light .text-red-400     { color: #b91c1c; }
+
+/* Opacity-modified reds (text-red-400/70, /90) are their own utility classes —
+   the plain .text-red-400 rule above doesn't touch them — so the mobile card's
+   delete icon and "couldn't load" error text stayed pale red on white without
+   these. (cc-review #101) */
+.cf-light .text-red-400\/70 { color: #b91c1c; }
+.cf-light .text-red-400\/90 { color: #b91c1c; }
 
 .cf-light .text-white,
 .cf-light .text-zinc-100,
@@ -45,3 +66,26 @@
    dark shell but washes out on the white card bg, so darken it under light. */
 .cf-light .cf-wip { color: #92400e; border-color: rgba(245, 158, 11, 0.5); }
 .cf-light .cf-wip svg { color: #b45309; }
+
+/* Balance freshness banner — same amber-on-white contrast issue as WipNotice,
+   different exact utility set. */
+.cf-light .bg-amber-950\/20 { background-color: #fffbeb; }
+.cf-light .border-amber-700\/40 { border-color: rgba(180, 83, 9, 0.4); }
+.cf-light .border-amber-600 { border-color: #d97706; }
+.cf-light .text-amber-200 { color: #92400e; }
+.cf-light .text-amber-300 { color: #92400e; }
+.cf-light .text-amber-300\/70 { color: #b45309; }
+.cf-light .hover\:bg-amber-900\/50:hover { background-color: #fde68a; }
+
+/* Conditional-formatting heat colors (days-to-due badges, cost scales, freshness
+   dots, legend swatches) are emitted as inline hsl() with a lightness (~62–70%)
+   tuned for the dark shell, so they wash out on white. Inline styles can't be
+   remapped by a class rule, so darken them in-place with a scoped filter that
+   preserves each cell's hue. Only heat/legend elements use inline hsl() in this
+   module (category dots and Summary group tints use hex), so the match is exact. */
+.cf-light [style*="hsl"] { filter: brightness(0.58) saturate(1.3); }
+
+/* Focus-state backgrounds are separate utilities (`focus:bg-zinc-800`) the
+   plain `.bg-zinc-800` remap above doesn't cover — without this an AmountEdit
+   turns near-black on focus in light mode, hiding what you're typing. */
+.cf-light .focus\:bg-zinc-800:focus { background-color: #e2e8f0; }

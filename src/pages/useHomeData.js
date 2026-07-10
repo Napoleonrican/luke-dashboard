@@ -156,21 +156,6 @@ async function loadLighting() {
   }
 }
 
-// AI Backlog: active task counts.
-async function loadBacklog() {
-  if (!supabase) return null;
-  try {
-    const { data } = await supabase.from('ai_backlog_tasks').select('status');
-    if (!data?.length) return null;
-    return {
-      pending: data.filter((t) => t.status === 'pending').length,
-      inProgress: data.filter((t) => t.status === 'in_progress').length,
-    };
-  } catch {
-    return null;
-  }
-}
-
 // Gig Tracker: live shift state lives in localStorage (no server round-trip).
 function loadGig() {
   try {
@@ -220,7 +205,7 @@ async function loadWeather(unit) {
 }
 
 export function useHomeData() {
-  const [data, setData] = useState({ climate: null, backlog: null, gig: null, outdoor: null, lighting: null, claude: null });
+  const [data, setData] = useState({ climate: null, gig: null, outdoor: null, lighting: null, claude: null });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -229,14 +214,13 @@ export function useHomeData() {
     const gig = loadGig();
     const claude = loadClaudeUsage();
     (async () => {
-      const [climate, backlog, outdoor, lighting] = await Promise.all([
+      const [climate, outdoor, lighting] = await Promise.all([
         loadClimate(unit),
-        loadBacklog(),
         loadWeather(unit),
         loadLighting(),
       ]);
       if (!cancelled) {
-        setData({ climate, backlog, gig, outdoor, lighting, claude });
+        setData({ climate, gig, outdoor, lighting, claude });
         setLoading(false);
       }
     })();

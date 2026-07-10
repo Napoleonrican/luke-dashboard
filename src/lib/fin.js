@@ -31,11 +31,6 @@ export async function fetchConsumableSubs() {
   return s.from('fin_consumable_subscriptions').select('*').order('sort_order');
 }
 
-export async function fetchInputs() {
-  if (!s) return { data: [], error: null };
-  return s.from('fin_inputs').select('*').order('slug');
-}
-
 export async function fetchSubSnapshots() {
   if (!s) return { data: [], error: null };
   return s.from('fin_subscription_snapshots').select('*').order('taken_on', { ascending: false });
@@ -51,6 +46,20 @@ export async function fetchRunwayManual() {
 export async function fetchRunwayDeck() {
   if (!s) return { data: [], error: null };
   return s.from('fin_runway_deck').select('*');
+}
+
+// ── Earnin transaction log ────────────────────────────────────────────────────
+
+export async function fetchEarninTransactions() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_earnin_transactions').select('*').order('txn_date', { ascending: false }).order('created_at', { ascending: false });
+}
+
+export async function upsertEarninTransaction(row) {
+  if (!s) return { error: { message: 'Not configured' } };
+  const { id, ...rest } = row;
+  if (id) return s.from('fin_earnin_transactions').update(rest).eq('id', id).select();
+  return s.from('fin_earnin_transactions').insert(rest).select();
 }
 
 // ── Upsert / update ───────────────────────────────────────────────────────────
@@ -88,13 +97,6 @@ export async function upsertConsumableSub(row) {
   const { id, ...rest } = row;
   if (id) return s.from('fin_consumable_subscriptions').update(rest).eq('id', id).select();
   return s.from('fin_consumable_subscriptions').insert(rest).select();
-}
-
-export async function upsertInput(row) {
-  if (!s) return { error: { message: 'Not configured' } };
-  const { id, ...rest } = row;
-  if (id) return s.from('fin_inputs').update(rest).eq('id', id).select();
-  return s.from('fin_inputs').insert(rest).select();
 }
 
 export async function insertSubSnapshot(row) {

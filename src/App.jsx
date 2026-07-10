@@ -25,11 +25,10 @@ const LightingSchedule = lazy(() => import('./pages/lighting/Schedule'));
 const CashflowLayout = lazy(() => import('./pages/cashflow/CashflowLayout'));
 const Summary = lazy(() => import('./pages/cashflow/Summary'));
 const Waterfall = lazy(() => import('./pages/cashflow/Waterfall'));
-const Runway = lazy(() => import('./pages/cashflow/Runway'));
 const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
-const Inputs = lazy(() => import('./pages/cashflow/Inputs'));
+const Earnin = lazy(() => import('./pages/cashflow/Earnin'));
 const WatchTrackerLayout = lazy(() => import('./pages/watchtracker/WatchTrackerLayout'));
 const Shows = lazy(() => import('./pages/watchtracker/Shows'));
 const Movies = lazy(() => import('./pages/watchtracker/Movies'));
@@ -76,14 +75,18 @@ export default function App() {
         <Route path="/cashflow" element={
           <FinancialAuthGate><CashflowLayout /></FinancialAuthGate>
         }>
-          <Route index element={<Navigate to="summary" replace />} />
-          <Route path="summary" element={<Summary />} />
+          <Route index element={<Navigate to="waterfall" replace />} />
           <Route path="waterfall" element={<Waterfall />} />
-          <Route path="runway" element={<Runway />} />
+          <Route path="summary" element={<Summary />} />
           <Route path="bills" element={<Bills />} />
           <Route path="debts" element={<Debts />} />
           <Route path="subscriptions" element={<Subscriptions />} />
-          <Route path="inputs" element={<Inputs />} />
+          <Route path="earnin" element={<Earnin />} />
+          {/* Runway merged into Waterfall (used together, now one page) — keep
+              the old URL working. Inputs & Targets was retired earlier for the
+              same reason: Plan Inputs replaced it with live-wired values. */}
+          <Route path="runway" element={<Navigate to="../waterfall" replace />} />
+          <Route path="inputs" element={<Navigate to="../waterfall" replace />} />
         </Route>
         <Route path="/watch-tracker" element={
           <ProtectedRoute><WatchTrackerLayout /></ProtectedRoute>

@@ -142,7 +142,18 @@ export function AmountEdit({ value, onCommit, className = '', nullable = false }
       type="text" inputMode="decimal"
       value={focused ? draft : (empty ? '' : fmt(value))}
       placeholder={nullable ? '—' : undefined}
-      onFocus={(e) => { setDraft(draftFor(value)); setFocused(true); e.target.select(); }}
+      onFocus={(e) => {
+        setDraft(draftFor(value));
+        setFocused(true);
+        // Deferred: at this instant the DOM still shows the pre-focus
+        // formatted text (e.g. "$0") — React hasn't repainted to the raw
+        // draft ("0") yet. Selecting synchronously here selects the OLD
+        // text, and the selection doesn't survive the repaint cleanly, which
+        // is why a stray "0" was hard to fully clear before typing a new
+        // amount. Wait a frame so select() runs against the actual draft text.
+        const el = e.target;
+        requestAnimationFrame(() => el.select());
+      }}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
