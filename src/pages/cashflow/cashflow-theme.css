@@ -67,6 +67,16 @@
 .cf-light .cf-wip { color: #92400e; border-color: rgba(245, 158, 11, 0.5); }
 .cf-light .cf-wip svg { color: #b45309; }
 
+/* Balance freshness banner — same amber-on-white contrast issue as WipNotice,
+   different exact utility set. */
+.cf-light .bg-amber-950\/20 { background-color: #fffbeb; }
+.cf-light .border-amber-700\/40 { border-color: rgba(180, 83, 9, 0.4); }
+.cf-light .border-amber-600 { border-color: #d97706; }
+.cf-light .text-amber-200 { color: #92400e; }
+.cf-light .text-amber-300 { color: #92400e; }
+.cf-light .text-amber-300\/70 { color: #b45309; }
+.cf-light .hover\:bg-amber-900\/50:hover { background-color: #fde68a; }
+
 /* Conditional-formatting heat colors (days-to-due badges, cost scales, freshness
    dots, legend swatches) are emitted as inline hsl() with a lightness (~62–70%)
    tuned for the dark shell, so they wash out on white. Inline styles can't be
