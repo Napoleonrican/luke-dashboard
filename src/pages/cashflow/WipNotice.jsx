@@ -1,7 +1,7 @@
 import { FlaskConical } from 'lucide-react';
 
 // A small, honest "this tab isn't final yet" banner for the Cashflow tabs that
-// are still being built out (Waterfall, Runway, Inputs). Amber so it reads as a
+// are still being built out. Amber so it reads as a
 // caution without alarming. Wording is passed per-tab because the tabs are at
 // different stages — some now pull live data but aren't feature-complete, so a
 // blanket "demo data" label would be inaccurate. Remove a tab's notice once it's

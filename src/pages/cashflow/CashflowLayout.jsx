@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Layers, Droplets, CalendarRange, Receipt, CreditCard, Repeat, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
+import { Layers, Droplets, Receipt, CreditCard, Repeat, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 import { getPref, setPref } from '../../lib/fin';
@@ -10,9 +10,8 @@ import './cashflow-theme.css';
 // Each permanent tab carries a subtle accent color — a faint tint always, a
 // stronger one when active. Kept low-opacity so it reads as a hint, not a block.
 const NAV_ITEMS = [
-  { to: 'summary',       label: 'Summary',       icon: Layers,            color: '#64748b' },
   { to: 'waterfall',     label: 'Waterfall',     icon: Droplets,          color: '#06b6d4' },
-  { to: 'runway',        label: 'Runway',        icon: CalendarRange,     color: '#f59e0b' },
+  { to: 'summary',       label: 'Summary',       icon: Layers,            color: '#64748b' },
   { to: 'bills',         label: 'Bills',         icon: Receipt,           color: '#3b82f6' },
   { to: 'debts',         label: 'Debts',         icon: CreditCard,        color: '#8b5cf6' },
   { to: 'subscriptions', label: 'Subscriptions', icon: Repeat,            color: '#ec4899' },
