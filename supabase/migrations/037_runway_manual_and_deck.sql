@@ -1,5 +1,6 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 028 — Runway: ad-hoc manual bills + "On Deck" state
+-- 037 — Runway: ad-hoc manual bills + "On Deck" state
+--       (renamed from 028 to resolve a duplicate ordinal — cc-review #86)
 -- ─────────────────────────────────────────────────────────────────────────────
 -- The Runway tab shows everything coming due in the next N days, pulled live
 -- from fin_bills / fin_debts / fin_digital_subscriptions. Two things it needs
