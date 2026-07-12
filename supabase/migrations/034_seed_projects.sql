@@ -7,7 +7,9 @@
 --
 -- last_activity_at is spread realistically so the oldest-first sort demonstrates
 -- the intended behavior — stalled initiatives (AC agent, Lighting) rise to the
--- top as reminders; the freshest (Mission Control) sits at the bottom.
+-- top as reminders AND cross the 14-day STALLED_DAYS threshold so their "stalled"
+-- badge actually shows on load (16d / 15d, both < the 30d DORMANT cutoff); the
+-- freshest (Mission Control) sits at the bottom.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 DELETE FROM mc_projects;
@@ -19,7 +21,7 @@ INSERT INTO mc_projects (title, blurb, status, driver, repos, last_done, current
    'A handoff doc was written up capturing two goal-follower behavioral issues to fix.',
    'Nothing active — it''s been sitting since the handoff doc, waiting for a session scoped to it.',
    'Spin up a session focused on ac-schedule-agent to work through the two goal-follower issues.',
-   now() - interval '9 days'),
+   now() - interval '16 days'),
 
   ('Lighting & Wake Alarm',
    'Day-of-week sunrise wake alarm for the LED strip — half shipped, half stuck.',
@@ -27,7 +29,7 @@ INSERT INTO mc_projects (title, blurb, status, driver, repos, last_done, current
    'The dashboard half shipped: the day-of-week wake picker saves your selection, and a rapid-tap write bug got fixed.',
    'Blocked on you — the matching Pi scripts (strip_proto.py, schedule_control.py) still need copying to the climate Pi.',
    'Deploy the two scripts to the Pi and restart climate-agent; then the per-day alarm actually fires. (See your Inbox.)',
-   now() - interval '7 days'),
+   now() - interval '15 days'),
 
   ('Debt Payoff Calculator & Cashflow',
    'The financial module — payoff strategies, cashflow, and the debt calculator.',
