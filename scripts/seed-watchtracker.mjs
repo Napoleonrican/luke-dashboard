@@ -8,7 +8,9 @@
  *   • tracking-prod-records-v2.csv   — primary source: per-show follow state
  *     (`user-series-*` keys) + per-episode watch events (`watch-episode-*` keys)
  *   • tracking-prod-records.csv       — older, parallel source; the ONLY source
- *     for movies (`follow`/`towatch`/`rewatch_count` rows with entity_type=movie)
+ *     for movies (`watch`/`follow`/`towatch`/`rewatch_count` rows with
+ *     entity_type=movie — `watch` means actually watched; `follow` alone
+ *     just means tracked/added and is NOT a watched signal)
  *     and for each show's last-watched-episode pointer (`last-episode-watched`)
  *   • user_tv_show_data.csv           — only source for `is_favorited`
  *   • show_addiction_score.csv        — per-show engagement score
@@ -175,11 +177,19 @@ function parseV1(rows) {
   for (const r of rows) {
     const type = str(r.type);
     if (!type) continue;
-    if (type === 'follow' && str(r.entity_type) === 'movie') {
+    if (type === 'watch' && str(r.entity_type) === 'movie') {
+      // The actual "I watched this" signal — distinct from `follow`, which
+      // TVTime writes alongside `watch` (and also on its own for movies
+      // merely tracked/added, not watched) and does NOT mean watched.
       const name = str(r.movie_name);
       if (!name) continue;
       const m = getMovie(name);
       m.is_followed = true;
+      m.release_date = str(r.release_date)?.slice(0, 10) ?? m.release_date;
+    } else if (type === 'follow' && str(r.entity_type) === 'movie') {
+      const name = str(r.movie_name);
+      if (!name) continue;
+      const m = getMovie(name);
       m.release_date = str(r.release_date)?.slice(0, 10) ?? m.release_date;
     } else if (type === 'towatch' && str(r.entity_type) === 'movie') {
       const name = str(r.movie_name);
