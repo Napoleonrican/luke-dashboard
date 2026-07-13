@@ -616,11 +616,21 @@ export default function Waterfall() {
       </div>
       )}
 
-      {/* ── Short Term Needs — 4 summary cards always; detail tables collapse ── */}
+      {/* ── Short Term Needs — cards + window selector + detail tables, all
+          collapse together under the header ── */}
       <GroupHeader
         icon={CalendarClock} iconColor="#fbbf24" title="Short Term Needs"
         open={needsOpen} onToggle={() => toggleSection('needs', setNeedsOpen)}
+        summary={
+          <span className="hidden sm:flex items-center gap-3 text-[11px]">
+            <span className="text-zinc-500">Coming <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmt(totals.total)}</span></Redacted></span>
+            <span className="text-zinc-500">On Deck <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmt(onDeckTotal)}</span></Redacted></span>
+            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${cashOnHand - totals.total < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(cashOnHand - totals.total)}</span></Redacted></span>
+          </span>
+        }
       />
+      {needsOpen && (
+      <>
       <div className="flex justify-end">
         <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
           {WINDOWS.map((n) => (
@@ -672,9 +682,6 @@ export default function Waterfall() {
         <CoverageCard cash={cashOnHand} deck={onDeckTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
       </div>
 
-      {/* Detail tables under Short Term Needs — collapse together via "needs" */}
-      {needsOpen && (
-      <>
       {/* On Deck / Pending Withdrawal */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
