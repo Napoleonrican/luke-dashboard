@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
-  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff, ArrowLeftRight,
+  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff, ArrowLeftRight, Settings,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
@@ -83,8 +83,9 @@ export default function Waterfall() {
   const [over, setOver] = useState({});
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [inputsOpen, setInputsOpen] = useState(false);
-  const [balancesOpen, setBalancesOpen] = useState(false);
-  const [pendingOpen, setPendingOpen] = useState(false);
+  const [balancesOpen, setBalancesOpen] = useState(true);
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [acctMenuOpen, setAcctMenuOpen] = useState(false);
   const [adHocOpen, setAdHocOpen] = useState(false);
   const [comingUpOpen, setComingUpOpen] = useState(true);
   const [windowDays, setWindowDays] = useState(14);
@@ -239,7 +240,7 @@ export default function Waterfall() {
     const { data } = await upsertPendingTransfer({
       account_id: firstAcct.id, direction: 'in', amount: 0, expected_date: todayISO(), label: '',
     });
-    if (data?.[0]) { setPending((prev) => [...prev, data[0]]); setPendingOpen(true); }
+    if (data?.[0]) { setPending((prev) => [...prev, data[0]]); setPendingModalOpen(true); }
   };
   const removePending = async (id) => {
     setPending((prev) => prev.filter((p) => p.id !== id));
@@ -370,16 +371,33 @@ export default function Waterfall() {
         double-check the inputs match your real targets before you move money.
       </WipNotice>
 
-      {/* Available this week */}
-      <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-4">
+      {/* Income up top + Current Balances beside it — the first-touch pieces.
+          Left card folds "Available" and "To distribute" together (two readings
+          of the same week's money); the freed right column holds the balances. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-          <div className="flex items-center gap-2 text-zinc-500 mb-3">
-            <Wallet size={15} className="text-emerald-400" /><span className="text-xs">Available this week</span>
+          {/* Headline pair: what you have (left) vs. what pours through the plan (right) */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-zinc-500 mb-2">
+                <Wallet size={15} className="text-emerald-400" /><span className="text-xs">Available this week</span>
+              </div>
+              <Redacted on={privacy}>
+                <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmt(available)}</p>
+              </Redacted>
+            </div>
+            <div className="min-w-0 text-right">
+              <div className="flex items-center justify-end gap-2 text-zinc-500 mb-2">
+                <span className="text-xs">To distribute</span><ArrowDownToLine size={15} className="text-cyan-400" />
+              </div>
+              <Redacted on={privacy}><p className="text-3xl font-bold text-cyan-400 tabular-nums">{fmt(pool)}</p></Redacted>
+              <div className="mt-1.5 flex items-center justify-end gap-3 text-[11px]">
+                <span className="text-zinc-500">Allocated <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(totalAllocated)}</span></Redacted></span>
+                <span className="text-zinc-500">Left <Redacted on={privacy}><span className={`tabular-nums ${leftover > 0.005 ? 'text-amber-400' : 'text-zinc-500'}`}>{fmtDec(leftover)}</span></Redacted></span>
+              </div>
+            </div>
           </div>
-          <Redacted on={privacy}>
-            <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmt(available)}</p>
-          </Redacted>
-          <div className="mt-4 space-y-2.5 text-sm">
+          <div className="mt-4 space-y-2.5 text-sm border-t border-zinc-800 pt-4">
             {/* Paycheck: amount + planning-vs-landed toggle */}
             <div className={`flex items-center justify-between gap-2 ${includePaycheck ? '' : 'opacity-50'}`}>
               <span className="text-zinc-400">Paycheck</span>
@@ -435,22 +453,132 @@ export default function Waterfall() {
           )}
         </div>
 
-        {/* To distribute — the pool the waterfall pours (new income this week) */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col justify-center">
-          <div className="flex items-center gap-2 text-zinc-500 mb-2">
-            <ArrowDownToLine size={15} className="text-cyan-400" /><span className="text-xs">To distribute this week</span>
+        {/* Current balances — moved into the freed column, expanded by default.
+            Add-account lives behind a gear; "Transfers" opens the pending modal. */}
+        <section ref={balancesSectionRef} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
+            <button
+              onClick={() => setBalancesOpen((o) => !o)}
+              className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
+            >
+              <PiggyBank size={15} className="text-emerald-400 shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">Current Balances</span>
+                <span className="block text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</span>
+              </span>
+            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setPendingModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors"
+                title="Pending transfers — money in flight"
+              >
+                <ArrowLeftRight size={14} /> Transfers
+                {pending.length > 0 && <span className="text-cyan-500/80">· {pending.length}</span>}
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setAcctMenuOpen((o) => !o)}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                  title="Account options"
+                >
+                  <Settings size={15} />
+                </button>
+                {acctMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setAcctMenuOpen(false)} />
+                    <div className="absolute right-0 mt-1 z-20 w-40 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1">
+                      <button
+                        onClick={() => { addAccount(); setAcctMenuOpen(false); setBalancesOpen(true); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+                      >
+                        <Plus size={14} className="text-emerald-400" /> Add account
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button onClick={() => setBalancesOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                {balancesOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+              </button>
+            </div>
           </div>
-          <Redacted on={privacy}><p className="text-3xl font-bold text-cyan-400 tabular-nums">{fmt(pool)}</p></Redacted>
-          <p className="mt-2 text-[11px] text-zinc-500">
-            {includePaycheck
-              ? 'New income poured through the plan below (paycheck + side-gig). Cash on hand stays put.'
-              : 'Bill Pay Checking’s balance, swept + side-gig, poured through the plan below. Every other account’s balance stays put.'}
-          </p>
-          <div className="mt-3 flex items-center gap-4 text-xs">
-            <span className="text-zinc-500">Allocated <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(totalAllocated)}</span></Redacted></span>
-            <span className="text-zinc-500">Left <Redacted on={privacy}><span className={`tabular-nums ${leftover > 0.005 ? 'text-amber-400' : 'text-zinc-500'}`}>{fmtDec(leftover)}</span></Redacted></span>
+          {balancesOpen && (
+          <div className="overflow-x-auto border-t border-zinc-800">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                  <th className="px-4 py-2 font-medium">Account</th>
+                  <th className="px-4 py-2 font-medium text-right">Balance</th>
+                  <th className="px-4 py-2 font-medium text-right">Updated</th>
+                  <th className="w-10 px-2 py-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
+                ) : accounts.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
+                ) : accounts.map((a) => {
+                  const net = netPendingFor(a.id);
+                  const since = daysSince(a.updated_at);
+                  const c = updatedColor(a.updated_at);
+                  return (
+                  <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                    <td className="px-4 py-2">
+                      <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <Redacted on={privacy}>
+                        <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
+                      </Redacted>
+                      {Math.abs(net) > 0.005 && (
+                        <span className="block text-[11px] text-zinc-500 mt-0.5">
+                          <Redacted on={privacy}><span className={`tabular-nums ${net > 0 ? 'text-emerald-400/80' : 'text-amber-400/80'}`}>{net > 0 ? '+' : ''}{fmtDec(net)}</span></Redacted>
+                          {' pending → '}
+                          <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec((a.balance ?? 0) + net)}</span></Redacted>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <span className="inline-flex items-center justify-end gap-1.5 text-[11px] text-zinc-500">
+                        {a.updated_at && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} title="freshness" />}
+                        {since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <button
+                        onClick={() => setConfirmRemoveAccount(a)}
+                        className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"
+                        title="Delete account"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+              {!loading && accounts.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
+                    <td className="px-4 py-2.5">Total cash on hand</td>
+                    <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
+                    <td colSpan={2} />
+                  </tr>
+                  {Math.abs(totalNetPending) > 0.005 && (
+                    <tr className="text-zinc-400">
+                      <td className="px-4 pb-2.5 text-xs">Projected once pending clears</td>
+                      <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(cashOnHand + totalNetPending)}</span></Redacted></td>
+                      <td colSpan={2} />
+                    </tr>
+                  )}
+                </tfoot>
+              )}
+            </table>
           </div>
-        </div>
+          )}
+        </section>
       </div>
 
       {/* Short Term Needs: window selector + headline stats */}
@@ -834,191 +962,6 @@ export default function Waterfall() {
         </div>
       )}
 
-      {/* Current balances (accounts) — collapsible, closed by default */}
-      <section ref={balancesSectionRef} className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-3">
-          <button
-            onClick={() => setBalancesOpen((o) => !o)}
-            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
-          >
-            <PiggyBank size={15} className="text-emerald-400 shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Current Balances</span>
-              <span className="block text-xs text-zinc-500 mt-0.5">The accounts you track — edit balances inline.</span>
-            </span>
-          </button>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={addAccount} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-              <Plus size={14} /> Add account
-            </button>
-            <button onClick={() => setBalancesOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-              {balancesOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            </button>
-          </div>
-        </div>
-        {balancesOpen && (
-        <div className="overflow-x-auto border-t border-zinc-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-                <th className="px-4 py-2 font-medium">Account</th>
-                <th className="px-4 py-2 font-medium text-right">Balance</th>
-                <th className="px-4 py-2 font-medium text-right">Updated</th>
-                <th className="w-10 px-2 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
-              ) : accounts.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
-              ) : accounts.map((a) => {
-                const net = netPendingFor(a.id);
-                const since = daysSince(a.updated_at);
-                const c = updatedColor(a.updated_at);
-                return (
-                <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                  <td className="px-4 py-2">
-                    <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <Redacted on={privacy}>
-                      <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
-                    </Redacted>
-                    {Math.abs(net) > 0.005 && (
-                      <span className="block text-[11px] text-zinc-500 mt-0.5">
-                        <Redacted on={privacy}><span className={`tabular-nums ${net > 0 ? 'text-emerald-400/80' : 'text-amber-400/80'}`}>{net > 0 ? '+' : ''}{fmtDec(net)}</span></Redacted>
-                        {' pending → '}
-                        <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec((a.balance ?? 0) + net)}</span></Redacted>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <span className="inline-flex items-center justify-end gap-1.5 text-[11px] text-zinc-500">
-                      {a.updated_at && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} title="freshness" />}
-                      {since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <button
-                      onClick={() => setConfirmRemoveAccount(a)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"
-                      title="Delete account"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-            {!loading && accounts.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
-                  <td className="px-4 py-2.5">Total cash on hand</td>
-                  <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
-                  <td colSpan={2} />
-                </tr>
-                {Math.abs(totalNetPending) > 0.005 && (
-                  <tr className="text-zinc-400">
-                    <td className="px-4 pb-2.5 text-xs">Projected once pending clears</td>
-                    <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(cashOnHand + totalNetPending)}</span></Redacted></td>
-                    <td colSpan={2} />
-                  </tr>
-                )}
-              </tfoot>
-            )}
-          </table>
-        </div>
-        )}
-      </section>
-
-      {/* Pending transfers — money in flight, not yet in an account. Collapsible,
-          closed by default. Informational only; doesn't change the pour. */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-3">
-          <button
-            onClick={() => setPendingOpen((o) => !o)}
-            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
-          >
-            <ArrowLeftRight size={15} className="text-cyan-400 shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">
-                Pending Transfers
-                {pending.length > 0 && <span className="ml-1.5 text-xs font-normal text-zinc-500">· {pending.length}</span>}
-              </span>
-              <span className="block text-xs text-zinc-500 mt-0.5">Money moving in/out that hasn&rsquo;t landed yet — shows a projected balance above.</span>
-            </span>
-          </button>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={addPending}
-              disabled={accounts.length === 0}
-              title={accounts.length === 0 ? 'Add an account first' : undefined}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors disabled:opacity-40"
-            >
-              <Plus size={14} /> Add transfer
-            </button>
-            <button onClick={() => setPendingOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-              {pendingOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            </button>
-          </div>
-        </div>
-        {pendingOpen && (
-        <div className="overflow-x-auto border-t border-zinc-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-                <th className="px-3 py-2 font-medium">Account</th>
-                <th className="px-3 py-2 font-medium">Direction</th>
-                <th className="px-3 py-2 font-medium text-right">Amount</th>
-                <th className="px-3 py-2 font-medium">Expected</th>
-                <th className="px-3 py-2 font-medium">Note</th>
-                <th className="w-10 px-2 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {pending.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">No pending transfers. Add one for money you know is coming in or going out but hasn&rsquo;t cleared.</td></tr>
-              ) : pending.map((p) => (
-                <tr key={p.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                  <Td>
-                    <EditCell type="select" value={p.account_id} onSave={(v) => updatePending(p.id, 'account_id', v)}
-                      options={accounts.map((a) => ({ value: a.id, label: a.name }))} display={() => accountName(p.account_id)} className="text-zinc-200 font-medium" />
-                  </Td>
-                  <Td>
-                    <EditCell type="select" value={p.direction} onSave={(v) => updatePending(p.id, 'direction', v)}
-                      options={[{ value: 'in', label: 'In' }, { value: 'out', label: 'Out' }]}
-                      display={(v) => (v === 'out' ? '↑ Out' : '↓ In')}
-                      className={p.direction === 'out' ? 'text-amber-400' : 'text-emerald-400'} />
-                  </Td>
-                  <Td className="text-right">
-                    <Redacted on={privacy}><EditCell type="number" value={p.amount} onSave={(v) => updatePending(p.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
-                  </Td>
-                  <Td><EditCell type="date" value={p.expected_date} onSave={(v) => updatePending(p.id, 'expected_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
-                  <Td><EditCell value={p.label} onSave={(v) => updatePending(p.id, 'label', v)} className="text-zinc-500" /></Td>
-                  <Td className="text-right">
-                    <button onClick={() => setConfirmRemovePending(p)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-            {pending.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-zinc-800 text-zinc-400">
-                  <Td className="font-medium text-zinc-300" colSpan={2}>Net pending</Td>
-                  <Td className="text-right font-semibold">
-                    <Redacted on={privacy}><span className={`tabular-nums ${totalNetPending >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>{totalNetPending > 0 ? '+' : ''}{fmtDec(totalNetPending)}</span></Redacted>
-                  </Td>
-                  <Td colSpan={3} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-        )}
-      </section>
-
       {/* Plan Inputs — the only place non-flat needs get edited (never the table) */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <button
@@ -1102,6 +1045,88 @@ export default function Waterfall() {
           setConfirmRemoveManual(null);
         }}
       />
+
+      {/* Pending transfers modal — opened from the Current Balances header.
+          Informational only; the projected sub-lines live in that table. */}
+      {pendingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={() => setPendingModalOpen(false)}>
+          <div className="w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
+              <span className="flex items-center gap-2 min-w-0">
+                <ArrowLeftRight size={16} className="text-cyan-400 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Pending Transfers</span>
+                  <span className="block text-xs text-zinc-500 mt-0.5">Money in/out that hasn&rsquo;t landed yet — feeds the projected balances.</span>
+                </span>
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={addPending}
+                  disabled={accounts.length === 0}
+                  title={accounts.length === 0 ? 'Add an account first' : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors disabled:opacity-40"
+                >
+                  <Plus size={14} /> Add transfer
+                </button>
+                <button onClick={() => setPendingModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                    <th className="px-3 py-2 font-medium">Account</th>
+                    <th className="px-3 py-2 font-medium">Direction</th>
+                    <th className="px-3 py-2 font-medium text-right">Amount</th>
+                    <th className="px-3 py-2 font-medium">Expected</th>
+                    <th className="px-3 py-2 font-medium">Note</th>
+                    <th className="w-10 px-2 py-2 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pending.length === 0 ? (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">No pending transfers. Add one for money you know is coming in or going out but hasn&rsquo;t cleared.</td></tr>
+                  ) : pending.map((p) => (
+                    <tr key={p.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                      <Td>
+                        <EditCell type="select" value={p.account_id} onSave={(v) => updatePending(p.id, 'account_id', v)}
+                          options={accounts.map((a) => ({ value: a.id, label: a.name }))} display={() => accountName(p.account_id)} className="text-zinc-200 font-medium" />
+                      </Td>
+                      <Td>
+                        <EditCell type="select" value={p.direction} onSave={(v) => updatePending(p.id, 'direction', v)}
+                          options={[{ value: 'in', label: 'In' }, { value: 'out', label: 'Out' }]}
+                          display={(v) => (v === 'out' ? '↑ Out' : '↓ In')}
+                          className={p.direction === 'out' ? 'text-amber-400' : 'text-emerald-400'} />
+                      </Td>
+                      <Td className="text-right">
+                        <Redacted on={privacy}><EditCell type="number" value={p.amount} onSave={(v) => updatePending(p.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
+                      </Td>
+                      <Td><EditCell type="date" value={p.expected_date} onSave={(v) => updatePending(p.id, 'expected_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                      <Td><EditCell value={p.label} onSave={(v) => updatePending(p.id, 'label', v)} className="text-zinc-500" /></Td>
+                      <Td className="text-right">
+                        <button onClick={() => setConfirmRemovePending(p)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+                {pending.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-zinc-800 text-zinc-400">
+                      <Td className="font-medium text-zinc-300" colSpan={2}>Net pending</Td>
+                      <Td className="text-right font-semibold">
+                        <Redacted on={privacy}><span className={`tabular-nums ${totalNetPending >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>{totalNetPending > 0 ? '+' : ''}{fmtDec(totalNetPending)}</span></Redacted>
+                      </Td>
+                      <Td colSpan={3} />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmRemovePending}
