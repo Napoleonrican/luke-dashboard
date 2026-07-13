@@ -264,13 +264,13 @@ export default function DebtCalculator() {
   const hoursPerWeek    = hourlyRate > 0 ? (weeklyGross / hourlyRate).toFixed(1) : '—';
   const totalIncome     = takeHome + monthlyGigNet;
 
-  // ── Earnin-free target: gross gig income to hit break-even AND replace the
-  //    recurring weekly Earnin draw (net-for-net), so the reliance goes to zero.
-  const earninMonthly    = earninWeekly * WEEKS_PER_MONTH;
-  const earninFreeWeekly = Math.ceil((monthlyDeficit + earninMonthly) / (WEEKS_PER_MONTH * GIG_EFFICIENCY));
-  const earninGapWeekly  = Math.max(0, earninFreeWeekly - weeklyGross);
-  const earninGapHours   = hourlyRate > 0 ? (earninGapWeekly / hourlyRate).toFixed(1) : '—';
-  const earninFree       = weeklyGross >= earninFreeWeekly;
+  // ── Earnin reliance gauge (context, NOT a target added onto break-even).
+  //    Earnin gets clawed back each payday, so its weekly volume is mostly
+  //    repaid timing-churn, not net money you're short — the structural hole is
+  //    the break-even deficit. Hitting break-even plugs that hole and lets the
+  //    buffer rebuild, and the Earnin draw fades on its own. We show it only so
+  //    you can watch it trend down; we deliberately don't stack it on the goal.
+  const earninRatio = breakEvenWeekly > 0 ? earninWeekly / breakEvenWeekly : 0;
 
   // ── Simulation ──────────────────────────────────────────────────────────────
   const { months, payoffMonths, totalInterest } = useMemo(
@@ -416,7 +416,6 @@ export default function DebtCalculator() {
             earninWeekly={earninWeekly} setEarninWeekly={setEarninWeekly}
             totalDebtMins={totalDebtMins} monthlyOutflow={monthlyOutflow}
             monthlyDeficit={monthlyDeficit} breakEvenWeekly={breakEvenWeekly}
-            earninFreeWeekly={earninFreeWeekly}
             privacyMode={privacyMode} inputCls={inputCls}
           />
           <CurrentBalances
@@ -460,11 +459,8 @@ export default function DebtCalculator() {
                 <Redacted on={privacyMode}><span className="text-amber-500">break-even ≈ {fmt(breakEvenWeekly)}/wk</span></Redacted>
                 <span>${WEEKLY_SLIDER_MAX}</span>
               </div>
-              <div className="text-center text-xs mb-3">
-                <Redacted on={privacyMode}>
-                  <span className="text-pink-400">Earnin-free ≈ {fmt(earninFreeWeekly)}/wk</span>
-                </Redacted>
-                <span className="text-zinc-600"> · covers minimums + replaces {fmt(earninWeekly)}/wk Earnin</span>
+              <div className="text-center text-xs mb-3 text-zinc-600">
+                Break-even is the target — <Redacted on={privacyMode}><span className="text-pink-400">~{fmt(earninWeekly)}/wk Earnin</span></Redacted> is the reliance it retires as your buffer rebuilds
               </div>
 
               <div className={`rounded-lg p-3 mb-4 ${isDeficit ? 'bg-red-950/50 border border-red-800/60' : 'bg-emerald-950/50 border border-emerald-800/60'}`}>
@@ -479,11 +475,9 @@ export default function DebtCalculator() {
                     <p className="text-xs text-emerald-500 mt-0.5"><Redacted on={privacyMode}>${weeklyGross - breakEvenWeekly}/wk above break-even</Redacted></p>
                   </>
                 )}
-                <p className={`text-xs mt-1.5 pt-1.5 border-t ${earninFree ? 'text-pink-400 border-pink-800/40' : 'text-pink-300/80 border-red-800/40'}`}>
+                <p className="text-xs mt-1.5 pt-1.5 border-t text-pink-300/80 border-zinc-700/60">
                   <Redacted on={privacyMode}>
-                    {earninFree
-                      ? `✓ Earnin-free — this covers minimums and fully replaces your ${fmt(earninWeekly)}/wk Earnin draw`
-                      : `To stop leaning on Earnin: +${fmt(earninGapWeekly)}/wk (≈ ${earninGapHours} more hrs/wk) → ${fmt(earninFreeWeekly)}/wk`}
+                    Earnin reliance: ~{fmt(earninWeekly)}/wk ({earninRatio >= 1 ? `${earninRatio.toFixed(1)}×` : 'under'} break-even). It's mostly repaid churn, not net income to replace — plug break-even and it fades.
                   </Redacted>
                 </p>
               </div>
@@ -595,7 +589,7 @@ export default function DebtCalculator() {
 }
 
 // ─── My Numbers (compact collapsible) ─────────────────────────────────────────
-function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, earninWeekly, setEarninWeekly, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, earninFreeWeekly, privacyMode, inputCls }) {
+function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, earninWeekly, setEarninWeekly, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, privacyMode, inputCls }) {
   const shortfall = monthlyDeficit > 0 ? `DoorDash must cover ${fmt(monthlyDeficit)}/mo` : `Surplus ${fmt(Math.abs(monthlyOutflow - takeHome))}/mo ✓`;
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-xl self-start">
@@ -624,7 +618,7 @@ function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBil
               </div>
             </label>
             <label className="block sm:col-span-2">
-              <span className="text-xs text-zinc-400 mb-1 block">Weekly Earnin draw (to design out)</span>
+              <span className="text-xs text-zinc-400 mb-1 block">Weekly Earnin draw (reliance gauge)</span>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
                 <input type="number" value={earninWeekly} onChange={(e) => setEarninWeekly(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
@@ -639,8 +633,8 @@ function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBil
               <span>Monthly shortfall</span>
               <Redacted on={privacyMode}><span>{monthlyDeficit > 0 ? `${fmt(monthlyDeficit)}/mo` : 'Surplus ✓'}</span></Redacted>
             </div>
-            <div className="flex justify-between text-amber-400"><span>Break-even weekly</span><Redacted on={privacyMode}><span>{fmt(breakEvenWeekly)}/wk</span></Redacted></div>
-            <div className="flex justify-between text-pink-400"><span>Earnin-free weekly</span><Redacted on={privacyMode}><span>{fmt(earninFreeWeekly)}/wk</span></Redacted></div>
+            <div className="flex justify-between text-amber-400"><span>Break-even weekly (target)</span><Redacted on={privacyMode}><span>{fmt(breakEvenWeekly)}/wk</span></Redacted></div>
+            <div className="flex justify-between text-pink-400/80"><span>Earnin reliance (gauge)</span><Redacted on={privacyMode}><span>~{fmt(earninWeekly)}/wk</span></Redacted></div>
           </div>
         </div>
       )}
