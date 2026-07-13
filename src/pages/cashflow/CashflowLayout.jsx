@@ -26,6 +26,10 @@ const THEME_PREF = 'cashflow_theme';   // 'light' | 'dark'
 export default function CashflowLayout() {
   const [privacy, setPrivacy] = useState(true);
   const [theme, setTheme] = useState('dark');
+  // Page-specific menu items: a child page (e.g. Waterfall) registers actions
+  // here on mount and clears them on unmount, so the ⋯ menu shows page-relevant
+  // options only on the tab that owns them.
+  const [pageMenuItems, setPageMenuItems] = useState([]);
   const { signOut } = useAuth();
 
   useEffect(() => {
@@ -50,6 +54,7 @@ export default function CashflowLayout() {
             theme={theme} onToggleTheme={toggleTheme}
             privacy={privacy} onTogglePrivacy={() => setPrivacy((p) => !p)}
             onSignOut={signOut}
+            pageItems={pageMenuItems}
           />
         }
       />
@@ -86,7 +91,7 @@ export default function CashflowLayout() {
             browser clamps your scroll position to fit that sliver and never
             un-clamps once the real (taller) content fills in below. */}
         <div className="min-h-[75vh]">
-          <Outlet context={{ privacy, onTogglePrivacy: () => setPrivacy((p) => !p) }} />
+          <Outlet context={{ privacy, onTogglePrivacy: () => setPrivacy((p) => !p), setPageMenuItems }} />
         </div>
       </main>
       <ToastHost />
@@ -102,7 +107,7 @@ export function Redacted({ children, on }) {
 
 // Collapses Light/Dark, Show/Hide, and Sign out into one menu button so they
 // don't eat horizontal space next to the tab bar.
-function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOut }) {
+function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOut, pageItems = [] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -128,6 +133,20 @@ function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOu
       </button>
       {open && (
         <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-xl shadow-black/40">
+          {pageItems.length > 0 && (
+            <>
+              {pageItems.map((item) => (
+                <MenuItem
+                  key={item.label}
+                  icon={item.icon}
+                  label={item.label}
+                  tone={item.tone}
+                  onClick={() => { setOpen(false); item.onClick(); }}
+                />
+              ))}
+              <div className="my-1 border-t border-zinc-800" />
+            </>
+          )}
           <MenuItem
             icon={theme === 'dark' ? Sun : Moon}
             label={theme === 'dark' ? 'Light mode' : 'Dark mode'}

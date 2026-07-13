@@ -67,7 +67,7 @@ const INPUT_FIELDS = [
 // Plan Inputs (the config-ish, occasionally-touched pieces) collapse by
 // default at the bottom.
 export default function Waterfall() {
-  const { privacy, onTogglePrivacy } = useOutletContext();
+  const { privacy, onTogglePrivacy, setPageMenuItems } = useOutletContext();
   const [accounts, setAccounts] = useState([]);
   const [bills, setBills] = useState([]);
   const [debts, setDebts] = useState([]);
@@ -82,7 +82,7 @@ export default function Waterfall() {
   const [sideGig, setSideGig] = useState(0);
   const [over, setOver] = useState({});
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
-  const [inputsOpen, setInputsOpen] = useState(false);
+  const [planInputsModalOpen, setPlanInputsModalOpen] = useState(false);
   const [balancesOpen, setBalancesOpen] = useState(true);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [acctMenuOpen, setAcctMenuOpen] = useState(false);
@@ -95,6 +95,13 @@ export default function Waterfall() {
   const [confirmRemovePending, setConfirmRemovePending] = useState(null);
   const [balanceCheckDismissedOn, setBalanceCheckDismissedOn] = useState(null);
   const balancesSectionRef = useRef(null);
+
+  // Register the "Plan Inputs…" action into the layout's ⋯ menu while this tab
+  // is mounted; clear it on unmount so it only shows on Waterfall.
+  useEffect(() => {
+    setPageMenuItems([{ icon: SlidersHorizontal, label: 'Plan Inputs…', onClick: () => setPlanInputsModalOpen(true) }]);
+    return () => setPageMenuItems([]);
+  }, [setPageMenuItems]);
 
   useEffect(() => {
     let active = true;
@@ -367,7 +374,7 @@ export default function Waterfall() {
   return (
     <div className="space-y-6">
       <WipNotice>
-        Needs compute from your accounts, 7-day bill/debt totals &amp; the Plan Inputs panel below —
+        Needs compute from your accounts, 7-day bill/debt totals &amp; the Plan Inputs panel (in the settings menu) —
         double-check the inputs match your real targets before you move money.
       </WipNotice>
 
@@ -756,7 +763,7 @@ export default function Waterfall() {
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
             <div>
               <h3 className="text-sm font-semibold">This week&rsquo;s plan</h3>
-              <p className="text-xs text-zinc-500 mt-0.5"><span className="text-amber-400">Live</span> needs are computed — edit Plan Inputs below, not the table.</p>
+              <p className="text-xs text-zinc-500 mt-0.5"><span className="text-amber-400">Live</span> needs are computed — edit Plan Inputs (settings menu), not the table.</p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -962,57 +969,61 @@ export default function Waterfall() {
         </div>
       )}
 
-      {/* Plan Inputs — the only place non-flat needs get edited (never the table) */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <button
-          onClick={() => setInputsOpen((o) => !o)}
-          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <SlidersHorizontal size={15} className="text-emerald-400" />
-            <span className="text-sm font-semibold">Plan Inputs</span>
-            <span className="text-xs text-zinc-500">— feeds every &ldquo;live&rdquo; Need above</span>
-          </span>
-          {inputsOpen ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
-        </button>
-        {inputsOpen && (
-          <div className="border-t border-zinc-800 px-4 py-4 space-y-4">
-            {INPUT_FIELDS.map((g) => (
-              <div key={g.group}>
-                <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">{g.group}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {g.fields.map((f) => (
-                    <label key={f.key} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
-                      <span className="text-xs text-zinc-400" title={f.hint}>{f.label}</span>
-                      <span className="w-20 shrink-0">
-                        <Redacted on={privacy}>
-                          <AmountEdit value={inputs[f.key]} onCommit={(v) => setInput(f.key, v)} className="text-zinc-200" />
-                        </Redacted>
-                      </span>
-                    </label>
-                  ))}
+      {/* Plan Inputs modal — the only place non-flat needs get edited (never the
+          table). Opened from the ⋯ menu's "Plan Inputs…" item (Waterfall only). */}
+      {planInputsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={() => setPlanInputsModalOpen(false)}>
+          <div className="w-full max-w-3xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
+              <span className="flex items-center gap-2 min-w-0">
+                <SlidersHorizontal size={16} className="text-emerald-400 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">Plan Inputs</span>
+                  <span className="block text-xs text-zinc-500 mt-0.5">Feeds every &ldquo;live&rdquo; Need in the plan.</span>
+                </span>
+              </span>
+              <button onClick={() => setPlanInputsModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-4 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              {INPUT_FIELDS.map((g) => (
+                <div key={g.group}>
+                  <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">{g.group}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {g.fields.map((f) => (
+                      <label key={f.key} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                        <span className="text-xs text-zinc-400" title={f.hint}>{f.label}</span>
+                        <span className="w-20 shrink-0">
+                          <Redacted on={privacy}>
+                            <AmountEdit value={inputs[f.key]} onCommit={(v) => setInput(f.key, v)} className="text-zinc-200" />
+                          </Redacted>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-            <div>
-              <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Computed automatically</p>
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2 max-w-xs">
-                <span className="text-xs text-zinc-400" title="Sum of monthly-equivalent amounts for Bills tab rows categorized 'Bill' — feeds Floor Build.">
-                  Total fixed bills (monthly)
-                </span>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(totalFixedBills)}</span></Redacted>
-                  <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
-                </span>
+              ))}
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Computed automatically</p>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2 max-w-xs">
+                  <span className="text-xs text-zinc-400" title="Sum of monthly-equivalent amounts for Bills tab rows categorized 'Bill' — feeds Floor Build.">
+                    Total fixed bills (monthly)
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(totalFixedBills)}</span></Redacted>
+                    <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </section>
+        </div>
+      )}
 
       <p className="text-xs text-zinc-600">
         Every <span className="text-amber-400">live</span> Need is a formula against your accounts, 7-day bill/debt
-        totals, on-deck amounts &amp; the Plan Inputs panel above — matching the workbook. The surplus %s (5a/5b/5c)
+        totals, on-deck amounts &amp; the Plan Inputs panel (in the settings menu) — matching the workbook. The surplus %s (5a/5b/5c)
         and Step 7&rsquo;s flat need stay directly editable, same as the original sheet.
       </p>
 
