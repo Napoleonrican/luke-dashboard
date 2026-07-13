@@ -35,6 +35,7 @@ const OVER_PREF = 'waterfall_over';       // { '5a': { pct }, '7': { need } } �
 const INPUTS_PREF = 'waterfall_inputs';   // the separate "Plan Inputs" panel values
 const WINDOW_PREF = 'runway_window';
 const BALANCE_CHECK_PREF = 'waterfall_balance_check_dismissed_on';   // an ISO date
+const SECTIONS_PREF = 'waterfall_sections';   // { money, needs, payday } open/closed
 const WINDOWS = [7, 14, 30];
 
 const TYPE_COLOR = {
@@ -86,8 +87,11 @@ export default function Waterfall() {
   const [balancesOpen, setBalancesOpen] = useState(true);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [acctMenuOpen, setAcctMenuOpen] = useState(false);
-  const [adHocOpen, setAdHocOpen] = useState(false);
-  const [comingUpOpen, setComingUpOpen] = useState(true);
+  // Page-level collapsible groups (persisted to fin_prefs). "needs" toggles the
+  // Short Term Needs detail tables (the 4 summary cards stay visible either way).
+  const [moneyOpen, setMoneyOpen] = useState(true);
+  const [needsOpen, setNeedsOpen] = useState(true);
+  const [paydayOpen, setPaydayOpen] = useState(false);
   const [windowDays, setWindowDays] = useState(14);
   const [synced, setSynced] = useState(false);
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
@@ -118,8 +122,9 @@ export default function Waterfall() {
     Promise.all([
       getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF),
       getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF), getPref(BALANCE_CHECK_PREF),
+      getPref(SECTIONS_PREF),
     ]).then(
-      ([pc, inc, sg, ov, inp, win, bal]) => {
+      ([pc, inc, sg, ov, inp, win, bal, sec]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
@@ -128,6 +133,11 @@ export default function Waterfall() {
         if (inp.data && typeof inp.data === 'object') setInputs({ ...DEFAULT_INPUTS, ...inp.data });
         if (WINDOWS.includes(win.data)) setWindowDays(win.data);
         if (typeof bal.data === 'string') setBalanceCheckDismissedOn(bal.data);
+        if (sec.data && typeof sec.data === 'object') {
+          if (typeof sec.data.money === 'boolean') setMoneyOpen(sec.data.money);
+          if (typeof sec.data.needs === 'boolean') setNeedsOpen(sec.data.needs);
+          if (typeof sec.data.payday === 'boolean') setPaydayOpen(sec.data.payday);
+        }
         setSynced(true);
       },
     );
@@ -138,6 +148,13 @@ export default function Waterfall() {
   const saveSideGig = (v) => { setSideGig(v); if (synced) setPref(SIDEGIG_PREF, v); };
   const toggleInclude = () => setIncludePaycheck((p) => { const n = !p; if (synced) setPref(INCLUDE_PREF, n); return n; });
   const setWindow = (n) => { setWindowDays(n); setPref(WINDOW_PREF, n); };
+
+  // Toggle a collapsible group and persist all three states together.
+  const toggleSection = (key, setter) => setter((v) => {
+    const next = !v;
+    if (synced) setPref(SECTIONS_PREF, { money: moneyOpen, needs: needsOpen, payday: paydayOpen, [key]: next });
+    return next;
+  });
 
   const setPct = (id, v) => {
     const nextOver = { ...over, [id]: { ...over[id], pct: v } };
@@ -378,9 +395,19 @@ export default function Waterfall() {
         double-check the inputs match your real targets before you move money.
       </WipNotice>
 
-      {/* Income up top + Current Balances beside it — the first-touch pieces.
-          Left card folds "Available" and "To distribute" together (two readings
-          of the same week's money); the freed right column holds the balances. */}
+      {/* ── Money this week — income + balances, collapsible ── */}
+      <GroupHeader
+        icon={Wallet} iconColor="#34d399" title="Money this week"
+        open={moneyOpen} onToggle={() => toggleSection('money', setMoneyOpen)}
+        summary={
+          <span className="hidden sm:flex items-center gap-3 text-[11px]">
+            <span className="text-zinc-500">Avail <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmt(available)}</span></Redacted></span>
+            <span className="text-zinc-500">Distribute <Redacted on={privacy}><span className="tabular-nums text-cyan-400">{fmt(pool)}</span></Redacted></span>
+            <span className="text-zinc-500">Cash <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(cashOnHand)}</span></Redacted></span>
+          </span>
+        }
+      />
+      {moneyOpen && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           {/* Headline pair: what you have (left) vs. what pours through the plan (right) */}
@@ -587,12 +614,14 @@ export default function Waterfall() {
           )}
         </section>
       </div>
+      )}
 
-      {/* Short Term Needs: window selector + headline stats */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold flex items-center gap-2">
-          <CalendarClock size={17} className="text-amber-400" /> Short Term Needs
-        </h2>
+      {/* ── Short Term Needs — 4 summary cards always; detail tables collapse ── */}
+      <GroupHeader
+        icon={CalendarClock} iconColor="#fbbf24" title="Short Term Needs"
+        open={needsOpen} onToggle={() => toggleSection('needs', setNeedsOpen)}
+      />
+      <div className="flex justify-end">
         <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
           {WINDOWS.map((n) => (
             <button
@@ -643,6 +672,9 @@ export default function Waterfall() {
         <CoverageCard cash={cashOnHand} deck={onDeckTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
       </div>
 
+      {/* Detail tables under Short Term Needs — collapse together via "needs" */}
+      {needsOpen && (
+      <>
       {/* On Deck / Pending Withdrawal */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
@@ -697,21 +729,14 @@ export default function Waterfall() {
         </div>
       </section>
 
-      {/* Coming Up — collapsible, open by default (checked alongside On Deck daily) */}
+      {/* Coming Up — live from Bills, Debts, Subscriptions & ad-hoc */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <button
-          onClick={() => setComingUpOpen((o) => !o)}
-          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <CalendarClock size={15} className="text-amber-400" />
-            <span className="text-sm font-semibold">Coming Up — next {windowDays} days</span>
-            <span className="text-xs text-zinc-500">— live from Bills, Debts, Subscriptions &amp; ad-hoc</span>
-          </span>
-          {comingUpOpen ? <ChevronDown size={15} className="text-zinc-500" /> : <ChevronRight size={15} className="text-zinc-500" />}
-        </button>
-        {comingUpOpen && (
-        <div className="overflow-x-auto border-t border-zinc-800">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+          <CalendarClock size={15} className="text-amber-400" />
+          <h3 className="text-sm font-semibold">Coming Up — next {windowDays} days</h3>
+          <span className="text-xs text-zinc-500">— live from Bills, Debts, Subscriptions &amp; ad-hoc</span>
+        </div>
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
@@ -754,10 +779,92 @@ export default function Waterfall() {
             </tbody>
           </table>
         </div>
-        )}
       </section>
 
-      {/* Allocation: steps + per-account rollup — the core output, always open */}
+      {/* Ad Hoc / Manual entry — one-offs; folded into the Needs group */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
+          <span className="flex items-center gap-2 min-w-0">
+            <Plus size={15} className="text-zinc-400 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">Ad Hoc / Manual Entry</span>
+              <span className="block text-xs text-zinc-500 mt-0.5">One-offs not on the Bills or Debts tabs.</span>
+            </span>
+          </span>
+          <button onClick={addManual} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors shrink-0">
+            <Plus size={14} /> Add item
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Due</th>
+                <th className="px-3 py-2 font-medium text-right">Amount</th>
+                <th className="px-3 py-2 font-medium text-right">Days</th>
+                <th className="px-3 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {manual.length === 0 ? (
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-zinc-600 text-xs">No manual items. Add rent-service or other one-off charges here.</td></tr>
+              ) : manual.map((m) => (
+                <tr key={m.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <Td>
+                    <span className="flex items-center gap-2">
+                      <select
+                        value={m.bill_type} onChange={(e) => updateManual(m.id, 'bill_type', e.target.value)}
+                        title={`${m.bill_type} — click to change`}
+                        className="h-2.5 w-2.5 shrink-0 rounded-full border-0 p-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900"
+                        style={{ background: typeColor(m.bill_type) }}
+                      >
+                        {MANUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <EditCell value={m.name} onSave={(v) => updateManual(m.id, 'name', v)} className="text-zinc-200 font-medium" />
+                    </span>
+                  </Td>
+                  <Td><EditCell type="date" value={m.next_due_date} onSave={(v) => updateManual(m.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                  <Td className="text-right">
+                    <Redacted on={privacy}><EditCell type="number" value={m.amount} onSave={(v) => updateManual(m.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
+                  </Td>
+                  <Td className="text-right"><DaysBadge iso={m.next_due_date} /></Td>
+                  <Td className="text-right">
+                    <button onClick={() => setConfirmRemoveManual(m)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+            {manual.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-zinc-800 text-zinc-400">
+                  <Td className="font-medium text-zinc-300" colSpan={2}>Total</Td>
+                  <Td className="text-right font-semibold text-emerald-400">
+                    <Redacted on={privacy}><span className="tabular-nums">{fmtDec(manual.reduce((s, m) => s + (m.amount ?? 0), 0))}</span></Redacted>
+                  </Td>
+                  <Td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </section>
+      </>
+      )}
+
+      {/* ── Payday Distribution — this week's plan + per-account rollup ── */}
+      <GroupHeader
+        icon={ArrowDownToLine} iconColor="#22d3ee" title="Payday Distribution"
+        open={paydayOpen} onToggle={() => toggleSection('payday', setPaydayOpen)}
+        summary={
+          <span className="hidden sm:flex items-center gap-3 text-[11px]">
+            <span className="text-zinc-500">Distribute <Redacted on={privacy}><span className="tabular-nums text-cyan-400">{fmt(pool)}</span></Redacted></span>
+            <span className="text-zinc-500">Allocated <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(totalAllocated)}</span></Redacted></span>
+            {leftover > 0.005 && <span className="text-zinc-500">Left <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmtDec(leftover)}</span></Redacted></span>}
+          </span>
+        }
+      />
+      {paydayOpen && (
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-4 items-start">
         <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">
@@ -833,85 +940,7 @@ export default function Waterfall() {
           )}
         </section>
       </div>
-
-      {/* Ad Hoc / Manual entry — collapsible, closed by default */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 px-4 py-3">
-          <button
-            onClick={() => setAdHocOpen((o) => !o)}
-            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
-          >
-            <Plus size={15} className="text-zinc-400 shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">Ad Hoc / Manual Entry</span>
-              <span className="block text-xs text-zinc-500 mt-0.5">One-offs not on the Bills or Debts tabs.</span>
-            </span>
-          </button>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={addManual} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-              <Plus size={14} /> Add item
-            </button>
-            <button onClick={() => setAdHocOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-              {adHocOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-            </button>
-          </div>
-        </div>
-        {adHocOpen && (
-        <div className="overflow-x-auto border-t border-zinc-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-                <th className="px-3 py-2 font-medium">Item</th>
-                <th className="px-3 py-2 font-medium">Due</th>
-                <th className="px-3 py-2 font-medium text-right">Amount</th>
-                <th className="px-3 py-2 font-medium text-right">Days</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {manual.length === 0 ? (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-zinc-600 text-xs">No manual items. Add rent-service or other one-off charges here.</td></tr>
-              ) : manual.map((m) => (
-                <tr key={m.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                  <Td>
-                    <span className="flex items-center gap-2">
-                      <select
-                        value={m.bill_type} onChange={(e) => updateManual(m.id, 'bill_type', e.target.value)}
-                        title={`${m.bill_type} — click to change`}
-                        className="h-2.5 w-2.5 shrink-0 rounded-full border-0 p-0 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900"
-                        style={{ background: typeColor(m.bill_type) }}
-                      >
-                        {MANUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <EditCell value={m.name} onSave={(v) => updateManual(m.id, 'name', v)} className="text-zinc-200 font-medium" />
-                    </span>
-                  </Td>
-                  <Td><EditCell type="date" value={m.next_due_date} onSave={(v) => updateManual(m.id, 'next_due_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
-                  <Td className="text-right">
-                    <Redacted on={privacy}><EditCell type="number" value={m.amount} onSave={(v) => updateManual(m.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
-                  </Td>
-                  <Td className="text-right"><DaysBadge iso={m.next_due_date} /></Td>
-                  <Td className="text-right">
-                    <button onClick={() => setConfirmRemoveManual(m)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-            {manual.length > 0 && (
-              <tfoot>
-                <tr className="border-t border-zinc-800 text-zinc-400">
-                  <Td className="font-medium text-zinc-300" colSpan={2}>Total</Td>
-                  <Td className="text-right font-semibold text-emerald-400">
-                    <Redacted on={privacy}><span className="tabular-nums">{fmtDec(manual.reduce((s, m) => s + (m.amount ?? 0), 0))}</span></Redacted>
-                  </Td>
-                  <Td colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-        )}
-      </section>
+      )}
 
       {/* Balance freshness check — blocking modal on landing, until addressed
           (Not now / Looks good / Update now). No backdrop-click dismiss on
@@ -1222,6 +1251,27 @@ function CoverageCard({ cash, deck, coming, windowDays, privacy }) {
         </Redacted>
       </div>
     </div>
+  );
+}
+
+// Collapsible group header — a clickable card that shows the section title, an
+// optional at-a-glance summary when collapsed, and a chevron. Used to fold the
+// page into a few progressive-disclosure sections.
+function GroupHeader({ icon: Icon, iconColor, title, open, onToggle, summary = null }) {
+  return (
+    <button
+      onClick={onToggle}
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-left hover:bg-zinc-800/40 transition-colors"
+    >
+      <span className="flex items-center gap-2 min-w-0">
+        <Icon size={16} className="shrink-0" style={{ color: iconColor }} />
+        <span className="text-sm font-semibold">{title}</span>
+      </span>
+      <span className="flex items-center gap-3 shrink-0">
+        {!open && summary}
+        {open ? <ChevronDown size={16} className="text-zinc-500" /> : <ChevronRight size={16} className="text-zinc-500" />}
+      </span>
+    </button>
   );
 }
 
