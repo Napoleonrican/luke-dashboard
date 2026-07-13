@@ -78,6 +78,9 @@ export function ModalEdit({ value, type = 'text', options = [], onCommit }) {
       step={numeric ? '0.01' : undefined}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
+      // Select-on-focus so typing over a "0" replaces it instead of prefixing
+      // (e.g. entering 150 on a 0 field giving "0150"). Numeric fields only.
+      onFocus={numeric ? (e) => e.target.select() : undefined}
       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
     />
   );
