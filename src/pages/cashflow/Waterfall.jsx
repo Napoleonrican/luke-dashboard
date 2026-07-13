@@ -178,7 +178,9 @@ export default function Waterfall() {
   // The window used everywhere below: a fixed 7/14/30, or the live day-count
   // until the next biweekly paycheck (recomputed each render, never stale).
   const { days: daysToPaycheck, iso: nextPaycheckISO } = nextPaycheckInfo();
-  const windowDays = windowMode === 'paycheck' ? daysToPaycheck : customWindowDays;
+  // Exclude the paycheck day itself — anything due that day belongs to the
+  // next period, not this one, so the window stops the day before.
+  const windowDays = windowMode === 'paycheck' ? Math.max(0, daysToPaycheck - 1) : customWindowDays;
 
   // Toggle a collapsible group and persist all three states together.
   const toggleSection = (key, setter) => setter((v) => {
