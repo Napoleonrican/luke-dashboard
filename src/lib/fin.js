@@ -48,6 +48,20 @@ export async function fetchRunwayDeck() {
   return s.from('fin_runway_deck').select('*');
 }
 
+// ── Pending transfers (money in flight, per account) ──────────────────────────
+
+export async function fetchPendingTransfers() {
+  if (!s) return { data: [], error: null };
+  return s.from('fin_pending_transfers').select('*').order('expected_date', { nullsFirst: false });
+}
+
+export async function upsertPendingTransfer(row) {
+  if (!s) return { error: { message: 'Not configured' } };
+  const { id, ...rest } = row;
+  if (id) return s.from('fin_pending_transfers').update(rest).eq('id', id).select();
+  return s.from('fin_pending_transfers').insert(rest).select();
+}
+
 // ── Earnin transaction log ────────────────────────────────────────────────────
 
 export async function fetchEarninTransactions() {

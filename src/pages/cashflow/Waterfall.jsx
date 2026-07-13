@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
-  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff,
+  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff, ArrowLeftRight,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
   fetchAccounts, upsertAccount, deleteRow, updateRow, getPref, setPref,
   fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchRunwayManual, fetchRunwayDeck,
   addToDeck, updateDeck, upsertRunwayManual,
+  fetchPendingTransfers, upsertPendingTransfer,
 } from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince } from './format';
 import { AmountEdit } from './ModalField';
@@ -74,6 +75,7 @@ export default function Waterfall() {
   const [consumable, setConsumable] = useState([]);
   const [manual, setManual] = useState([]);
   const [deck, setDeck] = useState([]);
+  const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paycheck, setPaycheck] = useState(0);
   const [includePaycheck, setIncludePaycheck] = useState(true);
@@ -82,12 +84,14 @@ export default function Waterfall() {
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [inputsOpen, setInputsOpen] = useState(false);
   const [balancesOpen, setBalancesOpen] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(false);
   const [adHocOpen, setAdHocOpen] = useState(false);
   const [comingUpOpen, setComingUpOpen] = useState(true);
   const [windowDays, setWindowDays] = useState(14);
   const [synced, setSynced] = useState(false);
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
   const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
+  const [confirmRemovePending, setConfirmRemovePending] = useState(null);
   const [balanceCheckDismissedOn, setBalanceCheckDismissedOn] = useState(null);
   const balancesSectionRef = useRef(null);
 
@@ -95,12 +99,12 @@ export default function Waterfall() {
     let active = true;
     Promise.all([
       fetchAccounts(), fetchBills(), fetchDebts(), fetchDigitalSubs(),
-      fetchConsumableSubs(), fetchRunwayManual(), fetchRunwayDeck(),
-    ]).then(([acc, b, d, dig, cons, man, dk]) => {
+      fetchConsumableSubs(), fetchRunwayManual(), fetchRunwayDeck(), fetchPendingTransfers(),
+    ]).then(([acc, b, d, dig, cons, man, dk, pt]) => {
       if (!active) return;
       setAccounts(acc.data || []); setBills(b.data || []); setDebts(d.data || []);
       setDigital(dig.data || []); setConsumable(cons.data || []);
-      setManual(man.data || []); setDeck(dk.data || []);
+      setManual(man.data || []); setDeck(dk.data || []); setPending(pt.data || []);
       setLoading(false);
     });
     Promise.all([
@@ -220,8 +224,35 @@ export default function Waterfall() {
   };
   const removeAccount = async (id) => {
     setAccounts((prev) => prev.filter((a) => a.id !== id));
+    setPending((prev) => prev.filter((p) => p.account_id !== id));   // cascade mirrors the DB FK
     await deleteRow('fin_accounts', id);
   };
+
+  // ── Pending transfers (money in flight) ──────────────────────────────────────
+  const updatePending = async (id, field, value) => {
+    setPending((prev) => prev.map((p) => p.id === id ? { ...p, [field]: value } : p));
+    await upsertPendingTransfer({ id, [field]: value });
+  };
+  const addPending = async () => {
+    const firstAcct = accounts[0];
+    if (!firstAcct) return;
+    const { data } = await upsertPendingTransfer({
+      account_id: firstAcct.id, direction: 'in', amount: 0, expected_date: todayISO(), label: '',
+    });
+    if (data?.[0]) { setPending((prev) => [...prev, data[0]]); setPendingOpen(true); }
+  };
+  const removePending = async (id) => {
+    setPending((prev) => prev.filter((p) => p.id !== id));
+    await deleteRow('fin_pending_transfers', id);
+  };
+
+  // Net pending for an account = sum of incoming minus outgoing. Purely
+  // informational — the allocation pour still uses real current balances.
+  const netPendingFor = (accountId) => pending
+    .filter((p) => p.account_id === accountId)
+    .reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
+  const totalNetPending = pending.reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
+  const accountName = (id) => accounts.find((a) => a.id === id)?.name || '—';
 
   // Accounts whose balance hasn't been touched today — drives the "still
   // accurate?" banner above Current Balances. Skipped once dismissed for the
@@ -804,15 +835,20 @@ export default function Waterfall() {
               <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
                 <th className="px-4 py-2 font-medium">Account</th>
                 <th className="px-4 py-2 font-medium text-right">Balance</th>
+                <th className="px-4 py-2 font-medium text-right">Updated</th>
                 <th className="w-10 px-2 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
               ) : accounts.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
-              ) : accounts.map((a) => (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
+              ) : accounts.map((a) => {
+                const net = netPendingFor(a.id);
+                const since = daysSince(a.updated_at);
+                const c = updatedColor(a.updated_at);
+                return (
                 <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <td className="px-4 py-2">
                     <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
@@ -821,6 +857,19 @@ export default function Waterfall() {
                     <Redacted on={privacy}>
                       <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
                     </Redacted>
+                    {Math.abs(net) > 0.005 && (
+                      <span className="block text-[11px] text-zinc-500 mt-0.5">
+                        <Redacted on={privacy}><span className={`tabular-nums ${net > 0 ? 'text-emerald-400/80' : 'text-amber-400/80'}`}>{net > 0 ? '+' : ''}{fmtDec(net)}</span></Redacted>
+                        {' pending → '}
+                        <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec((a.balance ?? 0) + net)}</span></Redacted>
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <span className="inline-flex items-center justify-end gap-1.5 text-[11px] text-zinc-500">
+                      {a.updated_at && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.color }} title="freshness" />}
+                      {since == null ? '—' : since === 0 ? 'today' : `${since}d ago`}
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-right">
                     <button
@@ -832,14 +881,108 @@ export default function Waterfall() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             {!loading && accounts.length > 0 && (
               <tfoot>
                 <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
                   <td className="px-4 py-2.5">Total cash on hand</td>
                   <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
-                  <td />
+                  <td colSpan={2} />
+                </tr>
+                {Math.abs(totalNetPending) > 0.005 && (
+                  <tr className="text-zinc-400">
+                    <td className="px-4 pb-2.5 text-xs">Projected once pending clears</td>
+                    <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(cashOnHand + totalNetPending)}</span></Redacted></td>
+                    <td colSpan={2} />
+                  </tr>
+                )}
+              </tfoot>
+            )}
+          </table>
+        </div>
+        )}
+      </section>
+
+      {/* Pending transfers — money in flight, not yet in an account. Collapsible,
+          closed by default. Informational only; doesn't change the pour. */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <button
+            onClick={() => setPendingOpen((o) => !o)}
+            className="flex flex-1 min-w-0 items-center gap-2 text-left hover:text-zinc-200 transition-colors"
+          >
+            <ArrowLeftRight size={15} className="text-cyan-400 shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">
+                Pending Transfers
+                {pending.length > 0 && <span className="ml-1.5 text-xs font-normal text-zinc-500">· {pending.length}</span>}
+              </span>
+              <span className="block text-xs text-zinc-500 mt-0.5">Money moving in/out that hasn&rsquo;t landed yet — shows a projected balance above.</span>
+            </span>
+          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={addPending}
+              disabled={accounts.length === 0}
+              title={accounts.length === 0 ? 'Add an account first' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors disabled:opacity-40"
+            >
+              <Plus size={14} /> Add transfer
+            </button>
+            <button onClick={() => setPendingOpen((o) => !o)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              {pendingOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </button>
+          </div>
+        </div>
+        {pendingOpen && (
+        <div className="overflow-x-auto border-t border-zinc-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2 font-medium">Account</th>
+                <th className="px-3 py-2 font-medium">Direction</th>
+                <th className="px-3 py-2 font-medium text-right">Amount</th>
+                <th className="px-3 py-2 font-medium">Expected</th>
+                <th className="px-3 py-2 font-medium">Note</th>
+                <th className="w-10 px-2 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {pending.length === 0 ? (
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">No pending transfers. Add one for money you know is coming in or going out but hasn&rsquo;t cleared.</td></tr>
+              ) : pending.map((p) => (
+                <tr key={p.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <Td>
+                    <EditCell type="select" value={p.account_id} onSave={(v) => updatePending(p.id, 'account_id', v)}
+                      options={accounts.map((a) => ({ value: a.id, label: a.name }))} display={() => accountName(p.account_id)} className="text-zinc-200 font-medium" />
+                  </Td>
+                  <Td>
+                    <EditCell type="select" value={p.direction} onSave={(v) => updatePending(p.id, 'direction', v)}
+                      options={[{ value: 'in', label: 'In' }, { value: 'out', label: 'Out' }]}
+                      display={(v) => (v === 'out' ? '↑ Out' : '↓ In')}
+                      className={p.direction === 'out' ? 'text-amber-400' : 'text-emerald-400'} />
+                  </Td>
+                  <Td className="text-right">
+                    <Redacted on={privacy}><EditCell type="number" value={p.amount} onSave={(v) => updatePending(p.id, 'amount', v)} display={fmtDec} className="text-zinc-200 tabular-nums" /></Redacted>
+                  </Td>
+                  <Td><EditCell type="date" value={p.expected_date} onSave={(v) => updatePending(p.id, 'expected_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
+                  <Td><EditCell value={p.label} onSave={(v) => updatePending(p.id, 'label', v)} className="text-zinc-500" /></Td>
+                  <Td className="text-right">
+                    <button onClick={() => setConfirmRemovePending(p)} className="text-zinc-600 hover:text-red-400 transition-colors p-3 -m-3"><Trash2 size={13} /></button>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+            {pending.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-zinc-800 text-zinc-400">
+                  <Td className="font-medium text-zinc-300" colSpan={2}>Net pending</Td>
+                  <Td className="text-right font-semibold">
+                    <Redacted on={privacy}><span className={`tabular-nums ${totalNetPending >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>{totalNetPending > 0 ? '+' : ''}{fmtDec(totalNetPending)}</span></Redacted>
+                  </Td>
+                  <Td colSpan={3} />
                 </tr>
               </tfoot>
             )}
@@ -930,6 +1073,17 @@ export default function Waterfall() {
           removeManual(confirmRemoveManual.source_id ?? confirmRemoveManual.id);
           setConfirmRemoveManual(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={confirmRemovePending}
+        title="Remove this pending transfer?"
+        message={confirmRemovePending
+          ? `${confirmRemovePending.direction === 'out' ? 'Outgoing' : 'Incoming'} ${fmtDec(confirmRemovePending.amount)} on ${accountName(confirmRemovePending.account_id)} will stop showing in the projected balance. This can’t be undone.`
+          : ''}
+        confirmLabel="Remove"
+        onCancel={() => setConfirmRemovePending(null)}
+        onConfirm={() => { removePending(confirmRemovePending.id); setConfirmRemovePending(null); }}
       />
     </div>
   );
