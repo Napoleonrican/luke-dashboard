@@ -474,10 +474,38 @@ export default function Waterfall() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label={`Bills — next ${windowDays}d`} value={fmt(totals.bills)} privacy={privacy} tone="text-blue-400" />
-        <Stat label={`Debts — next ${windowDays}d`} value={fmt(totals.debt)} privacy={privacy} tone="text-violet-400" />
-        <Stat label={`Total — next ${windowDays}d`} value={fmt(totals.total)} privacy={privacy} tone="text-amber-400" />
+        {/* Available now — cash on hand, with projected once pending clears */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+          <p className="text-xs text-zinc-500 mb-1">Available now</p>
+          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(cashOnHand)}</span></Redacted>
+          {Math.abs(totalNetPending) > 0.005 && (
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(cashOnHand + totalNetPending)}</span></Redacted> with pending
+            </p>
+          )}
+        </div>
+
+        {/* Coming up — window total, with the bill/debt split as sub-lines */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+          <p className="text-xs text-zinc-500 mb-1">Coming up — next {windowDays}d</p>
+          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-amber-400">{fmt(totals.total)}</span></Redacted>
+          <div className="mt-2 space-y-0.5">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: '#3b82f6' }} /><span className="text-zinc-400">Bills</span></span>
+              <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmt(totals.bills)}</span></Redacted>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: '#8b5cf6' }} /><span className="text-zinc-400">Debts</span></span>
+              <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmt(totals.debt)}</span></Redacted>
+            </div>
+          </div>
+        </div>
+
+        {/* On Deck */}
         <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
+
+        {/* Coverage — does cash on hand cover what's staged / coming up? */}
+        <CoverageCard cash={cashOnHand} deck={onDeckTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}
@@ -1135,13 +1163,28 @@ function OnDeckCard({ total, byType, count, privacy }) {
   );
 }
 
-function Stat({ label, value, privacy, tone = 'text-white' }) {
+// Coverage — does cash on hand cover what's staged (On Deck) and everything
+// due in the window (Coming up)? Headline is the window shortfall/surplus; the
+// sub-line answers the On Deck question. Green = surplus, red = short.
+function CoverageCard({ cash, deck, coming, windowDays, privacy }) {
+  const vsComing = cash - coming;
+  const vsDeck = cash - deck;
+  const short = vsComing < -0.005;
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-      <p className="text-xs text-zinc-500 mb-1">{label}</p>
-      {privacy !== undefined
-        ? <Redacted on={privacy}><span className={`text-xl font-bold tabular-nums ${tone}`}>{value}</span></Redacted>
-        : <span className={`text-xl font-bold tabular-nums ${tone}`}>{value}</span>}
+    <div className={`rounded-xl border p-4 ${short ? 'border-red-800/50 bg-red-950/20' : 'border-zinc-800 bg-zinc-900'}`}>
+      <p className="text-xs text-zinc-500 mb-1">Cash after next {windowDays}d</p>
+      <span className="flex items-baseline gap-1.5">
+        <Redacted on={privacy}><span className={`text-xl font-bold tabular-nums ${short ? 'text-red-400' : 'text-emerald-400'}`}>{vsComing >= 0 ? '+' : ''}{fmt(vsComing)}</span></Redacted>
+        <span className={`text-[10px] uppercase tracking-wide ${short ? 'text-red-400' : 'text-emerald-400'}`}>{short ? 'short' : 'surplus'}</span>
+      </span>
+      <div className="mt-2 text-[11px] flex items-center justify-between gap-2">
+        <span className="text-zinc-400">Covers On Deck?</span>
+        <Redacted on={privacy}>
+          <span className={`tabular-nums font-medium ${vsDeck < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>
+            {vsDeck < -0.005 ? `short ${fmt(vsDeck)}` : 'yes'}
+          </span>
+        </Redacted>
+      </div>
     </div>
   );
 }
