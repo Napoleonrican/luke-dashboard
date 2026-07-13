@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Bookmark, Check, Tv } from 'lucide-react';
+import { Star, Tv } from 'lucide-react';
 import { getShowMetadata } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import ProgressBar from './ProgressBar';
 import useInView from '../../hooks/useInView';
 
-// Grid tile: poster + badges + progress, lazily fetching its poster/episode
-// count only once scrolled into view (so a 160-show grid doesn't burst-fetch
-// TMDB all at once). Clicking navigates to the full detail page.
+// Poster-forward grid tile (TVTime-style): image is the click target, title
+// underneath, progress bar overlaid on the poster. Lazily fetches its
+// poster/episode count only once scrolled into view.
 export default function ShowCard({ show }) {
   const [ref, inView] = useInView();
   const [meta, setMeta] = useState(null);
@@ -25,43 +25,23 @@ export default function ShowCard({ show }) {
   const watchedCount = show.ep_watch_count ?? 0;
 
   return (
-    <Link
-      ref={ref}
-      to={`/watch-tracker/shows/${show.id}`}
-      className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-left hover:bg-zinc-800/50 transition-colors"
-    >
-      <div className="h-24 w-16 shrink-0 rounded-md bg-zinc-800 overflow-hidden flex items-center justify-center">
+    <Link ref={ref} to={`/watch-tracker/shows/${show.id}`} className="group block">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-zinc-800 ring-1 ring-zinc-800 transition-transform group-hover:ring-zinc-600">
         {meta?.poster_path
-          ? <img src={tmdbImageUrl(meta.poster_path, 'w185')} alt="" className="h-full w-full object-cover" />
-          : <Tv className="text-zinc-700" size={22} />}
+          ? <img src={tmdbImageUrl(meta.poster_path, 'w342')} alt="" className="h-full w-full object-cover" />
+          : <div className="flex h-full w-full items-center justify-center"><Tv className="text-zinc-700" size={28} /></div>}
+        {show.is_favorited && (
+          <Star size={14} className="absolute right-1.5 top-1.5 fill-amber-400 text-amber-400 drop-shadow" />
+        )}
+        {totalEpisodes > 0 && (
+          <div className="absolute inset-x-0 bottom-0 bg-black/40 p-1">
+            <ProgressBar value={watchedCount} total={totalEpisodes} />
+          </div>
+        )}
       </div>
-      <div className="min-w-0 flex-1">
-        <span className="truncate font-medium text-zinc-100 block">{show.series_name}</span>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-          {show.is_followed && <Badge color="#ef4444" icon={Check} label="Following" />}
-          {show.is_for_later && <Badge color="#f59e0b" icon={Bookmark} label="Watchlist" />}
-          {show.is_favorited && <Badge color="#eab308" icon={Star} label="Favorite" />}
-        </div>
-        <div className="mt-1.5 text-xs text-zinc-500">
-          {watchedCount}{totalEpisodes ? ` / ${totalEpisodes}` : ''} episodes
-          {show.last_watched_season != null && (
-            <span> · last watched S{show.last_watched_season}E{show.last_watched_episode_number}</span>
-          )}
-        </div>
-        {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5" />}
+      <div className="mt-1.5 truncate text-xs font-medium text-zinc-300 group-hover:text-zinc-100">
+        {show.series_name}
       </div>
     </Link>
-  );
-}
-
-function Badge({ color, icon: Icon, label }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium"
-      style={{ color, backgroundColor: `${color}22` }}
-    >
-      <Icon size={10} />
-      {label}
-    </span>
   );
 }
