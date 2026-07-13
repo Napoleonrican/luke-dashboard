@@ -21,10 +21,11 @@ const KIND_COLOR = { advance: '#f59e0b', repay: '#10b981' };
 const BILL_PAY_NAME = 'Bill Pay Checking';
 const DIRECTION_FOR_KIND = { advance: 'in', repay: 'out' };
 
-// A standalone log of Earnin advances/repayments — not wired into the
-// Waterfall's allocation engine yet (that still uses the single manual
-// "payback owed" figure in Waterfall's Plan Inputs). This is the place to
-// track usage down over time until a Monarch export can backfill history.
+// A log of Earnin advances/repayments — feeds the Waterfall's allocation
+// engine live (its Plan Inputs "payback owed" figure is this log's running
+// balance) and Current Balances (via the Pending checkbox on each row). This
+// is the place to track usage down over time until a Monarch export can
+// backfill history.
 export default function Earnin() {
   const { privacy } = useOutletContext();
   const [rows, setRows] = useState([]);
@@ -145,8 +146,8 @@ export default function Earnin() {
   return (
     <div className="space-y-6">
       <WipNotice>
-        Manual transaction log for now — until a Monarch export can backfill history. Not wired
-        into the Waterfall&rsquo;s allocation engine yet; that still uses its own manual &ldquo;payback owed&rdquo; field.
+        Manual transaction log for now — until a Monarch export can backfill history. The running
+        balance feeds the Waterfall&rsquo;s Plan Inputs live, and Pending rows show up on Current Balances.
       </WipNotice>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -236,9 +237,8 @@ export default function Earnin() {
       </p>
 
       <p className="text-xs text-zinc-600">
-        &ldquo;Currently owed&rdquo; here is derived from this log (advances add, repayments subtract).
-        Once you&rsquo;re comfortable it&rsquo;s accurate, copy it into the Waterfall tab&rsquo;s Plan Inputs
-        &ldquo;Earnin — payback owed&rdquo; field — the two aren&rsquo;t linked automatically yet.
+        &ldquo;Currently owed&rdquo; here is derived from this log (advances add, repayments subtract) and feeds the
+        Waterfall&rsquo;s Plan Inputs &ldquo;Earnin — payback owed&rdquo; figure live — no manual copying needed.
       </p>
     </div>
   );
