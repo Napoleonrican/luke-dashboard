@@ -90,7 +90,7 @@ export default function App() {
           <Route path="inputs" element={<Navigate to="../waterfall" replace />} />
         </Route>
         <Route path="/watch-tracker" element={
-          <ProtectedRoute><WatchTrackerLayout /></ProtectedRoute>
+          <FinancialAuthGate title="Watch Tracker" subtitle="Secure sign-in required"><WatchTrackerLayout /></FinancialAuthGate>
         }>
           <Route index element={<Navigate to="shows" replace />} />
           <Route path="shows" element={<Shows />} />
