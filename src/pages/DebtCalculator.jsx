@@ -136,6 +136,7 @@ export default function DebtCalculator() {
   const [takeHome, setTakeHome] = useState(() => Number(ls('takeHome')) || 4162);
   const [billsVariable, setBillsVariable] = useState(() => Number(ls('billsVariable')) || 2862);
   const [weeklyGross, setWeeklyGross] = useState(() => Number(ls('weeklyGross')) || 120);
+  const [earninWeekly, setEarninWeekly] = useState(() => Number(ls('earninWeekly')) || 285);
   const [strategy, setStrategy] = useState(() => ls('strategy') || 'current');
 
   // ── Side-gig + benchmark settings (configured on the Settings page) ─────────
@@ -208,6 +209,7 @@ export default function DebtCalculator() {
           setTakeHome(Number(data.take_home)           || 4162);
           setBillsVariable(Number(data.bills_variable) || 2862);
           setWeeklyGross(Number(data.weekly_gross)     || 120);
+          setEarninWeekly(Number(data.earnin_weekly)   || 285);
           setStrategy(data.strategy                    || 'current');
           try { localStorage.setItem(UPDATED_KEY, data.updated_at); } catch { /* ignore */ }
         }
@@ -228,10 +230,11 @@ export default function DebtCalculator() {
       localStorage.setItem('dp_takeHome',      takeHome);
       localStorage.setItem('dp_billsVariable', billsVariable);
       localStorage.setItem('dp_weeklyGross',   weeklyGross);
+      localStorage.setItem('dp_earninWeekly',  earninWeekly);
       localStorage.setItem('dp_strategy',      strategy);
       localStorage.setItem(UPDATED_KEY, new Date().toISOString());
     } catch { /* ignore */ }
-  }, [synced, takeHome, billsVariable, weeklyGross, strategy]);
+  }, [synced, takeHome, billsVariable, weeklyGross, earninWeekly, strategy]);
 
   // ── Supabase push (debounced) — scenario inputs only ────────────────────────
   const debounceRef = useRef(null);
@@ -241,10 +244,11 @@ export default function DebtCalculator() {
     debounceRef.current = setTimeout(() => {
       supabase.from('debt_settings').upsert({
         id: SB_ROW_ID, take_home: takeHome, bills_variable: billsVariable,
-        weekly_gross: weeklyGross, strategy, updated_at: new Date().toISOString(),
+        weekly_gross: weeklyGross, earnin_weekly: earninWeekly, strategy,
+        updated_at: new Date().toISOString(),
       }).then(({ error }) => { if (error) console.error('[Supabase upsert error]', error.message); });
     }, 1500);
-  }, [synced, takeHome, billsVariable, weeklyGross, strategy]);
+  }, [synced, takeHome, billsVariable, weeklyGross, earninWeekly, strategy]);
 
   useEffect(() => { pushToSupabase(); return () => clearTimeout(debounceRef.current); }, [pushToSupabase]);
 
@@ -259,6 +263,14 @@ export default function DebtCalculator() {
   const surplusDefAmt   = Math.abs(Math.round(monthlyGigNet - monthlyDeficit));
   const hoursPerWeek    = hourlyRate > 0 ? (weeklyGross / hourlyRate).toFixed(1) : '—';
   const totalIncome     = takeHome + monthlyGigNet;
+
+  // ── Earnin-free target: gross gig income to hit break-even AND replace the
+  //    recurring weekly Earnin draw (net-for-net), so the reliance goes to zero.
+  const earninMonthly    = earninWeekly * WEEKS_PER_MONTH;
+  const earninFreeWeekly = Math.ceil((monthlyDeficit + earninMonthly) / (WEEKS_PER_MONTH * GIG_EFFICIENCY));
+  const earninGapWeekly  = Math.max(0, earninFreeWeekly - weeklyGross);
+  const earninGapHours   = hourlyRate > 0 ? (earninGapWeekly / hourlyRate).toFixed(1) : '—';
+  const earninFree       = weeklyGross >= earninFreeWeekly;
 
   // ── Simulation ──────────────────────────────────────────────────────────────
   const { months, payoffMonths, totalInterest } = useMemo(
@@ -401,8 +413,10 @@ export default function DebtCalculator() {
             open={showInputs} setOpen={setShowInputs}
             takeHome={takeHome} setTakeHome={setTakeHome}
             billsVariable={billsVariable} setBillsVariable={setBillsVariable}
+            earninWeekly={earninWeekly} setEarninWeekly={setEarninWeekly}
             totalDebtMins={totalDebtMins} monthlyOutflow={monthlyOutflow}
             monthlyDeficit={monthlyDeficit} breakEvenWeekly={breakEvenWeekly}
+            earninFreeWeekly={earninFreeWeekly}
             privacyMode={privacyMode} inputCls={inputCls}
           />
           <CurrentBalances
@@ -441,10 +455,16 @@ export default function DebtCalculator() {
 
               <input type="range" min={0} max={WEEKLY_SLIDER_MAX} step={5} value={weeklyGross}
                 onChange={(e) => setWeeklyGross(Number(e.target.value))} className="w-full accent-purple-500 mb-2" />
-              <div className="flex justify-between text-xs text-zinc-600 mb-3 px-0.5">
+              <div className="flex justify-between text-xs text-zinc-600 mb-1 px-0.5">
                 <span>$0</span>
                 <Redacted on={privacyMode}><span className="text-amber-500">break-even ≈ {fmt(breakEvenWeekly)}/wk</span></Redacted>
                 <span>${WEEKLY_SLIDER_MAX}</span>
+              </div>
+              <div className="text-center text-xs mb-3">
+                <Redacted on={privacyMode}>
+                  <span className="text-pink-400">Earnin-free ≈ {fmt(earninFreeWeekly)}/wk</span>
+                </Redacted>
+                <span className="text-zinc-600"> · covers minimums + replaces {fmt(earninWeekly)}/wk Earnin</span>
               </div>
 
               <div className={`rounded-lg p-3 mb-4 ${isDeficit ? 'bg-red-950/50 border border-red-800/60' : 'bg-emerald-950/50 border border-emerald-800/60'}`}>
@@ -459,6 +479,13 @@ export default function DebtCalculator() {
                     <p className="text-xs text-emerald-500 mt-0.5"><Redacted on={privacyMode}>${weeklyGross - breakEvenWeekly}/wk above break-even</Redacted></p>
                   </>
                 )}
+                <p className={`text-xs mt-1.5 pt-1.5 border-t ${earninFree ? 'text-pink-400 border-pink-800/40' : 'text-pink-300/80 border-red-800/40'}`}>
+                  <Redacted on={privacyMode}>
+                    {earninFree
+                      ? `✓ Earnin-free — this covers minimums and fully replaces your ${fmt(earninWeekly)}/wk Earnin draw`
+                      : `To stop leaning on Earnin: +${fmt(earninGapWeekly)}/wk (≈ ${earninGapHours} more hrs/wk) → ${fmt(earninFreeWeekly)}/wk`}
+                  </Redacted>
+                </p>
               </div>
 
               <div className="grid grid-cols-4 gap-2">
@@ -568,7 +595,7 @@ export default function DebtCalculator() {
 }
 
 // ─── My Numbers (compact collapsible) ─────────────────────────────────────────
-function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, privacyMode, inputCls }) {
+function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, earninWeekly, setEarninWeekly, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, earninFreeWeekly, privacyMode, inputCls }) {
   const shortfall = monthlyDeficit > 0 ? `DoorDash must cover ${fmt(monthlyDeficit)}/mo` : `Surplus ${fmt(Math.abs(monthlyOutflow - takeHome))}/mo ✓`;
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-xl self-start">
@@ -596,6 +623,14 @@ function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBil
                 <input type="number" value={billsVariable} onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
               </div>
             </label>
+            <label className="block sm:col-span-2">
+              <span className="text-xs text-zinc-400 mb-1 block">Weekly Earnin draw (to design out)</span>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                <input type="number" value={earninWeekly} onChange={(e) => setEarninWeekly(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
+              </div>
+              <span className="text-xs text-zinc-500 mt-1 block">Recent avg from your Earnin report — the reliance you want DoorDash to replace.</span>
+            </label>
           </div>
           <div className="bg-zinc-800 rounded-xl p-3 text-xs space-y-1.5">
             <Row label="Debt minimums (live)" value={`${fmt(totalDebtMins)}/mo`} privacyMode={privacyMode} />
@@ -605,6 +640,7 @@ function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBil
               <Redacted on={privacyMode}><span>{monthlyDeficit > 0 ? `${fmt(monthlyDeficit)}/mo` : 'Surplus ✓'}</span></Redacted>
             </div>
             <div className="flex justify-between text-amber-400"><span>Break-even weekly</span><Redacted on={privacyMode}><span>{fmt(breakEvenWeekly)}/wk</span></Redacted></div>
+            <div className="flex justify-between text-pink-400"><span>Earnin-free weekly</span><Redacted on={privacyMode}><span>{fmt(earninFreeWeekly)}/wk</span></Redacted></div>
           </div>
         </div>
       )}
