@@ -24,6 +24,24 @@ const SORT_PREF_KEY = 'debts_sort';
 
 const fmtApr = (a) => (a == null ? '—' : `${(a * 100).toFixed(2)}%`);
 
+// Calculated fields, derived from what you enter (never edited directly):
+//   • Available Credit = Limit − Balance, but only for a Credit Card (a loan/
+//     BNPL has no revolving "available credit").
+//   • Total Due = Limit + Finance Charge (the original total owed over the life).
+// Returned as null when their inputs are absent, so they read as "—".
+function derivedFields(d) {
+  const isCC = d.credit_type === 'Credit Card';
+  const available_credit = isCC && d.credit_limit != null
+    ? (d.credit_limit ?? 0) - (d.balance ?? 0)
+    : null;
+  const total_due = (d.credit_limit == null && d.finance_charge == null)
+    ? null
+    : (d.credit_limit ?? 0) + (d.finance_charge ?? 0);
+  return { available_credit, total_due };
+}
+// Editing any of these re-derives Available Credit / Total Due.
+const DERIVE_TRIGGERS = new Set(['credit_limit', 'finance_charge', 'balance', 'credit_type']);
+
 const SORT_ACCESSORS = {
   updated_on:          (d) => d.updated_on,
   purchase:            (d) => (d.purchase || '').toLowerCase(),
@@ -34,9 +52,9 @@ const SORT_ACCESSORS = {
   term_months:         (d) => d.term_months,
   finance_charge:      (d) => d.finance_charge,
   credit_limit:        (d) => d.credit_limit,
-  total_due:           (d) => d.total_due,
+  total_due:           (d) => derivedFields(d).total_due,
   balance:             (d) => d.balance,
-  available_credit:    (d) => d.available_credit,
+  available_credit:    (d) => derivedFields(d).available_credit,
   next_due_date:       (d) => d.next_due_date,
   days:                (d) => daysUntil(d.next_due_date),
   day_due:             (d) => d.day_due,
@@ -97,11 +115,17 @@ export default function Debts() {
   const sortedDebts = sortRows(debts, sort, SORT_ACCESSORS);
 
   const update = async (id, field, value) => {
-    const prevValue = debts.find((d) => d.id === id)?.[field];
-    setDebts((prev) => prev.map((d) => d.id === id ? { ...d, [field]: value } : d));
-    const { error } = await upsertDebt({ id, [field]: value });
+    const prev = debts.find((d) => d.id === id);
+    const prevRow = prev ? { ...prev } : null;
+    // When a trigger field changes, recompute the derived fields and persist
+    // them in the same write so the stored values (which the Payoff Calculator
+    // reads) stay consistent.
+    const patch = { [field]: value };
+    if (DERIVE_TRIGGERS.has(field)) Object.assign(patch, derivedFields({ ...prev, [field]: value }));
+    setDebts((arr) => arr.map((d) => d.id === id ? { ...d, ...patch } : d));
+    const { error } = await upsertDebt({ id, ...patch });
     if (error) {
-      setDebts((prev) => prev.map((d) => d.id === id ? { ...d, [field]: prevValue } : d));
+      if (prevRow) setDebts((arr) => arr.map((d) => d.id === id ? prevRow : d));
       notifyError('Couldn’t save that change — reverted. Please retry.');
     }
   };
@@ -113,6 +137,7 @@ export default function Debts() {
     });
     if (error || !data?.[0]) { notifyError('Couldn’t add the debt. Please retry.'); return; }
     setDebts((prev) => [...prev, data[0]]);
+    setEditingId(data[0].id);   // open the full editor straight away
   };
 
   const remove = async (id) => {
@@ -245,8 +270,12 @@ export default function Debts() {
                   <Td className="text-right"><EditCell type="number" value={d.term_months} onSave={(v) => update(d.id, 'term_months', v)} className="text-zinc-500 tabular-nums" /></Td>
                   <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.finance_charge} onCommit={(v) => update(d.id, 'finance_charge', v)} className="text-zinc-500" nullable /></Redacted></Td>
                   <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.credit_limit} onCommit={(v) => update(d.id, 'credit_limit', v)} className="text-zinc-500" nullable /></Redacted></Td>
-                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.total_due} onCommit={(v) => update(d.id, 'total_due', v)} className="text-zinc-500" nullable /></Redacted></Td>
-                  <Td className="text-right"><Redacted on={privacy}><AmountEdit value={d.available_credit} onCommit={(v) => update(d.id, 'available_credit', v)} className="text-zinc-400" nullable /></Redacted></Td>
+                  <Td className="text-right" title="Calculated: Limit + Finance Charge">
+                    <Redacted on={privacy}><span className="tabular-nums text-zinc-500">{derivedFields(d).total_due == null ? '—' : fmtDec(derivedFields(d).total_due)}</span></Redacted>
+                  </Td>
+                  <Td className="text-right" title="Calculated: Limit − Balance (credit cards only)">
+                    <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{derivedFields(d).available_credit == null ? '—' : fmtDec(derivedFields(d).available_credit)}</span></Redacted>
+                  </Td>
                 </>}
                 <Td className="text-right">
                   <button onClick={() => remove(d.id)} aria-label={`Delete ${d.purchase || 'debt'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
@@ -339,39 +368,46 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
   const set = (field) => (v) => onChange(debt.id, field, v);
   const days = daysUntil(debt.next_due_date);
   const dc = daysToColor(days);
+  const calc = derivedFields(debt);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
           <div className="flex items-center gap-2 min-w-0">
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: typeColor(debt.credit_type) }} />
             <h3 className="text-base font-semibold text-white truncate">{debt.purchase || 'Debt'}</h3>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X size={18} /></button>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Updated date + freshness dot + "mark today" refresh, same control
+                as the table — kept in the header so it's always visible. */}
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="hidden sm:inline">Updated</span>
+              <UpdatedCell value={debt.updated_on} onSave={set('updated_on')} />
+            </span>
+            <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors"><X size={18} /></button>
+          </div>
         </div>
 
         <div className="px-5 py-5 space-y-6">
-          {/* Key fields */}
+          {/* Key fields — what you touch most, plus the read-only calcs for context */}
           <div>
             <p className="text-[11px] uppercase tracking-wide text-emerald-500/80 mb-3">Key fields</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Purchase"><ModalEdit value={debt.purchase} onCommit={set('purchase')} /></Field>
-              <Field label="Credit Type"><ModalEdit type="select" value={debt.credit_type} onCommit={set('credit_type')} options={CREDIT_TYPES} /></Field>
               <Field label="Lender"><ModalEdit value={debt.lender} onCommit={set('lender')} /></Field>
-              <Field label="Updated"><ModalEdit type="date" value={debt.updated_on} onCommit={set('updated_on')} /></Field>
+              <Field label="Credit Type"><ModalEdit type="select" value={debt.credit_type} onCommit={set('credit_type')} options={CREDIT_TYPES} /></Field>
               <Field label="Balance"><Redacted on={privacy}><ModalEdit type="currency" value={debt.balance} onCommit={set('balance')} /></Redacted></Field>
-              <Field label="Available Credit"><Redacted on={privacy}><ModalEdit type="currency" value={debt.available_credit} onCommit={set('available_credit')} /></Redacted></Field>
+              <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="currency" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
               <Field label="Next Due Date"><ModalEdit type="date" value={debt.next_due_date} onCommit={set('next_due_date')} /></Field>
+              <Field label="Day Due"><ModalEdit type="number" value={debt.day_due} onCommit={set('day_due')} /></Field>
+              <Field label="Paydown Priority"><ModalEdit type="number" value={debt.paydown_priority} onCommit={set('paydown_priority')} /></Field>
+              <Field label="Pending Withdrawal"><ModalEdit type="checkbox" value={debt.pending_withdrawal} onCommit={set('pending_withdrawal')} /></Field>
               <Field label="Days to Next Payment">
                 <span className="rounded px-2 py-1 text-sm font-medium tabular-nums inline-block" style={dc ? { color: dc.color, background: dc.background } : undefined}>
                   {days == null ? '—' : days < 0 ? `${Math.abs(days)}d overdue` : `${days} days`}
                 </span>
               </Field>
-              <Field label="Day Due"><ModalEdit type="number" value={debt.day_due} onCommit={set('day_due')} /></Field>
-              <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="currency" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
-              <Field label="Pending Withdrawal"><ModalEdit type="checkbox" value={debt.pending_withdrawal} onCommit={set('pending_withdrawal')} /></Field>
-              <Field label="Paydown Priority"><ModalEdit type="number" value={debt.paydown_priority} onCommit={set('paydown_priority')} /></Field>
               <Field label="Payments Remaining (calculated)">
                 <span className="text-sm font-semibold text-zinc-200 tabular-nums">
                   {paymentsRemaining(debt) == null ? '—' : Math.round(paymentsRemaining(debt))}
@@ -380,20 +416,36 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
               <Field label="Expected Payoff Date (calculated)">
                 <span className="text-sm font-semibold text-zinc-200 tabular-nums">{fmtDate(expectedPayoffDate(debt))}</span>
               </Field>
-              <Field label="Last Date"><ModalEdit type="date" value={debt.last_date} onCommit={set('last_date')} /></Field>
-              <Field label="New Min."><Redacted on={privacy}><ModalEdit type="currency" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
             </div>
           </div>
 
-          {/* Hidden-by-default detail group (Origination Date → Total Due) */}
-          <MoreDetails>
+          {/* Loan origination details — the fixed terms set when the debt opened,
+              plus the calculated Total Due they feed. Collapsed by default. */}
+          <MoreDetails label="Loan origination details">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Origination Date"><ModalEdit type="date" value={debt.origination_date} onCommit={set('origination_date')} /></Field>
               <Field label="APR (e.g. 0.2999 = 29.99%)"><ModalEdit type="number" value={debt.apr} onCommit={set('apr')} /></Field>
               <Field label="Term (Months)"><ModalEdit type="number" value={debt.term_months} onCommit={set('term_months')} /></Field>
               <Field label="Finance Charge"><Redacted on={privacy}><ModalEdit type="currency" value={debt.finance_charge} onCommit={set('finance_charge')} /></Redacted></Field>
               <Field label="Limit"><Redacted on={privacy}><ModalEdit type="currency" value={debt.credit_limit} onCommit={set('credit_limit')} /></Redacted></Field>
-              <Field label="Total Due"><Redacted on={privacy}><ModalEdit type="currency" value={debt.total_due} onCommit={set('total_due')} /></Redacted></Field>
+              <Field label="Total Due (calculated · Limit + Finance Charge)">
+                <Redacted on={privacy}>
+                  <span className="text-sm font-semibold text-zinc-200 tabular-nums">{calc.total_due == null ? '—' : fmtDec(calc.total_due)}</span>
+                </Redacted>
+              </Field>
+            </div>
+          </MoreDetails>
+
+          {/* More details — the less-touched fields. */}
+          <MoreDetails>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+              <Field label="Available Credit (calculated · Limit − Balance)">
+                <Redacted on={privacy}>
+                  <span className="text-sm font-semibold text-zinc-200 tabular-nums">{calc.available_credit == null ? '—' : fmtDec(calc.available_credit)}</span>
+                </Redacted>
+              </Field>
+              <Field label="Last Date"><ModalEdit type="date" value={debt.last_date} onCommit={set('last_date')} /></Field>
+              <Field label="New Min."><Redacted on={privacy}><ModalEdit type="currency" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
             </div>
           </MoreDetails>
         </div>

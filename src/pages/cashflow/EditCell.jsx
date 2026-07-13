@@ -67,6 +67,8 @@ export default function EditCell({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
           onBlur={handleBlur}
+          // Select-on-focus so typing over a "0" replaces it instead of prefixing.
+          onFocus={type === 'number' ? (e) => e.target.select() : undefined}
           step={type === 'number' ? '0.01' : undefined}
           className="w-full min-w-[5rem] rounded border border-emerald-600 bg-zinc-800 px-1.5 py-0.5 text-xs text-white focus:outline-none"
         />
