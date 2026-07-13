@@ -1,7 +1,8 @@
 // watchtracker.js — thin query helpers for the wt_* tables, mirroring fin.js.
 // All functions return { data, error } matching Supabase conventions.
 import { supabase } from './supabase';
-import { getShowDetails, getMovieDetails, getEpisodeDetails, searchShow, searchMovie } from './tmdb';
+import { getShowDetails, getMovieDetails, getEpisodeDetails, getWatchProviders, searchShow, searchMovie } from './tmdb';
+import { daysUntil } from '../pages/cashflow/format';
 
 const s = supabase; // alias so callers can check if null
 
@@ -156,6 +157,69 @@ export async function getEpisodeMetadata(tmdbId, season, episode) {
   };
   const { data: saved } = await s.from('wt_episode_metadata_cache').upsert(row, { onConflict: 'tmdb_id,season_number,episode_number' }).select().maybeSingle();
   return { data: saved ?? row, error: null };
+}
+
+// Real streaming availability, refreshed more often than the rest of a
+// show/movie's metadata (7 days vs. 30) since providers churn.
+const PROVIDERS_STALE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export async function getWatchProvidersCached(tmdbId, mediaType) {
+  if (!s || !tmdbId) return { data: null, error: null };
+  const { data: cached } = await s.from('wt_metadata_cache').select('watch_providers, watch_providers_fetched_at')
+    .eq('tmdb_id', tmdbId).eq('media_type', mediaType).maybeSingle();
+  if (cached?.watch_providers_fetched_at && Date.now() - new Date(cached.watch_providers_fetched_at).getTime() < PROVIDERS_STALE_MS) {
+    return { data: cached.watch_providers, error: null };
+  }
+  const { data: providers, error } = await getWatchProviders(mediaType, tmdbId);
+  if (error) return { data: cached?.watch_providers ?? null, error };
+  await s.from('wt_metadata_cache').update({
+    watch_providers: providers,
+    watch_providers_fetched_at: new Date().toISOString(),
+  }).eq('tmdb_id', tmdbId).eq('media_type', mediaType);
+  return { data: providers, error: null };
+}
+
+// ── Upcoming: episodes-to-air + unreleased movies, TVTime's countdown feed ───
+
+export async function fetchUpcoming() {
+  if (!s) return { data: [], error: null };
+  const { data: shows, error: showsErr } = await s.from('wt_shows').select('id, series_name, tmdb_id').eq('is_followed', true);
+  if (showsErr) return { data: [], error: showsErr };
+
+  const tmdbIds = shows.map((sh) => sh.tmdb_id).filter(Boolean);
+  const { data: metaRows } = tmdbIds.length
+    ? await s.from('wt_metadata_cache').select('tmdb_id, raw_json').eq('media_type', 'tv').in('tmdb_id', tmdbIds)
+    : { data: [] };
+  const metaByTmdbId = new Map((metaRows ?? []).map((m) => [m.tmdb_id, m.raw_json]));
+
+  const items = [];
+  for (const show of shows) {
+    const next = metaByTmdbId.get(show.tmdb_id)?.next_episode_to_air;
+    if (!next?.air_date) continue;
+    const days = daysUntil(next.air_date);
+    if (days == null || days < 0) continue;
+    items.push({
+      kind: 'episode',
+      title: show.series_name,
+      subtitle: `S${String(next.season_number).padStart(2, '0')} | E${String(next.episode_number).padStart(2, '0')}${next.name ? ` — ${next.name}` : ''}`,
+      date: next.air_date,
+      daysUntil: days,
+      premiere: next.season_number === 1 && next.episode_number === 1,
+    });
+  }
+
+  const { data: movies, error: moviesErr } = await s.from('wt_movies').select('movie_name, release_date')
+    .or('is_followed.eq.true,is_for_later.eq.true').not('release_date', 'is', null);
+  if (!moviesErr) {
+    for (const movie of movies) {
+      const days = daysUntil(movie.release_date);
+      if (days == null || days < 0) continue;
+      items.push({ kind: 'movie', title: movie.movie_name, subtitle: 'Release', date: movie.release_date, daysUntil: days, premiere: false });
+    }
+  }
+
+  items.sort((a, b) => a.daysUntil - b.daysUntil);
+  return { data: items, error: null };
 }
 
 // ── Matching: search TMDB and set a show/movie's match ───────────────────────

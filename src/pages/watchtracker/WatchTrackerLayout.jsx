@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Tv, Clapperboard, History as HistoryIcon, BarChart3 } from 'lucide-react';
+import { Tv, Clapperboard, CalendarClock, History as HistoryIcon, BarChart3 } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { getPref, setPref } from '../../lib/watchtracker';
 
 // Mirrors CashflowLayout.jsx's shell exactly — tab bar with subtle per-tab
 // accent color, full-bleed main, theme persisted via wt_prefs.
 const NAV_ITEMS = [
-  { to: 'shows',   label: 'Shows',   icon: Tv,           color: '#ef4444' },
-  { to: 'movies',  label: 'Movies',  icon: Clapperboard, color: '#f59e0b' },
-  { to: 'history', label: 'History', icon: HistoryIcon,  color: '#8b5cf6' },
-  { to: 'stats',   label: 'Stats',   icon: BarChart3,    color: '#06b6d4' },
+  { to: 'shows',    label: 'Shows',    icon: Tv,           color: '#ef4444' },
+  { to: 'movies',   label: 'Movies',   icon: Clapperboard, color: '#f59e0b' },
+  { to: 'upcoming', label: 'Upcoming', icon: CalendarClock, color: '#22c55e' },
+  { to: 'history',  label: 'History',  icon: HistoryIcon,  color: '#8b5cf6' },
+  { to: 'stats',    label: 'Stats',    icon: BarChart3,    color: '#06b6d4' },
 ];
 
 const THEME_PREF = 'watch_tracker_theme';

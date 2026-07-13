@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, Star, Bookmark, Check, Repeat, Tv } from 'lu
 import { getShowMetadata, fetchEpisodes, setEpisodeWatched, bumpRewatch, updateShow } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import EditCell from '../cashflow/EditCell';
+import ProgressBar from './ProgressBar';
+import RatingAndProviders from './RatingAndProviders';
 
 // One show's card: poster + follow/favorite/watchlist badges + progress, with
 // an expand-in-place season/episode grid for the core "mark watched" loop
@@ -71,12 +73,14 @@ export default function ShowCard({ show, onChange }) {
               <span> · last watched S{show.last_watched_season}E{show.last_watched_episode_number}</span>
             )}
           </div>
+          {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5" />}
         </div>
       </button>
 
       {open && (
         <div className="border-t border-zinc-800 p-3">
-          <div className="mb-2">
+          <RatingAndProviders tmdbId={show.tmdb_id} mediaType="tv" meta={meta} />
+          <div className="mb-2 mt-2">
             <EditCell
               value={show.notes}
               onSave={(v) => updateShow(show.id, { notes: v }).then(() => onChange?.())}

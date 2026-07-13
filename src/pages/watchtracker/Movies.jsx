@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Check, Bookmark, Repeat } from 'lucide-react';
-import { fetchMovies, updateMovie } from '../../lib/watchtracker';
+import { fetchMovies, updateMovie, getMovieMetadata } from '../../lib/watchtracker';
 import { Th, Td, StateRow, LoadErrorRow } from '../cashflow/tableparts';
 import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
+import RatingAndProviders from './RatingAndProviders';
 
 export default function Movies() {
   const [movies, setMovies] = useState([]);
@@ -33,46 +34,66 @@ export default function Movies() {
             <Th>Status</Th>
             <Th>Release</Th>
             <Th>Rewatches</Th>
+            <Th>Rating &amp; where to watch</Th>
             <Th>Notes</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-zinc-800">
-          {loading && <StateRow colSpan={5}>Loading movies…</StateRow>}
-          {!loading && error && <LoadErrorRow colSpan={5} onRetry={reload} />}
-          {!loading && !error && movies.length === 0 && <StateRow colSpan={5}>No movies yet.</StateRow>}
+          {loading && <StateRow colSpan={6}>Loading movies…</StateRow>}
+          {!loading && error && <LoadErrorRow colSpan={6} onRetry={reload} />}
+          {!loading && !error && movies.length === 0 && <StateRow colSpan={6}>No movies yet.</StateRow>}
           {!loading && !error && movies.map((m) => (
-            <tr key={m.id} className="hover:bg-zinc-900/60">
-              <Td className="font-medium text-zinc-200">{m.movie_name}</Td>
-              <Td>
-                <div className="flex gap-1.5">
-                  {m.is_followed && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-medium text-red-300">
-                      <Check size={10} /> Watched
-                    </span>
-                  )}
-                  {m.is_for_later && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                      <Bookmark size={10} /> Watchlist
-                    </span>
-                  )}
-                </div>
-              </Td>
-              <Td>{fmtDate(m.release_date)}</Td>
-              <Td>{m.rewatch_count > 0 ? (
-                <span className="inline-flex items-center gap-1 text-purple-300"><Repeat size={11} /> {m.rewatch_count}</span>
-              ) : '—'}</Td>
-              <Td>
-                <EditCell
-                  value={m.notes}
-                  onSave={(v) => updateMovie(m.id, { notes: v }).then(reload)}
-                  placeholder="Add a note…"
-                  className="text-zinc-400"
-                />
-              </Td>
-            </tr>
+            <MovieRow key={m.id} movie={m} onReload={reload} />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function MovieRow({ movie: m, onReload }) {
+  const [meta, setMeta] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (m.tmdb_id) getMovieMetadata(m.tmdb_id).then(({ data }) => { if (active) setMeta(data); });
+    return () => { active = false; };
+  }, [m.tmdb_id]);
+
+  return (
+    <tr className="hover:bg-zinc-900/60">
+      <Td className="font-medium text-zinc-200">{m.movie_name}</Td>
+      <Td>
+        <div className="flex gap-1.5">
+          {m.is_followed && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-medium text-red-300">
+              <Check size={10} /> Watched
+            </span>
+          )}
+          {m.is_for_later && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+              <Bookmark size={10} /> Watchlist
+            </span>
+          )}
+        </div>
+      </Td>
+      <Td>{fmtDate(m.release_date)}</Td>
+      <Td>{m.rewatch_count > 0 ? (
+        <span className="inline-flex items-center gap-1 text-purple-300"><Repeat size={11} /> {m.rewatch_count}</span>
+      ) : '—'}</Td>
+      <Td>
+        {m.tmdb_id
+          ? <RatingAndProviders tmdbId={m.tmdb_id} mediaType="movie" meta={meta} />
+          : <span className="text-zinc-600">Not matched to TMDB</span>}
+      </Td>
+      <Td>
+        <EditCell
+          value={m.notes}
+          onSave={(v) => updateMovie(m.id, { notes: v }).then(onReload)}
+          placeholder="Add a note…"
+          className="text-zinc-400"
+        />
+      </Td>
+    </tr>
   );
 }

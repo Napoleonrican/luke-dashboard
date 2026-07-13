@@ -32,6 +32,7 @@ const Earnin = lazy(() => import('./pages/cashflow/Earnin'));
 const WatchTrackerLayout = lazy(() => import('./pages/watchtracker/WatchTrackerLayout'));
 const Shows = lazy(() => import('./pages/watchtracker/Shows'));
 const Movies = lazy(() => import('./pages/watchtracker/Movies'));
+const Upcoming = lazy(() => import('./pages/watchtracker/Upcoming'));
 const WtHistory = lazy(() => import('./pages/watchtracker/History'));
 const WtStats = lazy(() => import('./pages/watchtracker/Stats'));
 
@@ -94,6 +95,7 @@ export default function App() {
           <Route index element={<Navigate to="shows" replace />} />
           <Route path="shows" element={<Shows />} />
           <Route path="movies" element={<Movies />} />
+          <Route path="upcoming" element={<Upcoming />} />
           <Route path="history" element={<WtHistory />} />
           <Route path="stats" element={<WtStats />} />
         </Route>

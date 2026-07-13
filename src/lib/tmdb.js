@@ -45,3 +45,19 @@ export async function getMovieDetails(tmdbId) {
 export async function getEpisodeDetails(tmdbId, season, episode) {
   return get(`/tv/${tmdbId}/season/${season}/episode/${episode}`);
 }
+
+// Real streaming/rental/purchase availability, region-scoped. Returns just
+// the US block (flatrate/rent/buy provider lists) since that's the only
+// region this dashboard needs.
+export async function getWatchProviders(mediaType, tmdbId) {
+  const { data, error } = await get(`/${mediaType}/${tmdbId}/watch/providers`);
+  return { data: data?.results?.US ?? null, error };
+}
+
+// TVTime-style "4.6/5 · 94 ratings" from TMDB's 0–10 vote_average.
+export function tmdbRating(meta) {
+  const avg = meta?.raw_json?.vote_average;
+  const count = meta?.raw_json?.vote_count;
+  if (!avg || !count) return null;
+  return { stars: (avg / 2).toFixed(1), count };
+}
