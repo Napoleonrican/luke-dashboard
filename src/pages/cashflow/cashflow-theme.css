@@ -20,6 +20,8 @@
 .cf-light .bg-amber-900\/30 { background-color: #fef3c7; }
 .cf-light .bg-red-900\/30 { background-color: #fee2e2; }
 .cf-light .bg-red-900\/40 { background-color: #fecaca; }
+.cf-light .bg-red-950\/20 { background-color: #fef2f2; }
+.cf-light .border-red-800\/50 { border-color: rgba(185, 28, 28, 0.4); }
 .cf-light .hover\:bg-red-900\/60:hover { background-color: #fca5a5; }
 .cf-light .border-red-700 { border-color: #fca5a5; }
 .cf-light .text-red-300 { color: #b91c1c; }
