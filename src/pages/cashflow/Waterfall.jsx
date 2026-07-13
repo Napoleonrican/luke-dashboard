@@ -9,7 +9,7 @@ import {
   fetchAccounts, upsertAccount, deleteRow, updateRow, getPref, setPref,
   fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchRunwayManual, fetchRunwayDeck,
   addToDeck, updateDeck, upsertRunwayManual,
-  fetchPendingTransfers, upsertPendingTransfer,
+  fetchPendingTransfers, upsertPendingTransfer, fetchEarninTransactions,
 } from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil } from './format';
 import { AmountEdit } from './ModalField';
@@ -60,7 +60,6 @@ const MANUAL_TYPES = ['Bill', 'Debt/Loan', 'One-Time', 'Digital Sub.'];
 
 const INPUT_FIELDS = [
   { group: 'What you currently owe', fields: [
-    { key: 'earninOwed', label: 'Earnin — payback owed', hint: 'Not linked to the Earnin tab yet — copy the running balance over manually.' },
     { key: 'uberBackupOwed', label: 'Uber Pro — backup balance owed' },
   ] },
   { group: 'Targets (from your Inputs sheet)', fields: [
@@ -90,6 +89,7 @@ export default function Waterfall() {
   const [manual, setManual] = useState([]);
   const [deck, setDeck] = useState([]);
   const [pending, setPending] = useState([]);
+  const [earninTxns, setEarninTxns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paycheck, setPaycheck] = useState(0);
   const [includePaycheck, setIncludePaycheck] = useState(true);
@@ -126,11 +126,13 @@ export default function Waterfall() {
     Promise.all([
       fetchAccounts(), fetchBills(), fetchDebts(), fetchDigitalSubs(),
       fetchConsumableSubs(), fetchRunwayManual(), fetchRunwayDeck(), fetchPendingTransfers(),
-    ]).then(([acc, b, d, dig, cons, man, dk, pt]) => {
+      fetchEarninTransactions(),
+    ]).then(([acc, b, d, dig, cons, man, dk, pt, et]) => {
       if (!active) return;
       setAccounts(acc.data || []); setBills(b.data || []); setDebts(d.data || []);
       setDigital(dig.data || []); setConsumable(cons.data || []);
       setManual(man.data || []); setDeck(dk.data || []); setPending(pt.data || []);
+      setEarninTxns(et.data || []);
       setLoading(false);
     });
     Promise.all([
@@ -242,6 +244,14 @@ export default function Waterfall() {
     .filter((b) => b.category === 'Bill')
     .reduce((s, b) => s + monthlyOf(b.amount, b.frequency), 0);
 
+  // Earnin payback owed used to be a manual Plan Inputs figure you'd copy over
+  // from the Earnin tab by hand. It's exactly the Earnin log's running balance
+  // (advances add, repayments subtract), so it's computed live from there now.
+  const earninOwed = earninTxns.reduce(
+    (s, t) => s + (t.kind === 'advance' ? (t.amount ?? 0) : -(t.amount ?? 0)), 0,
+  );
+  const liveInputs = { ...inputs, earninOwed };
+
   const fuelWeekly = fuelWeeklyDynamic(inputs.fuelWeeklyBase);
   const grocWeekly = grocWeeklyDynamic(inputs.grocWeeklyBase);
 
@@ -263,7 +273,7 @@ export default function Waterfall() {
   );
 
   const ctx = {
-    bal: effectiveBalFor, inputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
+    bal: effectiveBalFor, inputs: liveInputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
     totalFixedBills,
   };
   const pool = includePaycheck ? (paycheck + sideGig) : (billPayBalance + sideGig);
@@ -400,7 +410,7 @@ export default function Waterfall() {
       // hover so a $0 Earnin balance doesn't read as a bug when on-deck bills
       // are still driving the number.
       const liveTitle = step.auto === 'earninCoverage'
-        ? `Earnin owed ${fmtDec(inputs.earninOwed)} + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(effectiveBalFor('Bill Pay Checking'))}`
+        ? `Earnin owed ${fmtDec(earninOwed)} (live from Earnin tab) + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(effectiveBalFor('Bill Pay Checking'))}`
         : step.auto === 'floorBuild'
         ? `Total fixed bills ${fmtDec(totalFixedBills)} (live from Bills) − Bill Pay Checking`
         : 'Computed from your accounts, Plan Inputs & 7-day totals';
@@ -1087,14 +1097,25 @@ export default function Waterfall() {
               ))}
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">Computed automatically</p>
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2 max-w-xs">
-                  <span className="text-xs text-zinc-400" title="Sum of monthly-equivalent amounts for Bills tab rows categorized 'Bill' — feeds Floor Build.">
-                    Total fixed bills (monthly)
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(totalFixedBills)}</span></Redacted>
-                    <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
-                  </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                    <span className="text-xs text-zinc-400" title="Sum of monthly-equivalent amounts for Bills tab rows categorized 'Bill' — feeds Floor Build.">
+                      Total fixed bills (monthly)
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(totalFixedBills)}</span></Redacted>
+                      <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                    <span className="text-xs text-zinc-400" title="Running balance from the Earnin tab (advances add, repayments subtract) — feeds Step 0b and Step 2.">
+                      Earnin — payback owed
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(earninOwed)}</span></Redacted>
+                      <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

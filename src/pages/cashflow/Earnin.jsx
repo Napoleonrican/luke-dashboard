@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
-import { fetchEarninTransactions, upsertEarninTransaction, deleteRow } from '../../lib/fin';
+import {
+  fetchEarninTransactions, upsertEarninTransaction, deleteRow,
+  fetchAccounts, upsertPendingTransfer,
+} from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, todayISO } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
@@ -13,17 +16,23 @@ import WipNotice from './WipNotice';
 const KINDS = ['advance', 'repay'];
 const KIND_LABEL = { advance: 'Advance', repay: 'Repay' };
 const KIND_COLOR = { advance: '#f59e0b', repay: '#10b981' };
+// Advances land IN Bill Pay Checking; repayments go OUT of it back to Earnin —
+// same account-by-name convention the Waterfall uses (balanceFor('Bill Pay Checking')).
+const BILL_PAY_NAME = 'Bill Pay Checking';
+const DIRECTION_FOR_KIND = { advance: 'in', repay: 'out' };
 
-// A standalone log of Earnin advances/repayments — not wired into the
-// Waterfall's allocation engine yet (that still uses the single manual
-// "payback owed" figure in Waterfall's Plan Inputs). This is the place to
-// track usage down over time until a Monarch export can backfill history.
+// A log of Earnin advances/repayments — feeds the Waterfall's allocation
+// engine live (its Plan Inputs "payback owed" figure is this log's running
+// balance) and Current Balances (via the Pending checkbox on each row). This
+// is the place to track usage down over time until a Monarch export can
+// backfill history.
 export default function Earnin() {
   const { privacy } = useOutletContext();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [billPayAccountId, setBillPayAccountId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -32,6 +41,11 @@ export default function Earnin() {
       if (error) setError(error);
       else { setError(null); if (data) setRows(data); }
       setLoading(false);
+    });
+    fetchAccounts().then(({ data }) => {
+      if (!active) return;
+      const bp = (data || []).find((a) => a.name === BILL_PAY_NAME);
+      setBillPayAccountId(bp?.id ?? null);
     });
     return () => { active = false; };
   }, [reloadKey]);
@@ -56,18 +70,65 @@ export default function Earnin() {
   const totalRepaid = rows.filter((r) => r.kind === 'repay').reduce((s, r) => s + (r.amount ?? 0), 0);
 
   const update = async (id, field, value) => {
-    const prevValue = rows.find((r) => r.id === id)?.[field];
+    const row = rows.find((r) => r.id === id);
+    const prevValue = row?.[field];
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: value } : r));
     const { error } = await upsertEarninTransaction({ id, [field]: value });
     if (error) {
       setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: prevValue } : r));
       notifyError('Couldn’t save that change — reverted. Please retry.');
+      return;
+    }
+    // Keep a linked pending transfer's amount/date in sync with the row that
+    // spawned it, so editing here doesn't leave a stale figure on the
+    // Current Balances projection.
+    if (row?.pending_transfer_id && (field === 'amount' || field === 'txn_date')) {
+      await upsertPendingTransfer({
+        id: row.pending_transfer_id,
+        ...(field === 'amount' ? { amount: value } : { expected_date: value }),
+      });
+    }
+  };
+
+  // Mark/unmark a row "pending" — creates or removes the linked row in
+  // fin_pending_transfers, which Current Balances already reads for its
+  // projected-balance lines. Advances land IN Bill Pay Checking; repayments
+  // go OUT of it.
+  const togglePending = async (row, checked) => {
+    if (!billPayAccountId) {
+      notifyError(`No "${BILL_PAY_NAME}" account found — add one on the Waterfall tab first.`);
+      return;
+    }
+    if (checked) {
+      const { data, error } = await upsertPendingTransfer({
+        account_id: billPayAccountId,
+        direction: DIRECTION_FOR_KIND[row.kind],
+        amount: row.amount,
+        expected_date: row.txn_date,
+        label: `Earnin ${KIND_LABEL[row.kind]}`,
+      });
+      if (error || !data?.[0]) { notifyError('Couldn’t mark that pending. Please retry.'); return; }
+      setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, pending_transfer_id: data[0].id } : r));
+      await upsertEarninTransaction({ id: row.id, pending_transfer_id: data[0].id });
+    } else {
+      const linkedId = row.pending_transfer_id;
+      setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, pending_transfer_id: null } : r));
+      const { error } = await upsertEarninTransaction({ id: row.id, pending_transfer_id: null });
+      if (error) {
+        setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, pending_transfer_id: linkedId } : r));
+        notifyError('Couldn’t clear pending. Please retry.');
+        return;
+      }
+      await deleteRow('fin_pending_transfers', linkedId);
     }
   };
 
   const add = async (kind) => {
+    // Repay defaults to the full running balance — you're paying back what
+    // Earnin's owed as of right now, not starting from zero.
+    const amount = kind === 'repay' ? Math.max(0, currentOwed) : 0;
     const { data, error } = await upsertEarninTransaction({
-      txn_date: todayISO(), kind, amount: 0,
+      txn_date: todayISO(), kind, amount,
     });
     if (error || !data?.[0]) { notifyError('Couldn’t add that entry. Please retry.'); return; }
     setRows((prev) => [data[0], ...prev]);
@@ -75,16 +136,18 @@ export default function Earnin() {
 
   const remove = async (id) => {
     const prevRows = rows;
+    const linkedId = rows.find((r) => r.id === id)?.pending_transfer_id;
     setRows((prev) => prev.filter((r) => r.id !== id));
     const { error } = await deleteRow('fin_earnin_transactions', id);
-    if (error) { setRows(prevRows); notifyError('Couldn’t delete that entry. Please retry.'); }
+    if (error) { setRows(prevRows); notifyError('Couldn’t delete that entry. Please retry.'); return; }
+    if (linkedId) await deleteRow('fin_pending_transfers', linkedId);
   };
 
   return (
     <div className="space-y-6">
       <WipNotice>
-        Manual transaction log for now — until a Monarch export can backfill history. Not wired
-        into the Waterfall&rsquo;s allocation engine yet; that still uses its own manual &ldquo;payback owed&rdquo; field.
+        Manual transaction log for now — until a Monarch export can backfill history. The running
+        balance feeds the Waterfall&rsquo;s Plan Inputs live, and Pending rows show up on Current Balances.
       </WipNotice>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -117,17 +180,18 @@ export default function Earnin() {
                 <Th>Type</Th>
                 <Th align="right">Amount</Th>
                 <Th align="right">Balance</Th>
+                <Th className="text-center">Pending</Th>
                 <Th>Notes</Th>
                 <Th />
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <StateRow colSpan={6}>Loading…</StateRow>
+                <StateRow colSpan={7}>Loading…</StateRow>
               ) : error ? (
-                <LoadErrorRow colSpan={6} onRetry={reload} />
+                <LoadErrorRow colSpan={7} onRetry={reload} />
               ) : withBalance.length === 0 ? (
-                <StateRow colSpan={6}>No transactions yet — log your first advance or repayment above.</StateRow>
+                <StateRow colSpan={7}>No transactions yet — log your first advance or repayment above.</StateRow>
               ) : withBalance.map((r) => (
                 <tr key={r.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <Td><EditCell type="date" value={r.txn_date} onSave={(v) => update(r.id, 'txn_date', v)} display={fmtDate} className="text-zinc-300 tabular-nums" /></Td>
@@ -144,6 +208,17 @@ export default function Earnin() {
                   <Td className="text-right">
                     <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(r.balanceAfter)}</span></Redacted>
                   </Td>
+                  <Td className="text-center">
+                    <input
+                      type="checkbox"
+                      checked={!!r.pending_transfer_id}
+                      onChange={(e) => togglePending(r, e.target.checked)}
+                      className="h-4 w-4 accent-cyan-500 cursor-pointer"
+                      title={r.pending_transfer_id
+                        ? `Showing as pending ${DIRECTION_FOR_KIND[r.kind]} on ${BILL_PAY_NAME}`
+                        : `Mark pending — adds this as a ${DIRECTION_FOR_KIND[r.kind] === 'in' ? 'pending inflow to' : 'pending outflow from'} ${BILL_PAY_NAME}`}
+                    />
+                  </Td>
                   <Td><EditCell value={r.notes} onSave={(v) => update(r.id, 'notes', v)} className="text-zinc-500" placeholder="—" /></Td>
                   <Td className="text-right">
                     <button onClick={() => remove(r.id)} className="opacity-0 group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
@@ -156,9 +231,14 @@ export default function Earnin() {
       </section>
 
       <p className="text-xs text-zinc-600">
-        &ldquo;Currently owed&rdquo; here is derived from this log (advances add, repayments subtract).
-        Once you&rsquo;re comfortable it&rsquo;s accurate, copy it into the Waterfall tab&rsquo;s Plan Inputs
-        &ldquo;Earnin — payback owed&rdquo; field — the two aren&rsquo;t linked automatically yet.
+        Check <span className="text-cyan-400">Pending</span> on a row before the money&rsquo;s actually landed/cleared —
+        it adds a real pending transfer on {BILL_PAY_NAME} (advances in, repayments out), so the Waterfall&rsquo;s
+        Current Balances shows the projected total. Uncheck it once the transaction posts for real.
+      </p>
+
+      <p className="text-xs text-zinc-600">
+        &ldquo;Currently owed&rdquo; here is derived from this log (advances add, repayments subtract) and feeds the
+        Waterfall&rsquo;s Plan Inputs &ldquo;Earnin — payback owed&rdquo; figure live — no manual copying needed.
       </p>
     </div>
   );
