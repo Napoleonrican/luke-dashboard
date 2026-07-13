@@ -18,6 +18,11 @@ export async function getShow(id) {
   return s.from('wt_shows').select('*').eq('id', id).maybeSingle();
 }
 
+export async function getMovie(id) {
+  if (!s) return { data: null, error: null };
+  return s.from('wt_movies').select('*').eq('id', id).maybeSingle();
+}
+
 // Bulk read of already-cached TMDB metadata (no live API calls) — used to
 // classify shows (e.g. finished vs. still airing) without fetching anything.
 export async function getShowsMetaCached(tmdbIds) {

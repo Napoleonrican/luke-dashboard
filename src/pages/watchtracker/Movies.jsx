@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Check, Bookmark, Repeat, Clapperboard, Search, Plus } from 'lucide-react';
-import { fetchMovies, updateMovie, getMovieMetadata } from '../../lib/watchtracker';
-import { tmdbImageUrl } from '../../lib/tmdb';
-import { Th, Td, StateRow, LoadErrorRow } from '../cashflow/tableparts';
-import { fmtDate } from '../cashflow/format';
-import EditCell from '../cashflow/EditCell';
-import RatingAndProviders from './RatingAndProviders';
+import { Search, Plus } from 'lucide-react';
+import { fetchMovies } from '../../lib/watchtracker';
+import MovieCard from './MovieCard';
 import AddTitleModal from './AddTitleModal';
-import useInView from '../../hooks/useInView';
+
+const GRID = 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
 
 export default function Movies() {
   const [movies, setMovies] = useState([]);
@@ -36,7 +33,7 @@ export default function Movies() {
     if (view === 'watched') return m.is_followed;
     if (view === 'wantToWatch') return m.is_for_later && !m.is_followed;
     return true;
-  });
+  }).sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''));
 
   return (
     <div>
@@ -76,91 +73,18 @@ export default function Movies() {
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-800">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-900 text-zinc-500">
-            <tr>
-              <Th></Th>
-              <Th>Movie</Th>
-              <Th>Status</Th>
-              <Th>Release</Th>
-              <Th>Rewatches</Th>
-              <Th>Rating &amp; where to watch</Th>
-              <Th>Notes</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800">
-            {loading && <StateRow colSpan={7}>Loading movies…</StateRow>}
-            {!loading && error && <LoadErrorRow colSpan={7} onRetry={reload} />}
-            {!loading && !error && filtered.length === 0 && <StateRow colSpan={7}>No movies match.</StateRow>}
-            {!loading && !error && filtered.map((m) => (
-              <MovieRow key={m.id} movie={m} onReload={reload} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {loading && <div className="py-12 text-center text-zinc-600">Loading movies…</div>}
+      {!loading && error && <div className="py-12 text-center text-red-400/90">Couldn&rsquo;t load movies.</div>}
+      {!loading && !error && filtered.length === 0 && <div className="py-12 text-center text-zinc-600">No movies match.</div>}
+      {!loading && !error && filtered.length > 0 && (
+        <div className={GRID}>
+          {filtered.map((m) => <MovieCard key={m.id} movie={m} />)}
+        </div>
+      )}
 
       {showAdd && (
         <AddTitleModal mediaType="movie" onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); reload(); }} />
       )}
     </div>
-  );
-}
-
-function MovieRow({ movie: m, onReload }) {
-  const [ref, inView] = useInView();
-  const [meta, setMeta] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    if (inView && m.tmdb_id) getMovieMetadata(m.tmdb_id).then(({ data }) => { if (active) setMeta(data); });
-    return () => { active = false; };
-  }, [inView, m.tmdb_id]);
-
-  return (
-    <tr ref={ref} className="hover:bg-zinc-900/60">
-      <Td className="w-14">
-        <div className="h-16 w-11 shrink-0 rounded bg-zinc-800 overflow-hidden flex items-center justify-center">
-          {meta?.poster_path
-            ? <img src={tmdbImageUrl(meta.poster_path, 'w92')} alt="" className="h-full w-full object-cover" />
-            : <Clapperboard className="text-zinc-700" size={16} />}
-        </div>
-      </Td>
-      <Td className="font-medium text-zinc-200">
-        <div>{m.movie_name}</div>
-        {meta?.overview && <p className="mt-0.5 line-clamp-2 max-w-xs text-xs font-normal text-zinc-500">{meta.overview}</p>}
-      </Td>
-      <Td>
-        <div className="flex gap-1.5">
-          {m.is_followed && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-medium text-red-300">
-              <Check size={10} /> Watched
-            </span>
-          )}
-          {m.is_for_later && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-              <Bookmark size={10} /> Watchlist
-            </span>
-          )}
-        </div>
-      </Td>
-      <Td>{fmtDate(m.release_date)}</Td>
-      <Td>{m.rewatch_count > 0 ? (
-        <span className="inline-flex items-center gap-1 text-purple-300"><Repeat size={11} /> {m.rewatch_count}</span>
-      ) : '—'}</Td>
-      <Td>
-        {m.tmdb_id
-          ? <RatingAndProviders tmdbId={m.tmdb_id} mediaType="movie" meta={meta} enabled={inView} />
-          : <span className="text-zinc-600">Not matched to TMDB</span>}
-      </Td>
-      <Td>
-        <EditCell
-          value={m.notes}
-          onSave={(v) => updateMovie(m.id, { notes: v }).then(onReload)}
-          placeholder="Add a note…"
-          className="text-zinc-400"
-        />
-      </Td>
-    </tr>
   );
 }
