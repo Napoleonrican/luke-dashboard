@@ -1,6 +1,6 @@
 import {
   Thermometer, Lightbulb, Radar, ListChecks, Truck, Wallet, Droplets,
-  Inbox, Mail, Fuel, Wrench,
+  Inbox, Mail, Fuel, Wrench, Tv,
 } from 'lucide-react';
 
 // Single source of truth for every module on the dashboard. `placement` decides
@@ -68,6 +68,11 @@ export const MODULES = [
     id: 'versa', icon: Wrench, title: 'Versa Repair', to: '/versa-repair',
     accent: 'text-red-400', placement: 'other', locked: true,
     description: 'Log jobs, track parts, and manage repair tickets.',
+  },
+  {
+    id: 'watch-tracker', icon: Tv, title: 'Watch Tracker', to: '/watch-tracker',
+    accent: 'text-red-400', placement: 'other', locked: true,
+    description: 'Shows, movies & episode history — imported from TVTime, backed by TMDB.',
   },
   {
     id: 'email-pro', icon: Mail, title: 'Professional Email',

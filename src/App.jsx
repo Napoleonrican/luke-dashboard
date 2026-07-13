@@ -29,6 +29,12 @@ const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
 const Earnin = lazy(() => import('./pages/cashflow/Earnin'));
+const WatchTrackerLayout = lazy(() => import('./pages/watchtracker/WatchTrackerLayout'));
+const Shows = lazy(() => import('./pages/watchtracker/Shows'));
+const Movies = lazy(() => import('./pages/watchtracker/Movies'));
+const Upcoming = lazy(() => import('./pages/watchtracker/Upcoming'));
+const WtHistory = lazy(() => import('./pages/watchtracker/History'));
+const WtStats = lazy(() => import('./pages/watchtracker/Stats'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -82,6 +88,16 @@ export default function App() {
               same reason: Plan Inputs replaced it with live-wired values. */}
           <Route path="runway" element={<Navigate to="../waterfall" replace />} />
           <Route path="inputs" element={<Navigate to="../waterfall" replace />} />
+        </Route>
+        <Route path="/watch-tracker" element={
+          <FinancialAuthGate title="Watch Tracker" subtitle="Secure sign-in required"><WatchTrackerLayout /></FinancialAuthGate>
+        }>
+          <Route index element={<Navigate to="shows" replace />} />
+          <Route path="shows" element={<Shows />} />
+          <Route path="movies" element={<Movies />} />
+          <Route path="upcoming" element={<Upcoming />} />
+          <Route path="history" element={<WtHistory />} />
+          <Route path="stats" element={<WtStats />} />
         </Route>
         <Route path="/mission-control" element={
           <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">
