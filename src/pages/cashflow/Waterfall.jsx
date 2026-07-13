@@ -11,7 +11,7 @@ import {
   addToDeck, updateDeck, upsertRunwayManual,
   fetchPendingTransfers, upsertPendingTransfer,
 } from '../../lib/fin';
-import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince } from './format';
+import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { DaysBadge } from './cells';
@@ -37,6 +37,19 @@ const WINDOW_PREF = 'runway_window';
 const BALANCE_CHECK_PREF = 'waterfall_balance_check_dismissed_on';   // an ISO date
 const SECTIONS_PREF = 'waterfall_sections';   // { money, needs, payday } open/closed
 const WINDOWS = [7, 14, 30];
+
+// Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
+// Recomputed relative to today, so "Until Paycheck" always points forward.
+const PAYCHECK_ANCHOR = '2026-07-22';
+const PAYCHECK_PERIOD_DAYS = 14;
+function nextPaycheckInfo() {
+  const [y, m, d] = PAYCHECK_ANCHOR.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  let days = daysUntil(PAYCHECK_ANCHOR);
+  while (days < 0) { date.setDate(date.getDate() + PAYCHECK_PERIOD_DAYS); days += PAYCHECK_PERIOD_DAYS; }
+  const p = (n) => String(n).padStart(2, '0');
+  return { days, iso: `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` };
+}
 
 const TYPE_COLOR = {
   Bill: '#3b82f6', 'Debt/Loan': '#8b5cf6', 'Digital Sub.': '#ec4899',
@@ -92,7 +105,8 @@ export default function Waterfall() {
   const [moneyOpen, setMoneyOpen] = useState(true);
   const [needsOpen, setNeedsOpen] = useState(true);
   const [paydayOpen, setPaydayOpen] = useState(false);
-  const [windowDays, setWindowDays] = useState(14);
+  const [customWindowDays, setCustomWindowDays] = useState(14);
+  const [windowMode, setWindowMode] = useState('days');   // 'days' | 'paycheck'
   const [synced, setSynced] = useState(false);
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
   const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
@@ -131,7 +145,13 @@ export default function Waterfall() {
         if (typeof sg.data === 'number') setSideGig(sg.data);
         if (ov.data && typeof ov.data === 'object') setOver(ov.data);
         if (inp.data && typeof inp.data === 'object') setInputs({ ...DEFAULT_INPUTS, ...inp.data });
-        if (WINDOWS.includes(win.data)) setWindowDays(win.data);
+        // Backward-compatible: older prefs stored a bare number (fixed-day mode).
+        if (typeof win.data === 'number') {
+          if (WINDOWS.includes(win.data)) setCustomWindowDays(win.data);
+        } else if (win.data && typeof win.data === 'object') {
+          if (WINDOWS.includes(win.data.days)) setCustomWindowDays(win.data.days);
+          if (win.data.mode === 'paycheck' || win.data.mode === 'days') setWindowMode(win.data.mode);
+        }
         if (typeof bal.data === 'string') setBalanceCheckDismissedOn(bal.data);
         if (sec.data && typeof sec.data === 'object') {
           if (typeof sec.data.money === 'boolean') setMoneyOpen(sec.data.money);
@@ -147,7 +167,18 @@ export default function Waterfall() {
   const savePaycheck = (v) => { setPaycheck(v); if (synced) setPref(PAYCHECK_PREF, v); };
   const saveSideGig = (v) => { setSideGig(v); if (synced) setPref(SIDEGIG_PREF, v); };
   const toggleInclude = () => setIncludePaycheck((p) => { const n = !p; if (synced) setPref(INCLUDE_PREF, n); return n; });
-  const setWindow = (n) => { setWindowDays(n); setPref(WINDOW_PREF, n); };
+  const setWindow = (n) => {
+    setWindowMode('days'); setCustomWindowDays(n);
+    setPref(WINDOW_PREF, { mode: 'days', days: n });
+  };
+  const setWindowToPaycheck = () => {
+    setWindowMode('paycheck');
+    setPref(WINDOW_PREF, { mode: 'paycheck', days: customWindowDays });
+  };
+  // The window used everywhere below: a fixed 7/14/30, or the live day-count
+  // until the next biweekly paycheck (recomputed each render, never stale).
+  const { days: daysToPaycheck, iso: nextPaycheckISO } = nextPaycheckInfo();
+  const windowDays = windowMode === 'paycheck' ? daysToPaycheck : customWindowDays;
 
   // Toggle a collapsible group and persist all three states together.
   const toggleSection = (key, setter) => setter((v) => {
@@ -182,6 +213,9 @@ export default function Waterfall() {
   const onDeckBillSum = onDeck.filter((it) => !isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
   const onDeckDebtSum = onDeck.filter((it) => isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
   const onDeckTotal = onDeck.reduce((s, it) => s + (it.amount ?? 0), 0);
+  // On Deck items already flagged "Pending Withdrawal" — triggered and about to
+  // clear, so this is the more urgent subset of On Deck to have cash ready for.
+  const pendingWithdrawalTotal = onDeck.filter((it) => it.pending_withdrawal).reduce((s, it) => s + (it.amount ?? 0), 0);
   const onDeckByType = Object.entries(
     onDeck.reduce((acc, it) => { acc[it.type] = (acc[it.type] ?? 0) + (it.amount ?? 0); return acc; }, {}),
   ).sort((a, b) => b[1] - a[1]);
@@ -633,12 +667,21 @@ export default function Waterfall() {
       <>
       <div className="flex justify-end">
         <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
+          <button
+            onClick={setWindowToPaycheck}
+            title={`Next paycheck: ${fmtDate(nextPaycheckISO)}`}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              windowMode === 'paycheck' ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Until Paycheck
+          </button>
           {WINDOWS.map((n) => (
             <button
               key={n}
               onClick={() => setWindow(n)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                windowDays === n ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
+                windowMode === 'days' && customWindowDays === n ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               {n} days
@@ -679,7 +722,7 @@ export default function Waterfall() {
         <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
 
         {/* Coverage — does cash on hand cover what's staged / coming up? */}
-        <CoverageCard cash={cashOnHand} deck={onDeckTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
+        <CoverageCard cash={cashOnHand} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}
@@ -1238,9 +1281,10 @@ function OnDeckCard({ total, byType, count, privacy }) {
 // Coverage — does cash on hand cover what's staged (On Deck) and everything
 // due in the window (Coming up)? Headline is the window shortfall/surplus; the
 // sub-line answers the On Deck question. Green = surplus, red = short.
-function CoverageCard({ cash, deck, coming, windowDays, privacy }) {
+function CoverageCard({ cash, deck, pendingWithdrawal, coming, windowDays, privacy }) {
   const vsComing = cash - coming;
   const vsDeck = cash - deck;
+  const vsPendingWithdrawal = cash - pendingWithdrawal;
   const short = vsComing < -0.005;
   return (
     <div className={`rounded-xl border p-4 ${short ? 'border-red-800/50 bg-red-950/20' : 'border-zinc-800 bg-zinc-900'}`}>
@@ -1257,6 +1301,16 @@ function CoverageCard({ cash, deck, coming, windowDays, privacy }) {
           </span>
         </Redacted>
       </div>
+      {pendingWithdrawal > 0.005 && (
+        <div className="mt-1 text-[11px] flex items-center justify-between gap-2">
+          <span className="text-zinc-400">Covers Pending?</span>
+          <Redacted on={privacy}>
+            <span className={`tabular-nums font-medium ${vsPendingWithdrawal < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {vsPendingWithdrawal < -0.005 ? `short ${fmt(vsPendingWithdrawal)}` : 'yes'}
+            </span>
+          </Redacted>
+        </div>
+      )}
     </div>
   );
 }
