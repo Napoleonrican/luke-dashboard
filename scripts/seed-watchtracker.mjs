@@ -177,10 +177,13 @@ function parseV1(rows) {
   for (const r of rows) {
     const type = str(r.type);
     if (!type) continue;
-    if (type === 'watch' && str(r.entity_type) === 'movie') {
+    if (type === 'watch' && str(r.entity_type) === 'movie' && int(r.runtime)) {
       // The actual "I watched this" signal — distinct from `follow`, which
       // TVTime writes alongside `watch` (and also on its own for movies
-      // merely tracked/added, not watched) and does NOT mean watched.
+      // merely tracked/added, not watched) and does NOT mean watched. Some
+      // `watch` rows carry a blank `runtime` (a stray/auto event, not a
+      // completed watch) — a genuinely-finished movie has runtime filled in,
+      // so require it to avoid the same false-positive as trusting `follow`.
       const name = str(r.movie_name);
       if (!name) continue;
       const m = getMovie(name);
