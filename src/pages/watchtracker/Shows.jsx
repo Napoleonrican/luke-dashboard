@@ -6,15 +6,26 @@ import ShowCard from './ShowCard';
 import AddTitleModal from './AddTitleModal';
 
 const STALE_DAYS = 30;
+const RECENT_SEASON_DAYS = 120;
 const FINISHED_STATUSES = new Set(['Ended', 'Canceled']);
 const GRID = 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
 
-// TVTime-style home sectioning: Watch Next (in progress, most recently
-// watched), Haven't watched for a while (in progress, gone quiet), Haven't
-// started (followed but never opened), Caught Up (caught up but still
-// airing), Finished (caught up + TMDB says the show has ended/been
-// canceled). `metaByTmdbId` only has whatever's already cached locally — no
-// live TMDB calls happen just to sort shows into buckets.
+// True if any season's air_date falls within the last RECENT_SEASON_DAYS —
+// catches "a new season just dropped" even for a show whose last watch was
+// a while ago (e.g. caught up on last season, next one just premiered).
+function hasRecentSeason(meta) {
+  const seasons = meta?.raw_json?.seasons ?? [];
+  const cutoff = Date.now() - RECENT_SEASON_DAYS * 24 * 60 * 60 * 1000;
+  return seasons.some((se) => se.air_date && new Date(se.air_date).getTime() >= cutoff);
+}
+
+// TVTime-style home sectioning: Watch Next (in progress and recently
+// watched, OR a new season just came out), Haven't watched for a while (in
+// progress, gone quiet, oldest last-watched first), Haven't started
+// (followed but never opened), Caught Up (caught up but still airing),
+// Finished (caught up + TMDB says the show has ended/been canceled).
+// `metaByTmdbId` only has whatever's already cached locally — no live TMDB
+// calls happen just to sort shows into buckets.
 function sectionShows(shows, metaByTmdbId) {
   const active = shows.filter((s) => s.is_followed && !s.is_archived);
 
@@ -33,10 +44,11 @@ function sectionShows(shows, metaByTmdbId) {
 
   const staleCutoff = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
   const isStale = (s) => !s.last_watched_at || new Date(s.last_watched_at).getTime() < staleCutoff;
+  const isNewSeason = (s) => hasRecentSeason(metaByTmdbId.get(s.tmdb_id));
 
-  const watchNext = inProgress.filter((s) => !isStale(s))
+  const watchNext = inProgress.filter((s) => !isStale(s) || isNewSeason(s))
     .sort((a, b) => (b.last_watched_at || '').localeCompare(a.last_watched_at || ''));
-  const haventWatched = inProgress.filter(isStale)
+  const haventWatched = inProgress.filter((s) => isStale(s) && !isNewSeason(s))
     .sort((a, b) => (a.last_watched_at || '').localeCompare(b.last_watched_at || ''));
 
   return { watchNext, haventWatched, notStarted, caughtUp, finished };

@@ -11,7 +11,7 @@ export default function Movies() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
-  const [view, setView] = useState('all'); // all | watched | wantToWatch
+  const [view, setView] = useState('wantToWatch'); // wantToWatch | watched | all
   const [showAdd, setShowAdd] = useState(false);
 
   const [reloadKey, setReloadKey] = useState(0);
@@ -49,9 +49,9 @@ export default function Movies() {
         </div>
         <div className="flex gap-1">
           {[
-            ['all', 'All'],
-            ['watched', 'Watched'],
             ['wantToWatch', 'Want to Watch'],
+            ['watched', 'Watched'],
+            ['all', 'All'],
           ].map(([key, label]) => (
             <button
               key={key}
