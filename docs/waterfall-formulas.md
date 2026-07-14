@@ -13,6 +13,13 @@ needs; this doc records the *formulas* so each need can be derived instead.
 - **Starting pool (F23)** = `D5 + MAX(0, (UberProCard − UberProBackupOwed) − OperatingBufferStage1)`
   — adds any Uber Pro Card surplus above what's owed/buffered. Minor; engine skips it today.
 
+> Engine note (dashboard-only): each need nets against its account's real balance
+> *unless the account is "banked"* — a per-account toggle that sweeps that balance
+> into the pool and plans the account from $0 (`pool = paycheck?·+ side-gig + Σ
+> banked balances`; `effectiveBalFor = banked ? 0 : real`). "Already in Bill Pay"
+> mode auto-banks Bill Pay Checking. This lets Luke pool the checking balances he
+> chooses in with the incoming paycheck and watch the whole pot distribute.
+
 ## Current balances (accounts, by name)
 
 | Cell | Account |

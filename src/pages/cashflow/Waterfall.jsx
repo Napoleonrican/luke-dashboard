@@ -36,6 +36,7 @@ const INPUTS_PREF = 'waterfall_inputs';   // the separate "Plan Inputs" panel va
 const WINDOW_PREF = 'runway_window';
 const BALANCE_CHECK_PREF = 'waterfall_balance_check_dismissed_on';   // an ISO date
 const SECTIONS_PREF = 'waterfall_sections';   // { money, needs, payday } open/closed
+const BANKED_PREF = 'waterfall_banked_accounts';   // [accountId, …] swept into the pool
 const WINDOWS = [7, 14, 30];
 
 // Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
@@ -95,6 +96,7 @@ export default function Waterfall() {
   const [includePaycheck, setIncludePaycheck] = useState(true);
   const [sideGig, setSideGig] = useState(0);
   const [over, setOver] = useState({});
+  const [bankedIds, setBankedIds] = useState([]);   // account ids swept into the pool
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [planInputsModalOpen, setPlanInputsModalOpen] = useState(false);
   const [balancesOpen, setBalancesOpen] = useState(true);
@@ -138,9 +140,9 @@ export default function Waterfall() {
     Promise.all([
       getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF),
       getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF), getPref(BALANCE_CHECK_PREF),
-      getPref(SECTIONS_PREF),
+      getPref(SECTIONS_PREF), getPref(BANKED_PREF),
     ]).then(
-      ([pc, inc, sg, ov, inp, win, bal, sec]) => {
+      ([pc, inc, sg, ov, inp, win, bal, sec, bnk]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
@@ -160,6 +162,7 @@ export default function Waterfall() {
           if (typeof sec.data.needs === 'boolean') setNeedsOpen(sec.data.needs);
           if (typeof sec.data.payday === 'boolean') setPaydayOpen(sec.data.payday);
         }
+        if (Array.isArray(bnk.data)) setBankedIds(bnk.data);
         setSynced(true);
       },
     );
@@ -177,6 +180,13 @@ export default function Waterfall() {
     setWindowMode('paycheck');
     setPref(WINDOW_PREF, { mode: 'paycheck', days: customWindowDays });
   };
+  // Bank / un-bank an account: sweep its balance into the pool and plan it from
+  // $0 (or reverse). Persisted so it sticks across visits.
+  const toggleBanked = (accountId) => setBankedIds((prev) => {
+    const next = prev.includes(accountId) ? prev.filter((id) => id !== accountId) : [...prev, accountId];
+    if (synced) setPref(BANKED_PREF, next);
+    return next;
+  });
   // The window used everywhere below: a fixed 7/14/30, or the live day-count
   // until the next biweekly paycheck (recomputed each render, never stale).
   const { days: daysToPaycheck, iso: nextPaycheckISO } = nextPaycheckInfo();
@@ -260,27 +270,34 @@ export default function Waterfall() {
     return a ? (a.balance ?? 0) : 0;
   };
 
-  // Bill Pay Checking is always treated as $0 when the plan reasons about
-  // needs — it's the distribution hub money flows THROUGH each payday (paycheck
-  // in, Earnin out same-day, the rest pushed to other accounts), so we plan its
-  // fills from scratch rather than netting against whatever's transiently
-  // sitting there. This makes every Bill Pay gate (0b Earnin, 0c on-deck bills,
-  // 2 immediate bills, 4 floor) show its full intended need, so you see the
-  // complete flow of the incoming money. The two modes differ only in what the
-  // pool is: "Planning ahead" pours the upcoming paycheck (+ side-gig);
-  // "Already in Bill Pay" pours the balance already sitting there (+ side-gig).
-  // `balanceFor` (real) still backs Current Balances and anything that should
-  // show what's actually in the bank.
   const billPayBalance = balanceFor('Bill Pay Checking');
-  const effectiveBalFor = (name) => (
-    name.trim().toLowerCase() === 'bill pay checking' ? 0 : balanceFor(name)
-  );
+  const billPayId = accounts.find((a) => (a.name || '').trim().toLowerCase() === 'bill pay checking')?.id;
+
+  // "Banked" accounts get swept into this week's pool AND planned from $0 (the
+  // plan reasons about their needs as if the account started empty) — one
+  // consistent rule: money you zero out of an account lands back in the pool,
+  // so nothing vanishes. Un-banked accounts keep their balance and net normally
+  // against their needs. In "Already in Bill Pay" mode the paycheck has already
+  // landed inside Bill Pay's balance, so Bill Pay is auto-banked (its balance,
+  // paycheck included, is the pool). `balanceFor` (real) still backs Current
+  // Balances and anything that should show what's actually in the bank.
+  const bankedSet = new Set(bankedIds.filter((id) => accounts.some((a) => a.id === id)));
+  if (!includePaycheck && billPayId) bankedSet.add(billPayId);
+  const isBanked = (name) => {
+    const a = accounts.find((x) => (x.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+    return a ? bankedSet.has(a.id) : false;
+  };
+  const bankedTotal = accounts.filter((a) => bankedSet.has(a.id)).reduce((s, a) => s + (a.balance ?? 0), 0);
+  const effectiveBalFor = (name) => (isBanked(name) ? 0 : balanceFor(name));
 
   const ctx = {
     bal: effectiveBalFor, inputs: liveInputs, bills7, debts7, onDeckBillSum, onDeckDebtSum, subsFloor, fuelWeekly, grocWeekly,
     totalFixedBills,
   };
-  const pool = includePaycheck ? (paycheck + sideGig) : (billPayBalance + sideGig);
+  // Pool = incoming paycheck (only if it hasn't landed yet) + side-gig + every
+  // banked balance. In "Already in Bill Pay" the paycheck isn't added again —
+  // it's inside Bill Pay's (auto-banked) balance.
+  const pool = (includePaycheck ? paycheck : 0) + sideGig + bankedTotal;
   const steps = applyOverrides(over);
   const { rows, leftover } = allocate(steps, pool, ctx);
   const accountPlan = byAccount(rows);
@@ -481,6 +498,13 @@ export default function Waterfall() {
                 <span className="text-zinc-500">Allocated <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(totalAllocated)}</span></Redacted></span>
                 <span className="text-zinc-500">Left <Redacted on={privacy}><span className={`tabular-nums ${leftover > 0.005 ? 'text-amber-400' : 'text-zinc-500'}`}>{fmtDec(leftover)}</span></Redacted></span>
               </div>
+              {bankedTotal > 0.005 && (
+                <p className="mt-1 text-[10px] text-zinc-500">
+                  {includePaycheck && paycheck > 0 && <>paycheck + </>}
+                  <span className="text-cyan-400">banked <Redacted on={privacy}><span className="tabular-nums">{fmt(bankedTotal)}</span></Redacted></span>
+                  {sideGig > 0 && <> + side-gig</>}
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-4 space-y-2.5 text-sm border-t border-zinc-800 pt-4">
@@ -528,14 +552,14 @@ export default function Waterfall() {
           </div>
           {includePaycheck ? (
             <p className="mt-3 text-[11px] text-zinc-500">
-              &ldquo;Planning ahead&rdquo; — the upcoming paycheck (+ side-gig) is the pool. Bill Pay Checking is
-              planned from $0, so every gate shows its full intended need (Earnin repayment, bills, floor) and you see the complete flow.
+              &ldquo;Planning ahead&rdquo; — the upcoming paycheck (+ side-gig) is the pool. <span className="text-cyan-400">Bank</span> any
+              account below to sweep its balance in too and plan that account from $0, so you can see the full flow of everything at once.
             </p>
           ) : (
             <p className="mt-3 text-[11px] text-amber-500/80">
-              &ldquo;Already in Bill Pay&rdquo; — the balance already sitting in Bill Pay Checking
-              (<Redacted on={privacy}><span className="tabular-nums">{fmtDec(billPayBalance)}</span></Redacted>) is the pool.
-              Bill Pay is planned from $0, so the plan below decides how much of that balance stays vs. flows elsewhere.
+              &ldquo;Already in Bill Pay&rdquo; — the paycheck already landed in Bill Pay Checking, so it&rsquo;s not added again;
+              Bill Pay is auto-banked (its balance <Redacted on={privacy}><span className="tabular-nums">{fmtDec(billPayBalance)}</span></Redacted> is the pool).
+              Bank other accounts below to pool them too.
             </p>
           )}
         </div>
@@ -597,21 +621,24 @@ export default function Waterfall() {
                 <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
                   <th className="px-4 py-2 font-medium">Account</th>
                   <th className="px-4 py-2 font-medium text-right">Balance</th>
+                  <th className="px-3 py-2 font-medium text-center" title="Sweep this balance into “To distribute” and plan the account from $0">Bank</th>
                   <th className="px-4 py-2 font-medium text-right">Updated</th>
                   <th className="w-10 px-2 py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600">Loading…</td></tr>
                 ) : accounts.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-xs">No accounts yet — add the ones you want to track.</td></tr>
                 ) : accounts.map((a) => {
                   const net = netPendingFor(a.id);
                   const since = daysSince(a.updated_at);
                   const c = updatedColor(a.updated_at);
+                  const banked = bankedSet.has(a.id);
+                  const autoBanked = !includePaycheck && a.id === billPayId;
                   return (
-                  <tr key={a.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
+                  <tr key={a.id} className={`border-b border-zinc-800/60 last:border-0 group ${banked ? 'bg-cyan-950/20' : 'hover:bg-zinc-800/30'}`}>
                     <td className="px-4 py-2">
                       <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
                     </td>
@@ -619,6 +646,9 @@ export default function Waterfall() {
                       <Redacted on={privacy}>
                         <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
                       </Redacted>
+                      {banked && (a.balance ?? 0) > 0.005 && (
+                        <span className="block text-[11px] text-cyan-400/80 mt-0.5">→ in pool</span>
+                      )}
                       {Math.abs(net) > 0.005 && (
                         <span className="block text-[11px] text-zinc-500 mt-0.5">
                           <Redacted on={privacy}><span className={`tabular-nums ${net > 0 ? 'text-emerald-400/80' : 'text-amber-400/80'}`}>{net > 0 ? '+' : ''}{fmtDec(net)}</span></Redacted>
@@ -626,6 +656,18 @@ export default function Waterfall() {
                           <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec((a.balance ?? 0) + net)}</span></Redacted>
                         </span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={banked}
+                        disabled={autoBanked}
+                        onChange={() => toggleBanked(a.id)}
+                        title={autoBanked
+                          ? 'Auto-banked — in “Already in Bill Pay” mode the paycheck already sits here'
+                          : banked ? 'Banked — swept into the pool, planned from $0' : 'Bank this balance into the pool'}
+                        className="h-4 w-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      />
                     </td>
                     <td className="px-4 py-2 text-right">
                       <span className="inline-flex items-center justify-end gap-1.5 text-[11px] text-zinc-500">
@@ -651,13 +693,13 @@ export default function Waterfall() {
                   <tr className="border-t border-zinc-800 font-semibold text-zinc-200">
                     <td className="px-4 py-2.5">Total cash on hand</td>
                     <td className="px-4 py-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmtDec(cashOnHand)}</span></Redacted></td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                   {Math.abs(totalNetPending) > 0.005 && (
                     <tr className="text-zinc-400">
                       <td className="px-4 pb-2.5 text-xs">Projected once pending clears</td>
                       <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(cashOnHand + totalNetPending)}</span></Redacted></td>
-                      <td colSpan={2} />
+                      <td colSpan={3} />
                     </tr>
                   )}
                 </tfoot>
