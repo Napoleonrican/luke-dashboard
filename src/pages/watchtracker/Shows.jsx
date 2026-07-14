@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { fetchShows, getShowsMetaCached } from '../../lib/watchtracker';
 import { tmdbStatus } from '../../lib/tmdb';
+import useScrollRestoration from '../../hooks/useScrollRestoration';
 import ShowCard from './ShowCard';
 import AddTitleModal from './AddTitleModal';
 
@@ -19,28 +20,58 @@ function hasRecentSeason(meta) {
   return seasons.some((se) => se.air_date && new Date(se.air_date).getTime() >= cutoff);
 }
 
+// meta.number_of_episodes counts every planned episode, including ones from
+// an announced-but-not-yet-aired season — comparing watched count against
+// that makes a genuinely caught-up show ("Returning Series", nothing new
+// out yet) look behind, and it lands in Watch Next instead of Caught Up.
+// Count only what's actually aired (via last_episode_to_air + per-season
+// episode counts), falling back to the raw total if that's missing.
+function airedEpisodeCount(meta) {
+  const last = meta?.raw_json?.last_episode_to_air;
+  // Season 0 is TMDB's "Specials" bucket — not part of the regular-episode
+  // numbering wt_episodes/ep_watch_count tracks, and the show detail page's
+  // own season list already excludes it too. Counting it here inflated the
+  // aired total past what's actually trackable, so a fully-watched show
+  // (e.g. 49/49 real episodes) never reached "watched >= aired" and stayed
+  // stuck out of Finished/Caught Up.
+  const seasons = (meta?.raw_json?.seasons ?? []).filter((se) => se.season_number > 0);
+  if (!last || last.season_number < 1 || seasons.length === 0) return meta?.number_of_episodes ?? null;
+  let count = 0;
+  for (const se of seasons) {
+    if (se.season_number < last.season_number) count += se.episode_count || 0;
+    else if (se.season_number === last.season_number) count += last.episode_number || 0;
+  }
+  return count;
+}
+
 // TVTime-style home sectioning: Watch Next (in progress and recently
 // watched, OR a new season just came out), Haven't watched for a while (in
 // progress, gone quiet, oldest last-watched first), Haven't started
-// (followed but never opened), Caught Up (caught up but still airing),
-// Finished (caught up + TMDB says the show has ended/been canceled).
-// `metaByTmdbId` only has whatever's already cached locally — no live TMDB
-// calls happen just to sort shows into buckets.
+// (followed but never opened), Watch Later (explicitly set aside via the
+// show's "..." menu — pulled out of every other bucket), Caught Up (caught
+// up but still airing), Finished (caught up + TMDB says the show has ended/
+// been canceled). `metaByTmdbId` only has whatever's already cached locally
+// — no live TMDB calls happen just to sort shows into buckets.
 function sectionShows(shows, metaByTmdbId) {
   const active = shows.filter((s) => s.is_followed && !s.is_archived);
 
+  const watchLater = active.filter((s) => s.is_for_later);
+  const notWatchLater = active.filter((s) => !s.is_for_later);
+
   const caughtUpState = (s) => {
     const meta = metaByTmdbId.get(s.tmdb_id);
-    if (!meta || meta.number_of_episodes == null) return null;
-    if ((s.ep_watch_count ?? 0) < meta.number_of_episodes) return null;
+    const aired = airedEpisodeCount(meta);
+    if (!meta || aired == null) return null;
+    if ((s.ep_watch_count ?? 0) < aired) return null;
     return FINISHED_STATUSES.has(tmdbStatus(meta)) ? 'finished' : 'caughtUp';
   };
 
-  const finished = active.filter((s) => caughtUpState(s) === 'finished');
-  const caughtUp = active.filter((s) => caughtUpState(s) === 'caughtUp');
-  const rest = active.filter((s) => caughtUpState(s) === null);
+  const finished = notWatchLater.filter((s) => caughtUpState(s) === 'finished');
+  const caughtUp = notWatchLater.filter((s) => caughtUpState(s) === 'caughtUp');
+  const rest = notWatchLater.filter((s) => caughtUpState(s) === null);
   const inProgress = rest.filter((s) => (s.ep_watch_count ?? 0) > 0);
-  const notStarted = rest.filter((s) => !(s.ep_watch_count > 0));
+  const notStarted = rest.filter((s) => !(s.ep_watch_count > 0))
+    .sort((a, b) => (b.followed_at || '').localeCompare(a.followed_at || ''));
 
   const staleCutoff = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
   const isStale = (s) => !s.last_watched_at || new Date(s.last_watched_at).getTime() < staleCutoff;
@@ -51,7 +82,7 @@ function sectionShows(shows, metaByTmdbId) {
   const haventWatched = inProgress.filter((s) => isStale(s) && !isNewSeason(s))
     .sort((a, b) => (a.last_watched_at || '').localeCompare(b.last_watched_at || ''));
 
-  return { watchNext, haventWatched, notStarted, caughtUp, finished };
+  return { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished };
 }
 
 export default function Shows() {
@@ -64,6 +95,8 @@ export default function Shows() {
   const [showAdd, setShowAdd] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
+
+  useScrollRestoration('/watch-tracker/shows', !loading);
 
   useEffect(() => {
     let active = true;
@@ -80,13 +113,17 @@ export default function Shows() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  const handleMeta = (tmdbId, meta) => {
+    setMetaByTmdbId((prev) => (prev.get(tmdbId) === meta ? prev : new Map(prev).set(tmdbId, meta)));
+  };
+
   const matchesQuery = (s) => s.series_name.toLowerCase().includes(query.toLowerCase());
 
   if (loading) return <div className="py-12 text-center text-zinc-600">Loading shows…</div>;
   if (error) return <div className="py-12 text-center text-red-400/90">Couldn&rsquo;t load shows.</div>;
 
   const searching = query.trim().length > 0;
-  const { watchNext, haventWatched, notStarted, caughtUp, finished } = sectionShows(shows.filter(matchesQuery), metaByTmdbId);
+  const { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished } = sectionShows(shows.filter(matchesQuery), metaByTmdbId);
 
   const listView = {
     archived: shows.filter((s) => s.is_archived),
@@ -132,19 +169,20 @@ export default function Shows() {
 
       {view === 'sections' || searching ? (
         <div className="space-y-6">
-          <Section title="Watch Next" shows={watchNext} />
-          <Section title="Haven't watched for a while" shows={haventWatched} />
-          <Section title="Haven't started" shows={notStarted} />
-          <CollapsibleSection title="Caught up" shows={caughtUp} />
-          <CollapsibleSection title="Finished" shows={finished} />
-          {watchNext.length + haventWatched.length + notStarted.length + caughtUp.length + finished.length === 0 && (
+          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
+          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
+          <Section title="Haven't started" shows={notStarted} onMeta={handleMeta} />
+          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
+          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
+          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
+          {watchNext.length + haventWatched.length + notStarted.length + watchLater.length + caughtUp.length + finished.length === 0 && (
             <div className="py-12 text-center text-zinc-600">No shows match.</div>
           )}
         </div>
       ) : (
         <div className={GRID}>
           {listView.length === 0 && <div className="col-span-full py-12 text-center text-zinc-600">No shows match.</div>}
-          {listView.map((show) => <ShowCard key={show.id} show={show} />)}
+          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} />)}
         </div>
       )}
 
@@ -155,19 +193,19 @@ export default function Shows() {
   );
 }
 
-function Section({ title, shows }) {
+function Section({ title, shows, onMeta }) {
   if (shows.length === 0) return null;
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">{title}</h3>
       <div className={GRID}>
-        {shows.map((show) => <ShowCard key={show.id} show={show} />)}
+        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
       </div>
     </div>
   );
 }
 
-function CollapsibleSection({ title, shows }) {
+function CollapsibleSection({ title, shows, onMeta }) {
   const [open, setOpen] = useState(false);
   if (shows.length === 0) return null;
   return (
@@ -181,7 +219,7 @@ function CollapsibleSection({ title, shows }) {
       </button>
       {open && (
         <div className={GRID}>
-          {shows.map((show) => <ShowCard key={show.id} show={show} />)}
+          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
         </div>
       )}
     </div>

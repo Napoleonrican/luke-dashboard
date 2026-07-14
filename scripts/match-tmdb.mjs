@@ -42,14 +42,18 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefr
 const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// TVTime sometimes appends "(YYYY)" to disambiguate a title (e.g. a
-// remake/reboot) — TMDB's own title rarely includes the year, so strip it
-// before searching/comparing, but keep it around to break ties between
-// same-named results (e.g. two different "Love You to Death"s).
-const YEAR_SUFFIX_RE = /\s*\((\d{4})\)\s*$/;
+// TVTime sometimes appends a disambiguator in parens — a year for a
+// remake/reboot ("Love & Death (2023)") or a region/version tag ("House of
+// Cards (US)") — that TMDB's own title never includes, so normalized
+// comparison always fails unless it's stripped first. Only a 4-digit year
+// is kept around afterward, to break ties between same-named results.
+const SUFFIX_RE = /\s*\(([^()]+)\)\s*$/;
 function stripYear(name) {
-  const m = name.match(YEAR_SUFFIX_RE);
-  return m ? { base: name.slice(0, m.index).trim(), year: Number(m[1]) } : { base: name, year: null };
+  const m = name.match(SUFFIX_RE);
+  if (!m) return { base: name, year: null };
+  const inner = m[1].trim();
+  const year = /^\d{4}$/.test(inner) ? Number(inner) : null;
+  return { base: name.slice(0, m.index).trim(), year };
 }
 
 async function tmdbSearch(kind, name) {

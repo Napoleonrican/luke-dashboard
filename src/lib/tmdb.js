@@ -40,12 +40,14 @@ export async function searchMovie(name) {
   return { data: data?.results ?? [], error };
 }
 
+// append_to_response=credits folds cast/crew into the same request instead
+// of a separate /credits call — free once we're already fetching details.
 export async function getShowDetails(tmdbId) {
-  return get(`/tv/${tmdbId}`);
+  return get(`/tv/${tmdbId}?append_to_response=credits`);
 }
 
 export async function getMovieDetails(tmdbId) {
-  return get(`/movie/${tmdbId}`);
+  return get(`/movie/${tmdbId}?append_to_response=credits`);
 }
 
 export async function getEpisodeDetails(tmdbId, season, episode) {
@@ -71,4 +73,21 @@ export function tmdbRating(meta) {
 // TMDB's /tv/{id} status field: "Returning Series" | "Ended" | "Canceled" | …
 export function tmdbStatus(meta) {
   return meta?.raw_json?.status ?? null;
+}
+
+// Top-billed cast, from the credits folded into raw_json via
+// append_to_response above — no extra request.
+export function tmdbCast(meta, limit = 15) {
+  return (meta?.raw_json?.credits?.cast ?? []).slice(0, limit);
+}
+
+export function tmdbPersonUrl(personId) {
+  return `https://www.themoviedb.org/person/${personId}`;
+}
+
+// Strips a trailing TVTime disambiguator in parens — "(2023)" or "(US)" —
+// that never appears in TMDB's own title, so a pre-filled search actually
+// finds the match instead of coming back empty.
+export function stripTitleSuffix(name) {
+  return String(name).replace(/\s*\([^()]+\)\s*$/, '').trim();
 }

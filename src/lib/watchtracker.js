@@ -65,26 +65,58 @@ export async function updateMovie(id, fields) {
   return s.from('wt_movies').update(fields).eq('id', id).select();
 }
 
+// wt_shows.ep_watch_count/last_watched_* are separate columns from the
+// wt_episodes rows they summarize — the one-time CSV import populates both
+// together, but marking an episode watched in-app only ever touched
+// wt_episodes, leaving those summary columns stale (a freshly-added show
+// would sit at ep_watch_count 0 forever, never leaving "Haven't started").
+// Recompute and write them back after every wt_episodes mutation instead.
+async function recomputeShowWatchState(showId) {
+  if (!s) return;
+  const { data: eps } = await s.from('wt_episodes').select('season_number, episode_number, last_watched_at').eq('show_id', showId);
+  const rows = eps ?? [];
+  let last = null;
+  for (const e of rows) {
+    if (!last || (e.last_watched_at || '') > (last.last_watched_at || '')) last = e;
+  }
+  await s.from('wt_shows').update({
+    ep_watch_count: rows.length,
+    last_watched_season: last?.season_number ?? null,
+    last_watched_episode_number: last?.episode_number ?? null,
+    last_watched_at: last?.last_watched_at ?? null,
+  }).eq('id', showId);
+}
+
 // Toggle an episode's watched state. Marking watched upserts a wt_episodes
-// row (watch_count 1, first/last watched now); un-marking deletes it — the
-// table only ever holds episodes actually watched at least once.
+// row; un-marking deletes it — the table only ever holds episodes actually
+// watched at least once.
 export async function setEpisodeWatched(ownerFields, watched) {
   if (!s) return { error: { message: 'Not configured' } };
   const { show_id, season_number, episode_number } = ownerFields;
-  if (!watched) {
-    return s.from('wt_episodes').delete()
-      .eq('show_id', show_id).eq('season_number', season_number).eq('episode_number', episode_number);
-  }
-  const now = new Date().toISOString();
-  return s.from('wt_episodes').upsert(
-    { show_id, season_number, episode_number, watch_count: 1, first_watched_at: now, last_watched_at: now },
-    { onConflict: 'owner,show_id,season_number,episode_number' },
-  ).select();
+  const result = !watched
+    ? await s.from('wt_episodes').delete()
+        .eq('show_id', show_id).eq('season_number', season_number).eq('episode_number', episode_number)
+    : await s.from('wt_episodes').upsert(
+        { show_id, season_number, episode_number, watch_count: 1, first_watched_at: new Date().toISOString(), last_watched_at: new Date().toISOString() },
+        { onConflict: 'owner,show_id,season_number,episode_number' },
+      ).select();
+  await recomputeShowWatchState(show_id);
+  return result;
 }
 
-export async function bumpRewatch(episodeId, nextCount) {
-  if (!s) return { error: { message: 'Not configured' } };
-  return s.from('wt_episodes').update({ watch_count: nextCount, last_watched_at: new Date().toISOString() }).eq('id', episodeId).select();
+// Bulk-mark a list of episodes watched in one round trip — used when the
+// user marks an episode that has unwatched ones before it and opts to catch
+// those up too, rather than one setEpisodeWatched call per episode.
+export async function markEpisodesWatched(showId, episodes) {
+  if (!s || !episodes.length) return { error: null };
+  const now = new Date().toISOString();
+  const rows = episodes.map((e) => ({
+    show_id: showId, season_number: e.season_number, episode_number: e.episode_number,
+    watch_count: 1, first_watched_at: now, last_watched_at: now,
+  }));
+  const { error } = await s.from('wt_episodes').upsert(rows, { onConflict: 'owner,show_id,season_number,episode_number' });
+  if (!error) await recomputeShowWatchState(showId);
+  return { error };
 }
 
 // ── Prefs (cross-device, owner-scoped — mirrors fin.js's getPref/setPref) ────
@@ -107,7 +139,10 @@ export async function getShowMetadata(tmdbId) {
   if (!s || !tmdbId) return { data: null, error: null };
   const { data: cached } = await s.from('wt_metadata_cache').select('*')
     .eq('tmdb_id', tmdbId).eq('media_type', 'tv').maybeSingle();
-  if (cached && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
+  // Cache rows written before credits were added to the details fetch have
+  // no raw_json.credits — treat those as stale regardless of age so cast
+  // shows up on next visit instead of waiting out the full 30-day window.
+  if (cached && cached.raw_json?.credits && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
     return { data: cached, error: null };
   }
   const { data: details, error } = await getShowDetails(tmdbId);
@@ -135,7 +170,7 @@ export async function getMovieMetadata(tmdbId) {
   if (!s || !tmdbId) return { data: null, error: null };
   const { data: cached } = await s.from('wt_metadata_cache').select('*')
     .eq('tmdb_id', tmdbId).eq('media_type', 'movie').maybeSingle();
-  if (cached && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
+  if (cached && cached.raw_json?.credits && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
     return { data: cached, error: null };
   }
   const { data: details, error } = await getMovieDetails(tmdbId);
@@ -261,6 +296,7 @@ export async function addShow(tmdbId, name) {
     tvtime_show_id: -tmdbId,
     series_name: name,
     is_followed: true,
+    followed_at: new Date().toISOString(),
     tmdb_id: tmdbId,
     tmdb_match_status: 'confirmed',
   }).select().maybeSingle();
