@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat } from 'lucide-react';
+import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat, Link2 } from 'lucide-react';
 import { getMovie, getMovieMetadata, updateMovie } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
 import RatingAndProviders from './RatingAndProviders';
+import AddTitleModal from './AddTitleModal';
 
 // Import data (a "watch" event from the TVTime export) isn't always right —
 // this page's Watched/Want to Watch buttons are a manual override so a
@@ -16,11 +17,22 @@ export default function MovieDetail() {
   const [movie, setMovie] = useState(null);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showMatch, setShowMatch] = useState(false);
 
   const reload = async () => {
     const { data } = await getMovie(id);
     setMovie(data);
     return data;
+  };
+
+  const onMatched = async () => {
+    setShowMatch(false);
+    const { data: movieData } = await getMovie(id);
+    setMovie(movieData);
+    setMeta(null);
+    if (movieData?.tmdb_id && tmdbConfigured) {
+      getMovieMetadata(movieData.tmdb_id).then(({ data }) => setMeta(data));
+    }
   };
 
   useEffect(() => {
@@ -56,7 +68,16 @@ export default function MovieDetail() {
             : <Clapperboard className="text-zinc-700" size={32} />}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold text-zinc-100">{movie.movie_name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold text-zinc-100">{movie.movie_name}</h1>
+            <button
+              onClick={() => setShowMatch(true)}
+              className="flex items-center gap-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+              title="Re-point this movie at a different TMDB match — keeps your notes and watched status"
+            >
+              <Link2 size={10} /> {movie.tmdb_id ? 'Re-match' : 'Match to TMDB'}
+            </button>
+          </div>
           {movie.release_date && <div className="mt-0.5 text-xs text-zinc-500">{fmtDate(movie.release_date)}</div>}
           {meta?.overview && <p className="mt-2 text-sm text-zinc-400">{meta.overview}</p>}
 
@@ -100,6 +121,10 @@ export default function MovieDetail() {
           </div>
         </div>
       </div>
+
+      {showMatch && (
+        <AddTitleModal mediaType="movie" mode="match" existingId={movie.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
+      )}
     </div>
   );
 }

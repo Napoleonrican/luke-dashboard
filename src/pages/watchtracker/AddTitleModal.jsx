@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { X, Search, Plus } from 'lucide-react';
-import { searchShow, searchMovie, addShow, addMovie } from '../../lib/watchtracker';
+import { X, Search, Plus, Link2 } from 'lucide-react';
+import { searchShow, searchMovie, addShow, addMovie, matchShow, matchMovie } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 
-// Search TMDB by name and add the picked result as a new wt_shows/wt_movies
-// row — for titles watched/started after the TVTime export was taken.
-export default function AddTitleModal({ mediaType, onClose, onAdded }) {
+// Search TMDB by name and either add the picked result as a new
+// wt_shows/wt_movies row (mode="add", for titles watched/started after the
+// TVTime export was taken), or re-point an existing row's tmdb_id at it
+// (mode="match", existingId set — fixes a bad/missing auto-match without
+// losing the show's watch history, notes, etc.).
+export default function AddTitleModal({ mediaType, mode = 'add', existingId, onClose, onAdded }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState(null);
 
   const isShow = mediaType === 'tv';
+  const isMatch = mode === 'match';
 
   const runSearch = async (e) => {
     e.preventDefault();
@@ -25,9 +29,9 @@ export default function AddTitleModal({ mediaType, onClose, onAdded }) {
   const pick = async (result) => {
     setAddingId(result.id);
     const name = isShow ? result.name : result.title;
-    const { error } = isShow
-      ? await addShow(result.id, name)
-      : await addMovie(result.id, name, result.release_date || null);
+    const { error } = isMatch
+      ? (isShow ? await matchShow(existingId, result.id, 'manual') : await matchMovie(existingId, result.id, 'manual'))
+      : (isShow ? await addShow(result.id, name) : await addMovie(result.id, name, result.release_date || null));
     setAddingId(null);
     if (!error) onAdded?.();
   };
@@ -39,7 +43,9 @@ export default function AddTitleModal({ mediaType, onClose, onAdded }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-zinc-800 p-4">
-          <h3 className="text-sm font-semibold text-zinc-100">Add a {isShow ? 'show' : 'movie'}</h3>
+          <h3 className="text-sm font-semibold text-zinc-100">
+            {isMatch ? `Match to the correct ${isShow ? 'show' : 'movie'}` : `Add a ${isShow ? 'show' : 'movie'}`}
+          </h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
             <X size={16} />
           </button>
@@ -89,7 +95,7 @@ export default function AddTitleModal({ mediaType, onClose, onAdded }) {
                         {(isShow ? r.first_air_date : r.release_date)?.slice(0, 4) || '—'}
                       </div>
                     </div>
-                    <Plus size={14} className="shrink-0 text-zinc-500" />
+                    {isMatch ? <Link2 size={14} className="shrink-0 text-zinc-500" /> : <Plus size={14} className="shrink-0 text-zinc-500" />}
                   </button>
                 ))}
               </div>

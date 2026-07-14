@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronRight, Tv, Repeat } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Tv, Repeat, Link2 } from 'lucide-react';
 import {
   getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, bumpRewatch,
   updateShow, getEpisodeMetadata,
@@ -9,6 +9,7 @@ import { tmdbImageUrl, tmdbConfigured, tmdbStatus } from '../../lib/tmdb';
 import EditCell from '../cashflow/EditCell';
 import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
+import AddTitleModal from './AddTitleModal';
 
 export default function ShowDetail() {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function ShowDetail() {
   const [meta, setMeta] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showMatch, setShowMatch] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -42,6 +44,16 @@ export default function ShowDetail() {
   const reloadShow = async () => {
     const { data } = await getShow(id);
     setShow(data);
+  };
+
+  const onMatched = async () => {
+    setShowMatch(false);
+    const { data: showData } = await getShow(id);
+    setShow(showData);
+    setMeta(null);
+    if (showData?.tmdb_id && tmdbConfigured) {
+      getShowMetadata(showData.tmdb_id).then(({ data }) => setMeta(data));
+    }
   };
 
   if (loading) return <div className="py-12 text-center text-zinc-600">Loading…</div>;
@@ -84,6 +96,13 @@ export default function ShowDetail() {
                 {status}
               </span>
             )}
+            <button
+              onClick={() => setShowMatch(true)}
+              className="flex items-center gap-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+              title="Re-point this show at a different TMDB match — keeps your notes and watch history"
+            >
+              <Link2 size={10} /> {show.tmdb_id ? 'Re-match' : 'Match to TMDB'}
+            </button>
           </div>
           {meta?.network && <div className="mt-0.5 text-xs text-zinc-500">{meta.network}</div>}
           {meta?.overview && <p className="mt-2 text-sm text-zinc-400">{meta.overview}</p>}
@@ -125,6 +144,10 @@ export default function ShowDetail() {
           <div className="py-4 text-sm text-zinc-600">No episode data yet for this show.</div>
         )}
       </div>
+
+      {showMatch && (
+        <AddTitleModal mediaType="tv" mode="match" existingId={show.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
+      )}
     </div>
   );
 }
