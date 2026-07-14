@@ -13,6 +13,13 @@ needs; this doc records the *formulas* so each need can be derived instead.
 - **Starting pool (F23)** = `D5 + MAX(0, (UberProCard − UberProBackupOwed) − OperatingBufferStage1)`
   — adds any Uber Pro Card surplus above what's owed/buffered. Minor; engine skips it today.
 
+> Engine note (dashboard-only): each need nets against its account's real balance
+> *unless the account is "banked"* — a per-account toggle that sweeps that balance
+> into the pool and plans the account from $0 (`pool = paycheck?·+ side-gig + Σ
+> banked balances`; `effectiveBalFor = banked ? 0 : real`). "Already in Bill Pay"
+> mode auto-banks Bill Pay Checking. This lets Luke pool the checking balances he
+> chooses in with the incoming paycheck and watch the whole pot distribute.
+
 ## Current balances (accounts, by name)
 
 | Cell | Account |
@@ -44,7 +51,10 @@ i.e. our `fin_runway_deck` rows resolved to amounts.
 | # | Step | Need formula (workbook) | Wire to |
 |---|------|-------------------------|---------|
 | 0a | Uber Pro backup | `MAX(0, UberProBackupOwed − UberProCard)` | accounts D12,D11 |
-| 0b | Earnin coverage | `MAX(0, (Earnin_Debit + onDeckBills) − BillPay)` | Earnin input + on-deck(Bill) + acct D8 |
+| 0b | Earnin repayment | `MAX(0, Earnin_Debit − BillPay)` | Earnin tab balance + acct D8 |
+| 0c | On-deck bills | `MAX(0, onDeckBills − MAX(0, BillPay − Earnin_Debit))` | on-deck(Bill) + acct D8 |
+
+> Engine note: the workbook's single 0b gate `MAX(0, (Earnin_Debit + onDeckBills) − BillPay)` is split into two display lines (0b Earnin, 0c on-deck bills) that net the same Bill Pay balance in order — Earnin first, then the leftover covers on-deck bills. Their needs sum to the original, so the pour is unchanged.
 | 1 | Weekly Essentials | `MAX(0, EssentialsTotal − (Operating + UberProCard))` | essentials + accts D9,D11 |
 | 2 | Immediate Bills 7d | `IF(BillPay<Earnin_Debit, Bills7d+SubsFloor, Earnin_Debit+Bills7d+SubsFloor − BillPay)` | J3,J4,J9,D8 |
 | 3 | Debt/Loan Radar 7d | `MAX(0, (DebtMins7d + onDeckDebts + DebtBuffer) − DebtLoanChecking)` | J5, on-deck(Debt), J10, D10 |
