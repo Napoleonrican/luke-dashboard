@@ -12,6 +12,17 @@ import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
 import AddTitleModal from './AddTitleModal';
 
+// Human summary for the catch-up prompt — lists episodes when they're all in
+// one season, otherwise just a count spanning the seasons involved.
+function gapMessage(missing) {
+  const seasons = [...new Set(missing.map((m) => m.season_number))];
+  if (seasons.length === 1) {
+    const eps = missing.map((m) => m.episode_number).join(', ');
+    return `Season ${seasons[0]}, episode${missing.length > 1 ? 's' : ''} ${eps} ${missing.length > 1 ? "aren't" : "isn't"} marked watched yet.`;
+  }
+  return `${missing.length} earlier episodes across seasons ${Math.min(...seasons)}–${Math.max(...seasons)} aren't marked watched yet.`;
+}
+
 export default function ShowDetail() {
   const { id } = useParams();
   const [show, setShow] = useState(null);
@@ -61,18 +72,32 @@ export default function ShowDetail() {
     setEpisodes(freshEpisodes ?? []);
     reloadShow();
     if (watched) {
-      const watchedInSeason = new Set(
-        (freshEpisodes ?? []).filter((e) => e.season_number === season).map((e) => e.episode_number),
-      );
+      const watchedKey = new Set((freshEpisodes ?? []).map((e) => `${e.season_number}:${e.episode_number}`));
+      // Every episode that airs before (season, episode) and isn't watched —
+      // all of every earlier season, plus this season up to the one before
+      // the one just marked. Uses TMDB's per-season episode_count; falls back
+      // to just this season if there's no metadata to enumerate earlier ones.
+      const seasonsMeta = (meta?.raw_json?.seasons ?? []).filter((sm) => sm.season_number >= 1);
       const missing = [];
-      for (let n = 1; n < episode; n++) if (!watchedInSeason.has(n)) missing.push(n);
-      if (missing.length > 0) setGapPrompt({ season, episode, missing });
+      if (seasonsMeta.length) {
+        for (const sm of seasonsMeta) {
+          if (sm.season_number > season) continue;
+          const upto = sm.season_number === season ? episode - 1 : (sm.episode_count || 0);
+          for (let n = 1; n <= upto; n++) {
+            if (!watchedKey.has(`${sm.season_number}:${n}`)) missing.push({ season_number: sm.season_number, episode_number: n });
+          }
+        }
+      } else {
+        for (let n = 1; n < episode; n++) {
+          if (!watchedKey.has(`${season}:${n}`)) missing.push({ season_number: season, episode_number: n });
+        }
+      }
+      if (missing.length > 0) setGapPrompt({ missing });
     }
   };
 
   const confirmMarkGap = async () => {
-    const { season, missing } = gapPrompt;
-    await markEpisodesWatched(id, missing.map((n) => ({ season_number: season, episode_number: n })));
+    await markEpisodesWatched(id, gapPrompt.missing);
     const { data } = await fetchEpisodes(id);
     setEpisodes(data ?? []);
     reloadShow();
@@ -168,7 +193,7 @@ export default function ShowDetail() {
       <ConfirmDialog
         open={!!gapPrompt}
         title="Mark earlier episodes watched too?"
-        message={gapPrompt && `Season ${gapPrompt.season}, episode${gapPrompt.missing.length > 1 ? 's' : ''} ${gapPrompt.missing.join(', ')} ${gapPrompt.missing.length > 1 ? "aren't" : "isn't"} marked watched yet.`}
+        message={gapPrompt && gapMessage(gapPrompt.missing)}
         confirmLabel="Mark all watched"
         onConfirm={confirmMarkGap}
         onCancel={() => setGapPrompt(null)}
