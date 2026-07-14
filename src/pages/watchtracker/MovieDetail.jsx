@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat, Link2 } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat, Link2, Trash2 } from 'lucide-react';
 import { getMovie, getMovieMetadata, updateMovie } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
+import ConfirmDialog from '../cashflow/ConfirmDialog';
 import RatingAndProviders from './RatingAndProviders';
+import CastList from './CastList';
 import AddTitleModal from './AddTitleModal';
 
 // Import data (a "watch" event from the TVTime export) isn't always right —
@@ -14,10 +16,12 @@ import AddTitleModal from './AddTitleModal';
 // importer.
 export default function MovieDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [movie, setMovie] = useState(null);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showMatch, setShowMatch] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const reload = async () => {
     const { data } = await getMovie(id);
@@ -54,12 +58,25 @@ export default function MovieDetail() {
 
   const toggleWatched = () => updateMovie(movie.id, { is_followed: !movie.is_followed }).then(reload);
   const toggleWantToWatch = () => updateMovie(movie.id, { is_for_later: !movie.is_for_later }).then(reload);
+  const removeMovie = async () => {
+    await updateMovie(movie.id, { is_followed: false, is_for_later: false });
+    navigate('/watch-tracker/movies');
+  };
 
   return (
     <div>
-      <Link to="/watch-tracker/movies" className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300">
-        <ArrowLeft size={14} /> Back to Movies
-      </Link>
+      <div className="mb-4 flex items-center justify-between">
+        <Link to="/watch-tracker/movies" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300">
+          <ArrowLeft size={14} /> Back to Movies
+        </Link>
+        <button
+          onClick={() => setShowRemoveConfirm(true)}
+          className="flex items-center gap-1.5 rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+          title="Remove movie"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="h-56 w-40 shrink-0 rounded-lg bg-zinc-800 overflow-hidden flex items-center justify-center self-start">
@@ -122,9 +139,20 @@ export default function MovieDetail() {
         </div>
       </div>
 
+      <CastList meta={meta} />
+
       {showMatch && (
         <AddTitleModal mediaType="movie" mode="match" existingId={movie.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
       )}
+
+      <ConfirmDialog
+        open={showRemoveConfirm}
+        title="Remove this movie?"
+        message="Unfollows the movie and takes it off your Movies list. Your notes and watched status are kept — re-adding it later won't lose anything."
+        confirmLabel="Remove"
+        onConfirm={() => { setShowRemoveConfirm(false); removeMovie(); }}
+        onCancel={() => setShowRemoveConfirm(false)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2, Check, MoreVertical, Clock, Trash2 } from 'lucide-react';
 import {
   getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, markEpisodesWatched,
   updateShow, getEpisodeMetadata,
@@ -10,6 +10,7 @@ import EditCell from '../cashflow/EditCell';
 import ConfirmDialog from '../cashflow/ConfirmDialog';
 import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
+import CastList from './CastList';
 import AddTitleModal from './AddTitleModal';
 
 // Human summary for the catch-up prompt — lists episodes when they're all in
@@ -25,11 +26,14 @@ function gapMessage(missing) {
 
 export default function ShowDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [show, setShow] = useState(null);
   const [meta, setMeta] = useState(null);
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showMatch, setShowMatch] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   // { season, episode, missing: [episode_number, ...] } — offered after
   // marking an episode watched when earlier ones in the same season aren't.
   const [gapPrompt, setGapPrompt] = useState(null);
@@ -104,6 +108,17 @@ export default function ShowDetail() {
     setGapPrompt(null);
   };
 
+  const toggleWatchLater = async () => {
+    setShowMenu(false);
+    await updateShow(id, { is_for_later: !show.is_for_later });
+    reloadShow();
+  };
+
+  const removeShow = async () => {
+    await updateShow(id, { is_followed: false, is_for_later: false });
+    navigate('/watch-tracker/shows');
+  };
+
   if (loading) return <div className="py-12 text-center text-zinc-600">Loading…</div>;
   if (!show) return <div className="py-12 text-center text-zinc-600">Show not found.</div>;
 
@@ -117,9 +132,19 @@ export default function ShowDetail() {
 
   return (
     <div>
-      <Link to="/watch-tracker/shows" className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300">
-        <ArrowLeft size={14} /> Back to Shows
-      </Link>
+      <div className="mb-4 flex items-center justify-between">
+        <Link to="/watch-tracker/shows" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300">
+          <ArrowLeft size={14} /> Back to Shows
+        </Link>
+        <ShowMenu
+          open={showMenu}
+          onOpen={() => setShowMenu((o) => !o)}
+          onClose={() => setShowMenu(false)}
+          isWatchLater={show.is_for_later}
+          onToggleWatchLater={toggleWatchLater}
+          onRemove={() => { setShowMenu(false); setShowRemoveConfirm(true); }}
+        />
+      </div>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="h-56 w-40 shrink-0 rounded-lg bg-zinc-800 overflow-hidden flex items-center justify-center self-start">
@@ -137,6 +162,11 @@ export default function ShowDetail() {
                   : 'bg-emerald-500/20 text-emerald-300'
               }`}>
                 {status}
+              </span>
+            )}
+            {show.is_for_later && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                <Clock size={10} /> Watch Later
               </span>
             )}
             <button
@@ -170,6 +200,8 @@ export default function ShowDetail() {
         </div>
       </div>
 
+      <CastList meta={meta} />
+
       <div className="mt-6 space-y-3">
         {seasons.map((season) => (
           <SeasonBlock
@@ -198,6 +230,54 @@ export default function ShowDetail() {
         onConfirm={confirmMarkGap}
         onCancel={() => setGapPrompt(null)}
       />
+
+      <ConfirmDialog
+        open={showRemoveConfirm}
+        title="Remove this show?"
+        message="Unfollows the show and takes it off your Watch List. Your notes and watched-episode history are kept — re-adding it later won't require re-marking anything."
+        confirmLabel="Remove"
+        onConfirm={() => { setShowRemoveConfirm(false); removeShow(); }}
+        onCancel={() => setShowRemoveConfirm(false)}
+      />
+    </div>
+  );
+}
+
+function ShowMenu({ open, onOpen, onClose, isWatchLater, onToggleWatchLater, onRemove }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open, onClose]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={onOpen}
+        className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+        title="More actions"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-10 mt-1 w-48 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-800 shadow-xl">
+          <button
+            onClick={onToggleWatchLater}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700"
+          >
+            <Clock size={14} /> {isWatchLater ? 'Remove from Watch Later' : 'Watch Later'}
+          </button>
+          <button
+            onClick={onRemove}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-300 hover:bg-zinc-700"
+          >
+            <Trash2 size={14} /> Remove show
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -260,11 +340,11 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, onToggle }) {
                 <button
                   onClick={() => onToggle(season, n, !watched)}
                   title={watched ? 'Click to unmark' : 'Mark watched'}
-                  className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                    watched ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:border-zinc-600'
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    watched ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-zinc-700 text-transparent hover:border-zinc-500'
                   }`}
                 >
-                  {watched ? 'Watched' : 'Mark'}
+                  <Check size={16} strokeWidth={3} />
                 </button>
               </div>
             );

@@ -22,12 +22,16 @@ function hasRecentSeason(meta) {
 // TVTime-style home sectioning: Watch Next (in progress and recently
 // watched, OR a new season just came out), Haven't watched for a while (in
 // progress, gone quiet, oldest last-watched first), Haven't started
-// (followed but never opened), Caught Up (caught up but still airing),
-// Finished (caught up + TMDB says the show has ended/been canceled).
-// `metaByTmdbId` only has whatever's already cached locally — no live TMDB
-// calls happen just to sort shows into buckets.
+// (followed but never opened), Watch Later (explicitly set aside via the
+// show's "..." menu — pulled out of every other bucket), Caught Up (caught
+// up but still airing), Finished (caught up + TMDB says the show has ended/
+// been canceled). `metaByTmdbId` only has whatever's already cached locally
+// — no live TMDB calls happen just to sort shows into buckets.
 function sectionShows(shows, metaByTmdbId) {
   const active = shows.filter((s) => s.is_followed && !s.is_archived);
+
+  const watchLater = active.filter((s) => s.is_for_later);
+  const notWatchLater = active.filter((s) => !s.is_for_later);
 
   const caughtUpState = (s) => {
     const meta = metaByTmdbId.get(s.tmdb_id);
@@ -36,9 +40,9 @@ function sectionShows(shows, metaByTmdbId) {
     return FINISHED_STATUSES.has(tmdbStatus(meta)) ? 'finished' : 'caughtUp';
   };
 
-  const finished = active.filter((s) => caughtUpState(s) === 'finished');
-  const caughtUp = active.filter((s) => caughtUpState(s) === 'caughtUp');
-  const rest = active.filter((s) => caughtUpState(s) === null);
+  const finished = notWatchLater.filter((s) => caughtUpState(s) === 'finished');
+  const caughtUp = notWatchLater.filter((s) => caughtUpState(s) === 'caughtUp');
+  const rest = notWatchLater.filter((s) => caughtUpState(s) === null);
   const inProgress = rest.filter((s) => (s.ep_watch_count ?? 0) > 0);
   const notStarted = rest.filter((s) => !(s.ep_watch_count > 0));
 
@@ -51,7 +55,7 @@ function sectionShows(shows, metaByTmdbId) {
   const haventWatched = inProgress.filter((s) => isStale(s) && !isNewSeason(s))
     .sort((a, b) => (a.last_watched_at || '').localeCompare(b.last_watched_at || ''));
 
-  return { watchNext, haventWatched, notStarted, caughtUp, finished };
+  return { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished };
 }
 
 export default function Shows() {
@@ -86,7 +90,7 @@ export default function Shows() {
   if (error) return <div className="py-12 text-center text-red-400/90">Couldn&rsquo;t load shows.</div>;
 
   const searching = query.trim().length > 0;
-  const { watchNext, haventWatched, notStarted, caughtUp, finished } = sectionShows(shows.filter(matchesQuery), metaByTmdbId);
+  const { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished } = sectionShows(shows.filter(matchesQuery), metaByTmdbId);
 
   const listView = {
     archived: shows.filter((s) => s.is_archived),
@@ -135,9 +139,10 @@ export default function Shows() {
           <Section title="Watch Next" shows={watchNext} />
           <Section title="Haven't watched for a while" shows={haventWatched} />
           <Section title="Haven't started" shows={notStarted} />
+          <CollapsibleSection title="Watch Later" shows={watchLater} />
           <CollapsibleSection title="Caught up" shows={caughtUp} />
           <CollapsibleSection title="Finished" shows={finished} />
-          {watchNext.length + haventWatched.length + notStarted.length + caughtUp.length + finished.length === 0 && (
+          {watchNext.length + haventWatched.length + notStarted.length + watchLater.length + caughtUp.length + finished.length === 0 && (
             <div className="py-12 text-center text-zinc-600">No shows match.</div>
           )}
         </div>
