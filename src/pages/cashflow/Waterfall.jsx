@@ -1189,9 +1189,21 @@ export default function Waterfall() {
                   <span className="block text-xs text-zinc-500 mt-0.5">Feeds every &ldquo;live&rdquo; Need in the plan.</span>
                 </span>
               </span>
-              <button onClick={() => setPlanInputsModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
-                <X size={16} />
-              </button>
+              <span className="flex items-center gap-1 shrink-0">
+                {/* The top bar's eye button sits behind this modal — give it its
+                    own toggle so figures aren't stuck blurred with no way to
+                    check them (same reasoning as the balance-check modal). */}
+                <button
+                  onClick={onTogglePrivacy}
+                  title={privacy ? 'Show figures' : 'Hide figures'}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                >
+                  {privacy ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+                <button onClick={() => setPlanInputsModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
+                  <X size={16} />
+                </button>
+              </span>
             </div>
             <div className="px-4 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {INPUT_FIELDS.map((g) => (
@@ -1306,6 +1318,13 @@ export default function Waterfall() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors disabled:opacity-40"
                 >
                   <Plus size={14} /> Add transfer
+                </button>
+                <button
+                  onClick={onTogglePrivacy}
+                  title={privacy ? 'Show figures' : 'Hide figures'}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                >
+                  {privacy ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
                 <button onClick={() => setPendingModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
                   <X size={16} />
