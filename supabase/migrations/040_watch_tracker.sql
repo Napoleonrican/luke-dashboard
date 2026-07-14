@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 035 — Watch Tracker (wt_*)
+-- 040 — Watch Tracker (wt_*)
 -- ─────────────────────────────────────────────────────────────────────────────
 -- TVTime is shutting down; this recreates its core tracking loop (followed
 -- shows, per-episode watch history, movie watchlist, addiction score, lifetime
