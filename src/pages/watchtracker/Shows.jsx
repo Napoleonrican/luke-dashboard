@@ -107,6 +107,10 @@ export default function Shows() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  const handleMeta = (tmdbId, meta) => {
+    setMetaByTmdbId((prev) => (prev.get(tmdbId) === meta ? prev : new Map(prev).set(tmdbId, meta)));
+  };
+
   const matchesQuery = (s) => s.series_name.toLowerCase().includes(query.toLowerCase());
 
   if (loading) return <div className="py-12 text-center text-zinc-600">Loading shows…</div>;
@@ -159,12 +163,12 @@ export default function Shows() {
 
       {view === 'sections' || searching ? (
         <div className="space-y-6">
-          <Section title="Watch Next" shows={watchNext} />
-          <Section title="Haven't watched for a while" shows={haventWatched} />
-          <Section title="Haven't started" shows={notStarted} />
-          <CollapsibleSection title="Watch Later" shows={watchLater} />
-          <CollapsibleSection title="Caught up" shows={caughtUp} />
-          <CollapsibleSection title="Finished" shows={finished} />
+          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
+          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
+          <Section title="Haven't started" shows={notStarted} onMeta={handleMeta} />
+          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
+          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
+          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
           {watchNext.length + haventWatched.length + notStarted.length + watchLater.length + caughtUp.length + finished.length === 0 && (
             <div className="py-12 text-center text-zinc-600">No shows match.</div>
           )}
@@ -172,7 +176,7 @@ export default function Shows() {
       ) : (
         <div className={GRID}>
           {listView.length === 0 && <div className="col-span-full py-12 text-center text-zinc-600">No shows match.</div>}
-          {listView.map((show) => <ShowCard key={show.id} show={show} />)}
+          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} />)}
         </div>
       )}
 
@@ -183,19 +187,19 @@ export default function Shows() {
   );
 }
 
-function Section({ title, shows }) {
+function Section({ title, shows, onMeta }) {
   if (shows.length === 0) return null;
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">{title}</h3>
       <div className={GRID}>
-        {shows.map((show) => <ShowCard key={show.id} show={show} />)}
+        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
       </div>
     </div>
   );
 }
 
-function CollapsibleSection({ title, shows }) {
+function CollapsibleSection({ title, shows, onMeta }) {
   const [open, setOpen] = useState(false);
   if (shows.length === 0) return null;
   return (
@@ -209,7 +213,7 @@ function CollapsibleSection({ title, shows }) {
       </button>
       {open && (
         <div className={GRID}>
-          {shows.map((show) => <ShowCard key={show.id} show={show} />)}
+          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
         </div>
       )}
     </div>
