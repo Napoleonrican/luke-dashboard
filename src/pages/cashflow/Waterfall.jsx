@@ -37,6 +37,8 @@ const WINDOW_PREF = 'runway_window';
 const BALANCE_CHECK_PREF = 'waterfall_balance_check_dismissed_on';   // an ISO date
 const SECTIONS_PREF = 'waterfall_sections';   // { money, needs, payday } open/closed
 const BANKED_PREF = 'waterfall_banked_accounts';   // [accountId, …] swept into the pool
+const INPUTS_UPDATED_PREF = 'waterfall_inputs_updated';   // { [inputKey]: ISO date }
+const PAYDAY_CHECK_PREF = 'waterfall_payday_check_dismissed_on';   // an ISO paycheck date
 const WINDOWS = [7, 14, 30];
 
 // Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
@@ -98,7 +100,9 @@ export default function Waterfall() {
   const [over, setOver] = useState({});
   const [bankedIds, setBankedIds] = useState([]);   // account ids swept into the pool
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [inputsUpdated, setInputsUpdated] = useState({});   // { [inputKey]: ISO date } — last-edited per field
   const [planInputsModalOpen, setPlanInputsModalOpen] = useState(false);
+  const [paydayCheckDismissedOn, setPaydayCheckDismissedOn] = useState(null);
   const [balancesOpen, setBalancesOpen] = useState(true);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [acctMenuOpen, setAcctMenuOpen] = useState(false);
@@ -140,9 +144,9 @@ export default function Waterfall() {
     Promise.all([
       getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF),
       getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF), getPref(BALANCE_CHECK_PREF),
-      getPref(SECTIONS_PREF), getPref(BANKED_PREF),
+      getPref(SECTIONS_PREF), getPref(BANKED_PREF), getPref(INPUTS_UPDATED_PREF), getPref(PAYDAY_CHECK_PREF),
     ]).then(
-      ([pc, inc, sg, ov, inp, win, bal, sec, bnk]) => {
+      ([pc, inc, sg, ov, inp, win, bal, sec, bnk, inpUpd, pdc]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
@@ -163,6 +167,8 @@ export default function Waterfall() {
           if (typeof sec.data.payday === 'boolean') setPaydayOpen(sec.data.payday);
         }
         if (Array.isArray(bnk.data)) setBankedIds(bnk.data);
+        if (inpUpd.data && typeof inpUpd.data === 'object') setInputsUpdated(inpUpd.data);
+        if (typeof pdc.data === 'string') setPaydayCheckDismissedOn(pdc.data);
         setSynced(true);
       },
     );
@@ -212,6 +218,8 @@ export default function Waterfall() {
   const setInput = (key, v) => {
     const next = { ...inputs, [key]: v };
     setInputs(next); if (synced) setPref(INPUTS_PREF, next);
+    const nextUpdated = { ...inputsUpdated, [key]: todayISO() };
+    setInputsUpdated(nextUpdated); if (synced) setPref(INPUTS_UPDATED_PREF, nextUpdated);
   };
 
   const cashOnHand = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
@@ -371,6 +379,34 @@ export default function Waterfall() {
     dismissBalanceCheck();
     setBalancesOpen(true);
     balancesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Payday reminder — same dismissable-once pattern as the balance check, but
+  // keyed to the paycheck date instead of "today" (it only ever shows on
+  // payday itself, so the two land on the same day in practice).
+  const isPayday = daysToPaycheck === 0;
+  // Gated behind showBalanceCheck so the two dismissable modals never stack —
+  // balance freshness takes priority; the payday check follows once it's clear.
+  const showPaydayCheck = !loading && !showBalanceCheck && isPayday && paydayCheckDismissedOn !== nextPaycheckISO;
+
+  const dismissPaydayCheck = () => {
+    setPaydayCheckDismissedOn(nextPaycheckISO);
+    setPref(PAYDAY_CHECK_PREF, nextPaycheckISO);
+  };
+  const reviewPlanInputs = () => {
+    dismissPaydayCheck();
+    setPlanInputsModalOpen(true);
+  };
+  // "Looks good" — bumps every Plan Inputs field's freshness date to today
+  // (like confirmBalancesFresh does for accounts), without touching any value.
+  const confirmInputsFresh = () => {
+    dismissPaydayCheck();
+    const today = todayISO();
+    const nextUpdated = Object.fromEntries(
+      INPUT_FIELDS.flatMap((g) => g.fields).map((f) => [f.key, today]),
+    );
+    setInputsUpdated(nextUpdated);
+    setPref(INPUTS_UPDATED_PREF, nextUpdated);
   };
 
   // ── Runway actions ───────────────────────────────────────────────────────────
@@ -1109,6 +1145,37 @@ export default function Waterfall() {
         </div>
       )}
 
+      {/* Payday reminder — same dismissable-once pattern as "Still accurate?",
+          keyed to the paycheck date. Nudges a Plan Inputs review right when the
+          targets are most likely to have drifted (a new bill, a paid-down debt,
+          a bumped emergency goal) and it matters most (money's about to move). */}
+      {showPaydayCheck && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-cyan-700/40 bg-zinc-900 shadow-2xl p-5" role="alertdialog" aria-modal="true">
+            <div className="flex items-start gap-2 mb-3">
+              <SlidersHorizontal size={18} className="text-cyan-400 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold text-cyan-200">Payday — Plan Inputs still right?</h3>
+                <p className="text-xs text-cyan-300/70 mt-0.5">
+                  Money&rsquo;s about to move. Quick check that targets like the emergency goal, vehicle repairs & buffers still match reality.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button onClick={dismissPaydayCheck} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+                Not now
+              </button>
+              <button onClick={confirmInputsFresh} className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3.5 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+                Looks good
+              </button>
+              <button onClick={reviewPlanInputs} className="rounded-lg border border-cyan-600 bg-cyan-900/30 px-3.5 py-2 text-sm font-medium text-cyan-300 hover:bg-cyan-900/50 transition-colors">
+                Review now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Plan Inputs modal — the only place non-flat needs get edited (never the
           table). Opened from the ⋯ menu's "Plan Inputs…" item (Waterfall only). */}
       {planInputsModalOpen && (
@@ -1122,25 +1189,47 @@ export default function Waterfall() {
                   <span className="block text-xs text-zinc-500 mt-0.5">Feeds every &ldquo;live&rdquo; Need in the plan.</span>
                 </span>
               </span>
-              <button onClick={() => setPlanInputsModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
-                <X size={16} />
-              </button>
+              <span className="flex items-center gap-1 shrink-0">
+                {/* The top bar's eye button sits behind this modal — give it its
+                    own toggle so figures aren't stuck blurred with no way to
+                    check them (same reasoning as the balance-check modal). */}
+                <button
+                  onClick={onTogglePrivacy}
+                  title={privacy ? 'Show figures' : 'Hide figures'}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                >
+                  {privacy ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+                <button onClick={() => setPlanInputsModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
+                  <X size={16} />
+                </button>
+              </span>
             </div>
             <div className="px-4 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {INPUT_FIELDS.map((g) => (
                 <div key={g.group}>
                   <p className="text-[11px] uppercase tracking-wide text-zinc-500 mb-2">{g.group}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {g.fields.map((f) => (
+                    {g.fields.map((f) => {
+                      const fSince = daysSince(inputsUpdated[f.key]);
+                      const fColor = updatedColor(inputsUpdated[f.key]);
+                      return (
                       <label key={f.key} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
-                        <span className="text-xs text-zinc-400" title={f.hint}>{f.label}</span>
+                        <span className="min-w-0">
+                          <span className="block text-xs text-zinc-400" title={f.hint}>{f.label}</span>
+                          <span className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-600">
+                            {inputsUpdated[f.key] && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: fColor?.color }} title="freshness" />}
+                            {fSince == null ? 'never updated' : fSince === 0 ? 'today' : `${fSince}d ago`}
+                          </span>
+                        </span>
                         <span className="w-20 shrink-0">
                           <Redacted on={privacy}>
                             <AmountEdit value={inputs[f.key]} onCommit={(v) => setInput(f.key, v)} className="text-zinc-200" />
                           </Redacted>
                         </span>
                       </label>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1229,6 +1318,13 @@ export default function Waterfall() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-700/60 bg-cyan-900/20 text-xs font-medium text-cyan-400 hover:bg-cyan-900/40 transition-colors disabled:opacity-40"
                 >
                   <Plus size={14} /> Add transfer
+                </button>
+                <button
+                  onClick={onTogglePrivacy}
+                  title={privacy ? 'Show figures' : 'Hide figures'}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                >
+                  {privacy ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
                 <button onClick={() => setPendingModalOpen(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors" title="Close">
                   <X size={16} />
