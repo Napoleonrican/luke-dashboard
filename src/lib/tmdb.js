@@ -84,3 +84,10 @@ export function tmdbCast(meta, limit = 15) {
 export function tmdbPersonUrl(personId) {
   return `https://www.themoviedb.org/person/${personId}`;
 }
+
+// Strips a trailing TVTime disambiguator in parens — "(2023)" or "(US)" —
+// that never appears in TMDB's own title, so a pre-filled search actually
+// finds the match instead of coming back empty.
+export function stripTitleSuffix(name) {
+  return String(name).replace(/\s*\([^()]+\)\s*$/, '').trim();
+}

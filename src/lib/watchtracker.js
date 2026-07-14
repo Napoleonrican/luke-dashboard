@@ -139,7 +139,10 @@ export async function getShowMetadata(tmdbId) {
   if (!s || !tmdbId) return { data: null, error: null };
   const { data: cached } = await s.from('wt_metadata_cache').select('*')
     .eq('tmdb_id', tmdbId).eq('media_type', 'tv').maybeSingle();
-  if (cached && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
+  // Cache rows written before credits were added to the details fetch have
+  // no raw_json.credits — treat those as stale regardless of age so cast
+  // shows up on next visit instead of waiting out the full 30-day window.
+  if (cached && cached.raw_json?.credits && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
     return { data: cached, error: null };
   }
   const { data: details, error } = await getShowDetails(tmdbId);
@@ -167,7 +170,7 @@ export async function getMovieMetadata(tmdbId) {
   if (!s || !tmdbId) return { data: null, error: null };
   const { data: cached } = await s.from('wt_metadata_cache').select('*')
     .eq('tmdb_id', tmdbId).eq('media_type', 'movie').maybeSingle();
-  if (cached && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
+  if (cached && cached.raw_json?.credits && Date.now() - new Date(cached.fetched_at).getTime() < STALE_MS) {
     return { data: cached, error: null };
   }
   const { data: details, error } = await getMovieDetails(tmdbId);
@@ -293,6 +296,7 @@ export async function addShow(tmdbId, name) {
     tvtime_show_id: -tmdbId,
     series_name: name,
     is_followed: true,
+    followed_at: new Date().toISOString(),
     tmdb_id: tmdbId,
     tmdb_match_status: 'confirmed',
   }).select().maybeSingle();

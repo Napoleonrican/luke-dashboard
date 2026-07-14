@@ -142,7 +142,7 @@ export default function MovieDetail() {
       <CastList meta={meta} />
 
       {showMatch && (
-        <AddTitleModal mediaType="movie" mode="match" existingId={movie.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
+        <AddTitleModal mediaType="movie" mode="match" existingId={movie.id} initialQuery={movie.movie_name} onClose={() => setShowMatch(false)} onAdded={onMatched} />
       )}
 
       <ConfirmDialog

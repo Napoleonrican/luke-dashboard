@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Search, Plus, Link2, ArrowLeft } from 'lucide-react';
 import { searchShow, searchMovie, addShow, addMovie, matchShow, matchMovie } from '../../lib/watchtracker';
-import { tmdbImageUrl, tmdbConfigured, getShowDetails, getMovieDetails } from '../../lib/tmdb';
+import { tmdbImageUrl, tmdbConfigured, getShowDetails, getMovieDetails, stripTitleSuffix } from '../../lib/tmdb';
 import CastList from './CastList';
 
 // Search TMDB by name, preview the picked result (poster, overview, cast),
@@ -9,8 +9,10 @@ import CastList from './CastList';
 // titles watched/started after the TVTime export was taken) or re-point an
 // existing row's tmdb_id at it (mode="match", existingId set — fixes a bad/
 // missing auto-match without losing the show's watch history, notes, etc.).
-export default function AddTitleModal({ mediaType, mode = 'add', existingId, onClose, onAdded }) {
-  const [query, setQuery] = useState('');
+// initialQuery (typically the show/movie's current name) pre-fills and
+// auto-runs the search so re-matching doesn't require retyping the title.
+export default function AddTitleModal({ mediaType, mode = 'add', existingId, initialQuery = '', onClose, onAdded }) {
+  const [query, setQuery] = useState(() => stripTitleSuffix(initialQuery));
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState(null); // search result being previewed
@@ -20,14 +22,25 @@ export default function AddTitleModal({ mediaType, mode = 'add', existingId, onC
   const isShow = mediaType === 'tv';
   const isMatch = mode === 'match';
 
-  const runSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const search = async (q) => {
+    if (!q.trim()) return;
     setSearching(true);
-    const { data } = isShow ? await searchShow(query) : await searchMovie(query);
+    const { data } = isShow ? await searchShow(q) : await searchMovie(q);
     setResults(data ?? []);
     setSearching(false);
   };
+
+  const runSearch = (e) => {
+    e.preventDefault();
+    search(query);
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (query) (async () => { if (active) await search(query); })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openPreview = async (result) => {
     setSelected(result);

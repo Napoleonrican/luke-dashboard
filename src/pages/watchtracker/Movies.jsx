@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus } from 'lucide-react';
 import { fetchMovies } from '../../lib/watchtracker';
+import useScrollRestoration from '../../hooks/useScrollRestoration';
 import MovieCard from './MovieCard';
 import AddTitleModal from './AddTitleModal';
 
@@ -16,6 +17,8 @@ export default function Movies() {
 
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
+
+  useScrollRestoration('/watch-tracker/movies', !loading);
 
   useEffect(() => {
     let active = true;

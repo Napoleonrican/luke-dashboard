@@ -6,6 +6,7 @@ import {
   updateShow, getEpisodeMetadata,
 } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured, tmdbStatus } from '../../lib/tmdb';
+import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
 import ConfirmDialog from '../cashflow/ConfirmDialog';
 import ProgressBar from './ProgressBar';
@@ -210,6 +211,7 @@ export default function ShowDetail() {
             season={season}
             episodeCount={meta?.raw_json?.seasons?.find((s) => s.season_number === season)?.episode_count}
             watchedSet={watchedSet}
+            episodes={episodes.filter((e) => e.season_number === season)}
             onToggle={markWatched}
           />
         ))}
@@ -219,7 +221,7 @@ export default function ShowDetail() {
       </div>
 
       {showMatch && (
-        <AddTitleModal mediaType="tv" mode="match" existingId={show.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
+        <AddTitleModal mediaType="tv" mode="match" existingId={show.id} initialQuery={show.series_name} onClose={() => setShowMatch(false)} onAdded={onMatched} />
       )}
 
       <ConfirmDialog
@@ -282,7 +284,7 @@ function ShowMenu({ open, onOpen, onClose, isWatchLater, onToggleWatchLater, onR
   );
 }
 
-function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, onToggle }) {
+function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onToggle }) {
   const [expanded, setExpanded] = useState(false);
   const [descriptions, setDescriptions] = useState({}); // episode_number -> { name, overview, still_path }
   const [loadingDesc, setLoadingDesc] = useState(false);
@@ -323,6 +325,7 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, onToggle }) {
           {episodeNumbers.map((n) => {
             const watched = watchedSet.has(`${season}:${n}`);
             const desc = descriptions[n];
+            const epRow = episodes.find((e) => e.episode_number === n);
             return (
               <div key={n} className="flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-2.5">
                 <div className="h-14 w-24 shrink-0 rounded bg-zinc-800 overflow-hidden flex items-center justify-center">
@@ -336,6 +339,10 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, onToggle }) {
                     <span className="truncate">{desc?.name || `Episode ${n}`}</span>
                   </div>
                   {desc?.overview && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{desc.overview}</p>}
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-600">
+                    {desc?.air_date && <span>Aired {fmtDate(desc.air_date)}</span>}
+                    {watched && epRow?.last_watched_at && <span>Watched {fmtDate(epRow.last_watched_at)}</span>}
+                  </div>
                 </div>
                 <button
                   onClick={() => onToggle(season, n, !watched)}

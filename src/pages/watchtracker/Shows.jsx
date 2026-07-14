@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { fetchShows, getShowsMetaCached } from '../../lib/watchtracker';
 import { tmdbStatus } from '../../lib/tmdb';
+import useScrollRestoration from '../../hooks/useScrollRestoration';
 import ShowCard from './ShowCard';
 import AddTitleModal from './AddTitleModal';
 
@@ -17,6 +18,24 @@ function hasRecentSeason(meta) {
   const seasons = meta?.raw_json?.seasons ?? [];
   const cutoff = Date.now() - RECENT_SEASON_DAYS * 24 * 60 * 60 * 1000;
   return seasons.some((se) => se.air_date && new Date(se.air_date).getTime() >= cutoff);
+}
+
+// meta.number_of_episodes counts every planned episode, including ones from
+// an announced-but-not-yet-aired season — comparing watched count against
+// that makes a genuinely caught-up show ("Returning Series", nothing new
+// out yet) look behind, and it lands in Watch Next instead of Caught Up.
+// Count only what's actually aired (via last_episode_to_air + per-season
+// episode counts), falling back to the raw total if that's missing.
+function airedEpisodeCount(meta) {
+  const last = meta?.raw_json?.last_episode_to_air;
+  const seasons = meta?.raw_json?.seasons ?? [];
+  if (!last || seasons.length === 0) return meta?.number_of_episodes ?? null;
+  let count = 0;
+  for (const se of seasons) {
+    if (se.season_number < last.season_number) count += se.episode_count || 0;
+    else if (se.season_number === last.season_number) count += last.episode_number || 0;
+  }
+  return count;
 }
 
 // TVTime-style home sectioning: Watch Next (in progress and recently
@@ -35,8 +54,9 @@ function sectionShows(shows, metaByTmdbId) {
 
   const caughtUpState = (s) => {
     const meta = metaByTmdbId.get(s.tmdb_id);
-    if (!meta || meta.number_of_episodes == null) return null;
-    if ((s.ep_watch_count ?? 0) < meta.number_of_episodes) return null;
+    const aired = airedEpisodeCount(meta);
+    if (!meta || aired == null) return null;
+    if ((s.ep_watch_count ?? 0) < aired) return null;
     return FINISHED_STATUSES.has(tmdbStatus(meta)) ? 'finished' : 'caughtUp';
   };
 
@@ -44,7 +64,8 @@ function sectionShows(shows, metaByTmdbId) {
   const caughtUp = notWatchLater.filter((s) => caughtUpState(s) === 'caughtUp');
   const rest = notWatchLater.filter((s) => caughtUpState(s) === null);
   const inProgress = rest.filter((s) => (s.ep_watch_count ?? 0) > 0);
-  const notStarted = rest.filter((s) => !(s.ep_watch_count > 0));
+  const notStarted = rest.filter((s) => !(s.ep_watch_count > 0))
+    .sort((a, b) => (b.followed_at || '').localeCompare(a.followed_at || ''));
 
   const staleCutoff = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
   const isStale = (s) => !s.last_watched_at || new Date(s.last_watched_at).getTime() < staleCutoff;
@@ -68,6 +89,8 @@ export default function Shows() {
   const [showAdd, setShowAdd] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
+
+  useScrollRestoration('/watch-tracker/shows', !loading);
 
   useEffect(() => {
     let active = true;
