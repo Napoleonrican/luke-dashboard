@@ -43,7 +43,7 @@ const WINDOWS = [7, 14, 30];
 
 // Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
 // Recomputed relative to today, so "Until Paycheck" always points forward.
-const PAYCHECK_ANCHOR = '2026-07-22';
+const PAYCHECK_ANCHOR = '2026-07-14';   // TEMP: today, for a live preview test of the payday modal — revert to 2026-07-22 after checking
 const PAYCHECK_PERIOD_DAYS = 14;
 function nextPaycheckInfo() {
   const [y, m, d] = PAYCHECK_ANCHOR.split('-').map(Number);
