@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronRight, Tv, Repeat, Link2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2 } from 'lucide-react';
 import {
-  getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, bumpRewatch,
+  getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, markEpisodesWatched,
   updateShow, getEpisodeMetadata,
 } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured, tmdbStatus } from '../../lib/tmdb';
 import EditCell from '../cashflow/EditCell';
+import ConfirmDialog from '../cashflow/ConfirmDialog';
 import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
 import AddTitleModal from './AddTitleModal';
@@ -18,6 +19,9 @@ export default function ShowDetail() {
   const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showMatch, setShowMatch] = useState(false);
+  // { season, episode, missing: [episode_number, ...] } — offered after
+  // marking an episode watched when earlier ones in the same season aren't.
+  const [gapPrompt, setGapPrompt] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -36,11 +40,6 @@ export default function ShowDetail() {
     return () => { active = false; };
   }, [id]);
 
-  const reloadEpisodes = async () => {
-    const { data } = await fetchEpisodes(id);
-    setEpisodes(data ?? []);
-  };
-
   const reloadShow = async () => {
     const { data } = await getShow(id);
     setShow(data);
@@ -56,6 +55,30 @@ export default function ShowDetail() {
     }
   };
 
+  const markWatched = async (season, episode, watched) => {
+    await setEpisodeWatched({ show_id: id, season_number: season, episode_number: episode }, watched);
+    const { data: freshEpisodes } = await fetchEpisodes(id);
+    setEpisodes(freshEpisodes ?? []);
+    reloadShow();
+    if (watched) {
+      const watchedInSeason = new Set(
+        (freshEpisodes ?? []).filter((e) => e.season_number === season).map((e) => e.episode_number),
+      );
+      const missing = [];
+      for (let n = 1; n < episode; n++) if (!watchedInSeason.has(n)) missing.push(n);
+      if (missing.length > 0) setGapPrompt({ season, episode, missing });
+    }
+  };
+
+  const confirmMarkGap = async () => {
+    const { season, missing } = gapPrompt;
+    await markEpisodesWatched(id, missing.map((n) => ({ season_number: season, episode_number: n })));
+    const { data } = await fetchEpisodes(id);
+    setEpisodes(data ?? []);
+    reloadShow();
+    setGapPrompt(null);
+  };
+
   if (loading) return <div className="py-12 text-center text-zinc-600">Loading…</div>;
   if (!show) return <div className="py-12 text-center text-zinc-600">Show not found.</div>;
 
@@ -66,11 +89,6 @@ export default function ShowDetail() {
   const seasons = meta?.number_of_seasons
     ? Array.from({ length: meta.number_of_seasons }, (_, i) => i + 1)
     : [...new Set(episodes.map((e) => e.season_number))].sort((a, b) => a - b);
-
-  const markWatched = async (season, episode, watched) => {
-    await setEpisodeWatched({ show_id: id, season_number: season, episode_number: episode }, watched);
-    await reloadEpisodes();
-  };
 
   return (
     <div>
@@ -135,9 +153,7 @@ export default function ShowDetail() {
             season={season}
             episodeCount={meta?.raw_json?.seasons?.find((s) => s.season_number === season)?.episode_count}
             watchedSet={watchedSet}
-            episodes={episodes.filter((e) => e.season_number === season)}
             onToggle={markWatched}
-            onRewatch={async (ep) => { await bumpRewatch(ep.id, ep.watch_count + 1); await reloadEpisodes(); }}
           />
         ))}
         {seasons.length === 0 && (
@@ -148,17 +164,27 @@ export default function ShowDetail() {
       {showMatch && (
         <AddTitleModal mediaType="tv" mode="match" existingId={show.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
       )}
+
+      <ConfirmDialog
+        open={!!gapPrompt}
+        title="Mark earlier episodes watched too?"
+        message={gapPrompt && `Season ${gapPrompt.season}, episode${gapPrompt.missing.length > 1 ? 's' : ''} ${gapPrompt.missing.join(', ')} ${gapPrompt.missing.length > 1 ? "aren't" : "isn't"} marked watched yet.`}
+        confirmLabel="Mark all watched"
+        onConfirm={confirmMarkGap}
+        onCancel={() => setGapPrompt(null)}
+      />
     </div>
   );
 }
 
-function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onToggle, onRewatch }) {
+function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, onToggle }) {
   const [expanded, setExpanded] = useState(false);
   const [descriptions, setDescriptions] = useState({}); // episode_number -> { name, overview, still_path }
   const [loadingDesc, setLoadingDesc] = useState(false);
 
-  const count = episodeCount || Math.max(...episodes.map((e) => e.episode_number), 0) || episodes.length;
-  const episodeNumbers = count ? Array.from({ length: count }, (_, i) => i + 1) : episodes.map((e) => e.episode_number);
+  const episodeNumbers = episodeCount
+    ? Array.from({ length: episodeCount }, (_, i) => i + 1)
+    : [...watchedSet].filter((k) => k.startsWith(`${season}:`)).map((k) => Number(k.split(':')[1]));
   const watchedInSeason = episodeNumbers.filter((n) => watchedSet.has(`${season}:${n}`)).length;
 
   const toggleExpand = async () => {
@@ -191,7 +217,6 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onTog
           {loadingDesc && <div className="py-2 text-center text-xs text-zinc-600">Loading episode details…</div>}
           {episodeNumbers.map((n) => {
             const watched = watchedSet.has(`${season}:${n}`);
-            const epRow = episodes.find((e) => e.episode_number === n);
             const desc = descriptions[n];
             return (
               <div key={n} className="flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-2.5">
@@ -207,23 +232,15 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onTog
                   </div>
                   {desc?.overview && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{desc.overview}</p>}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {epRow?.watch_count > 1 && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-purple-300">
-                      <Repeat size={10} /> {epRow.watch_count}x
-                    </span>
-                  )}
-                  <button
-                    onClick={() => (watched ? onRewatch(epRow) : onToggle(season, n, true))}
-                    onContextMenu={(e) => { e.preventDefault(); onToggle(season, n, !watched); }}
-                    title={watched ? 'Click to log a rewatch, right-click to unmark' : 'Mark watched'}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      watched ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:border-zinc-600'
-                    }`}
-                  >
-                    {watched ? 'Watched' : 'Mark'}
-                  </button>
-                </div>
+                <button
+                  onClick={() => onToggle(season, n, !watched)}
+                  title={watched ? 'Click to unmark' : 'Mark watched'}
+                  className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    watched ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:border-zinc-600'
+                  }`}
+                >
+                  {watched ? 'Watched' : 'Mark'}
+                </button>
               </div>
             );
           })}
