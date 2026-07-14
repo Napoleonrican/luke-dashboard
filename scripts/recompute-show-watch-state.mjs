@@ -40,9 +40,22 @@ async function main() {
   const { data: shows, error: showsErr } = await supabase.from('wt_shows').select('id, series_name, ep_watch_count').eq('owner', OWNER_UID);
   if (showsErr) { console.error(showsErr.message); process.exit(1); }
 
-  const { data: episodes, error: epErr } = await supabase.from('wt_episodes')
-    .select('show_id, season_number, episode_number, last_watched_at').eq('owner', OWNER_UID);
-  if (epErr) { console.error(epErr.message); process.exit(1); }
+  // PostgREST caps a single response at 1000 rows — with thousands of watched
+  // episodes, a plain select silently returns only the first page and makes
+  // every unseen show look like 0 watched. Page through with .range() until a
+  // short page comes back so we get ALL episodes.
+  const episodes = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error: epErr } = await supabase.from('wt_episodes')
+      .select('show_id, season_number, episode_number, last_watched_at')
+      .eq('owner', OWNER_UID)
+      .range(from, from + PAGE - 1);
+    if (epErr) { console.error(epErr.message); process.exit(1); }
+    episodes.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  console.log(`Loaded ${episodes.length} watched episodes across ${shows.length} shows.`);
 
   const byShow = new Map();
   for (const e of episodes) {
