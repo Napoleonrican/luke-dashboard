@@ -18,7 +18,8 @@
 
 export const DEFAULT_STEPS = [
   { id: '0a', label: 'Uber Pro Card — Backup Balance Repayment',      account: 'Uber Pro Card',      tier: 'gate', auto: 'uberBackup' },
-  { id: '0b', label: 'Bill Pay — Earnin Repayment + On-Deck Bills',    account: 'Bill Pay Checking',  tier: 'gate', auto: 'earninCoverage' },
+  { id: '0b', label: 'Bill Pay — Earnin Repayment',                   account: 'Bill Pay Checking',  tier: 'gate', auto: 'earninRepay' },
+  { id: '0c', label: 'Bill Pay — On-Deck Bills',                      account: 'Bill Pay Checking',  tier: 'gate', auto: 'onDeckBills' },
   { id: '1',  label: 'Weekly Essentials (Fuel + Groceries)',          account: 'Operating Checking', tier: 'gate', auto: 'essentials' },
   { id: '2',  label: 'Bill Pay — Immediate Bills (7-Day Runway)',     account: 'Bill Pay Checking',  tier: 'gate', auto: 'bills7' },
   { id: '3',  label: 'Debt Pay — Debt / Loan Radar (7-Day)',          account: 'Debt Pay Checking',  tier: 'gate', auto: 'debtRadar7' },
@@ -95,8 +96,15 @@ export function needOf(step, ctx, allocatedById = {}) {
   switch (step.auto) {
     case 'uberBackup':
       return Math.max(0, inputs.uberBackupOwed - bal('Uber Pro Card'));
-    case 'earninCoverage':
-      return Math.max(0, (inputs.earninOwed + ctx.onDeckBillSum) - bal('Bill Pay Checking'));
+    // 0b + 0c are the workbook's single "Earnin + on-deck bills" gate, split
+    // into two lines. They net against the same Bill Pay balance IN ORDER —
+    // Earnin first (it repays same-day as the paycheck), then whatever balance
+    // is left over covers on-deck bills — so together they still pour exactly
+    // what the combined `MAX(0, (Earnin + onDeckBills) − BillPay)` did.
+    case 'earninRepay':
+      return Math.max(0, inputs.earninOwed - bal('Bill Pay Checking'));
+    case 'onDeckBills':
+      return Math.max(0, ctx.onDeckBillSum - Math.max(0, bal('Bill Pay Checking') - inputs.earninOwed));
     case 'essentials':
       return Math.max(0, (ctx.fuelWeekly + ctx.grocWeekly) - (bal('Operating Checking') + bal('Uber Pro Card')));
     case 'bills7': {

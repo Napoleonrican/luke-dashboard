@@ -404,13 +404,15 @@ export default function Waterfall() {
   // matching how the workbook itself hard-codes those two directly in-sheet.
   const renderNeed = ({ step, need }) => {
     if (step.auto) {
-      // Step 0b bundles two things (matching the workbook): what's owed to
-      // Earnin, plus whatever's already staged On Deck (Bill-type) below —
-      // both netted against the Bill Pay Checking balance. Break that down on
-      // hover so a $0 Earnin balance doesn't read as a bug when on-deck bills
-      // are still driving the number.
-      const liveTitle = step.auto === 'earninCoverage'
-        ? `Earnin owed ${fmtDec(earninOwed)} (live from Earnin tab) + on-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay Checking ${fmtDec(effectiveBalFor('Bill Pay Checking'))}`
+      // 0b/0c net against the Bill Pay Checking balance you're keeping, so a
+      // $0 Need can just mean "the balance already covers it" — spell that out
+      // on hover so it doesn't read as a bug. Earnin is netted first, then the
+      // leftover balance covers on-deck bills.
+      const billPayNow = effectiveBalFor('Bill Pay Checking');
+      const liveTitle = step.auto === 'earninRepay'
+        ? `Earnin owed ${fmtDec(earninOwed)} (live from Earnin tab) − Bill Pay Checking ${fmtDec(billPayNow)}`
+        : step.auto === 'onDeckBills'
+        ? `On-deck bills ${fmtDec(onDeckBillSum)} − Bill Pay left after Earnin ${fmtDec(Math.max(0, billPayNow - earninOwed))}`
         : step.auto === 'floorBuild'
         ? `Total fixed bills ${fmtDec(totalFixedBills)} (live from Bills) − Bill Pay Checking`
         : 'Computed from your accounts, Plan Inputs & 7-day totals';

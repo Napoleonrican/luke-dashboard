@@ -50,12 +50,27 @@ export default function CashflowLayout() {
         title="Cashflow Plan"
         subtitle="Budget, accounts & weekly dash goals — your data, live from Supabase"
         right={
-          <SettingsMenu
-            theme={theme} onToggleTheme={toggleTheme}
-            privacy={privacy} onTogglePrivacy={() => setPrivacy((p) => !p)}
-            onSignOut={signOut}
-            pageItems={pageMenuItems}
-          />
+          <div className="flex items-center gap-2">
+            {/* Show/hide figures — pulled out of the menu into a standalone
+                one-tap toggle so it's always a click away. */}
+            <button
+              onClick={() => setPrivacy((p) => !p)}
+              title={privacy ? 'Show figures' : 'Hide figures'}
+              aria-label={privacy ? 'Show figures' : 'Hide figures'}
+              className={`flex items-center px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                privacy
+                  ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
+                  : 'border-zinc-700 bg-zinc-800 text-amber-400 hover:border-zinc-500'
+              }`}
+            >
+              {privacy ? <Eye size={15} /> : <EyeOff size={15} />}
+            </button>
+            <SettingsMenu
+              theme={theme} onToggleTheme={toggleTheme}
+              onSignOut={signOut}
+              pageItems={pageMenuItems}
+            />
+          </div>
         }
       />
       <main className="w-full px-6 pb-12 pt-4">
@@ -107,7 +122,7 @@ export function Redacted({ children, on }) {
 
 // Collapses Light/Dark, Show/Hide, and Sign out into one menu button so they
 // don't eat horizontal space next to the tab bar.
-function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOut, pageItems = [] }) {
+function SettingsMenu({ theme, onToggleTheme, onSignOut, pageItems = [] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -151,12 +166,6 @@ function SettingsMenu({ theme, onToggleTheme, privacy, onTogglePrivacy, onSignOu
             icon={theme === 'dark' ? Sun : Moon}
             label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
             onClick={() => { onToggleTheme(); setOpen(false); }}
-          />
-          <MenuItem
-            icon={privacy ? Eye : EyeOff}
-            label={privacy ? 'Show figures' : 'Hide figures'}
-            tone={privacy ? 'text-amber-400' : undefined}
-            onClick={() => { onTogglePrivacy(); setOpen(false); }}
           />
           <div className="my-1 border-t border-zinc-800" />
           <MenuItem icon={LogOut} label="Sign out" onClick={() => { setOpen(false); onSignOut(); }} />
