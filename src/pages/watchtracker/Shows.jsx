@@ -28,8 +28,14 @@ function hasRecentSeason(meta) {
 // episode counts), falling back to the raw total if that's missing.
 function airedEpisodeCount(meta) {
   const last = meta?.raw_json?.last_episode_to_air;
-  const seasons = meta?.raw_json?.seasons ?? [];
-  if (!last || seasons.length === 0) return meta?.number_of_episodes ?? null;
+  // Season 0 is TMDB's "Specials" bucket — not part of the regular-episode
+  // numbering wt_episodes/ep_watch_count tracks, and the show detail page's
+  // own season list already excludes it too. Counting it here inflated the
+  // aired total past what's actually trackable, so a fully-watched show
+  // (e.g. 49/49 real episodes) never reached "watched >= aired" and stayed
+  // stuck out of Finished/Caught Up.
+  const seasons = (meta?.raw_json?.seasons ?? []).filter((se) => se.season_number > 0);
+  if (!last || last.season_number < 1 || seasons.length === 0) return meta?.number_of_episodes ?? null;
   let count = 0;
   for (const se of seasons) {
     if (se.season_number < last.season_number) count += se.episode_count || 0;
