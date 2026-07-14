@@ -1,9 +1,12 @@
 /**
  * match-tmdb.mjs
  * Backfill script (run after seed-watchtracker.mjs): for every wt_shows /
- * wt_movies row with tmdb_match_status='unmatched', search TMDB by name and
- * auto-set tmdb_id when the top result's title matches exactly (normalized).
- * Anything left unmatched needs the in-app manual-match UI.
+ * wt_movies row with tmdb_match_status='unmatched', search TMDB by name
+ * (stripping a trailing "(YYYY)" TVTime sometimes appends) and auto-set
+ * tmdb_id on the first exact (normalized) title match found anywhere in the
+ * results — not just the top one, since TMDB ranks by popularity, not name
+ * accuracy — using the year to disambiguate if more than one exact match
+ * comes back. Anything left unmatched needs the in-app manual-match UI.
  *
  * Requires (in .env): VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VITE_TMDB_API_KEY.
  *
@@ -39,6 +42,16 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { autoRefr
 const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// TVTime sometimes appends "(YYYY)" to disambiguate a title (e.g. a
+// remake/reboot) — TMDB's own title rarely includes the year, so strip it
+// before searching/comparing, but keep it around to break ties between
+// same-named results (e.g. two different "Love You to Death"s).
+const YEAR_SUFFIX_RE = /\s*\((\d{4})\)\s*$/;
+function stripYear(name) {
+  const m = name.match(YEAR_SUFFIX_RE);
+  return m ? { base: name.slice(0, m.index).trim(), year: Number(m[1]) } : { base: name, year: null };
+}
+
 async function tmdbSearch(kind, name) {
   const path = kind === 'tv' ? '/search/tv' : '/search/movie';
   const url = `https://api.themoviedb.org/3${path}?api_key=${TMDB_KEY}&query=${encodeURIComponent(name)}`;
@@ -56,13 +69,24 @@ async function matchTable(table, nameField, kind) {
   const unresolved = [];
   for (const row of rows) {
     const name = row[nameField];
-    const results = await tmdbSearch(kind, name);
-    const top = results[0];
-    const topTitle = kind === 'tv' ? top?.name : top?.title;
-    if (top && normalize(topTitle) === normalize(name)) {
+    const { base, year } = stripYear(name);
+    const results = await tmdbSearch(kind, base);
+    // TMDB's top hit is ranked by popularity, not name accuracy — a less
+    // popular but exact-title match can sit lower in the list, so scan all
+    // results for an exact (normalized) title match instead of only #1.
+    const exact = results.filter((r) => normalize(kind === 'tv' ? r.name : r.title) === normalize(base));
+    let match = exact[0];
+    if (year && exact.length > 1) {
+      const withYear = exact.find((r) => {
+        const d = kind === 'tv' ? r.first_air_date : r.release_date;
+        return d && Number(d.slice(0, 4)) === year;
+      });
+      if (withYear) match = withYear;
+    }
+    if (match) {
       autoMatched++;
       if (!DRY) {
-        await supabase.from(table).update({ tmdb_id: top.id, tmdb_match_status: 'auto' }).eq('id', row.id);
+        await supabase.from(table).update({ tmdb_id: match.id, tmdb_match_status: 'auto' }).eq('id', row.id);
       }
     } else {
       unresolved.push(name);

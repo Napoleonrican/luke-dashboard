@@ -1,0 +1,234 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronRight, Tv, Repeat, Link2 } from 'lucide-react';
+import {
+  getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, bumpRewatch,
+  updateShow, getEpisodeMetadata,
+} from '../../lib/watchtracker';
+import { tmdbImageUrl, tmdbConfigured, tmdbStatus } from '../../lib/tmdb';
+import EditCell from '../cashflow/EditCell';
+import ProgressBar from './ProgressBar';
+import RatingAndProviders from './RatingAndProviders';
+import AddTitleModal from './AddTitleModal';
+
+export default function ShowDetail() {
+  const { id } = useParams();
+  const [show, setShow] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showMatch, setShowMatch] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: showData } = await getShow(id);
+      if (!active) return;
+      setShow(showData);
+      if (showData?.tmdb_id && tmdbConfigured) {
+        getShowMetadata(showData.tmdb_id).then(({ data }) => { if (active) setMeta(data); });
+      }
+      const { data: epData } = await fetchEpisodes(id);
+      if (!active) return;
+      setEpisodes(epData ?? []);
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [id]);
+
+  const reloadEpisodes = async () => {
+    const { data } = await fetchEpisodes(id);
+    setEpisodes(data ?? []);
+  };
+
+  const reloadShow = async () => {
+    const { data } = await getShow(id);
+    setShow(data);
+  };
+
+  const onMatched = async () => {
+    setShowMatch(false);
+    const { data: showData } = await getShow(id);
+    setShow(showData);
+    setMeta(null);
+    if (showData?.tmdb_id && tmdbConfigured) {
+      getShowMetadata(showData.tmdb_id).then(({ data }) => setMeta(data));
+    }
+  };
+
+  if (loading) return <div className="py-12 text-center text-zinc-600">Loading…</div>;
+  if (!show) return <div className="py-12 text-center text-zinc-600">Show not found.</div>;
+
+  const watchedSet = new Set(episodes.map((e) => `${e.season_number}:${e.episode_number}`));
+  const totalEpisodes = meta?.number_of_episodes ?? null;
+  const watchedCount = show.ep_watch_count ?? episodes.length;
+  const status = tmdbStatus(meta);
+  const seasons = meta?.number_of_seasons
+    ? Array.from({ length: meta.number_of_seasons }, (_, i) => i + 1)
+    : [...new Set(episodes.map((e) => e.season_number))].sort((a, b) => a - b);
+
+  const markWatched = async (season, episode, watched) => {
+    await setEpisodeWatched({ show_id: id, season_number: season, episode_number: episode }, watched);
+    await reloadEpisodes();
+  };
+
+  return (
+    <div>
+      <Link to="/watch-tracker/shows" className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300">
+        <ArrowLeft size={14} /> Back to Shows
+      </Link>
+
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="h-56 w-40 shrink-0 rounded-lg bg-zinc-800 overflow-hidden flex items-center justify-center self-start">
+          {meta?.poster_path
+            ? <img src={tmdbImageUrl(meta.poster_path, 'w342')} alt="" className="h-full w-full object-cover" />
+            : <Tv className="text-zinc-700" size={32} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold text-zinc-100">{show.series_name}</h1>
+            {status && (
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                status === 'Ended' || status === 'Canceled'
+                  ? 'bg-zinc-700 text-zinc-300'
+                  : 'bg-emerald-500/20 text-emerald-300'
+              }`}>
+                {status}
+              </span>
+            )}
+            <button
+              onClick={() => setShowMatch(true)}
+              className="flex items-center gap-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
+              title="Re-point this show at a different TMDB match — keeps your notes and watch history"
+            >
+              <Link2 size={10} /> {show.tmdb_id ? 'Re-match' : 'Match to TMDB'}
+            </button>
+          </div>
+          {meta?.network && <div className="mt-0.5 text-xs text-zinc-500">{meta.network}</div>}
+          {meta?.overview && <p className="mt-2 text-sm text-zinc-400">{meta.overview}</p>}
+
+          <div className="mt-3 text-xs text-zinc-500">
+            {watchedCount}{totalEpisodes ? ` / ${totalEpisodes}` : ''} episodes
+          </div>
+          {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5 max-w-xs" />}
+
+          <div className="mt-3">
+            <RatingAndProviders tmdbId={show.tmdb_id} mediaType="tv" meta={meta} />
+          </div>
+
+          <div className="mt-3 max-w-md">
+            <EditCell
+              value={show.notes}
+              onSave={(v) => updateShow(show.id, { notes: v }).then(reloadShow)}
+              placeholder="Add a note…"
+              className="text-xs text-zinc-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        {seasons.map((season) => (
+          <SeasonBlock
+            key={season}
+            tmdbId={show.tmdb_id}
+            season={season}
+            episodeCount={meta?.raw_json?.seasons?.find((s) => s.season_number === season)?.episode_count}
+            watchedSet={watchedSet}
+            episodes={episodes.filter((e) => e.season_number === season)}
+            onToggle={markWatched}
+            onRewatch={async (ep) => { await bumpRewatch(ep.id, ep.watch_count + 1); await reloadEpisodes(); }}
+          />
+        ))}
+        {seasons.length === 0 && (
+          <div className="py-4 text-sm text-zinc-600">No episode data yet for this show.</div>
+        )}
+      </div>
+
+      {showMatch && (
+        <AddTitleModal mediaType="tv" mode="match" existingId={show.id} onClose={() => setShowMatch(false)} onAdded={onMatched} />
+      )}
+    </div>
+  );
+}
+
+function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onToggle, onRewatch }) {
+  const [expanded, setExpanded] = useState(false);
+  const [descriptions, setDescriptions] = useState({}); // episode_number -> { name, overview, still_path }
+  const [loadingDesc, setLoadingDesc] = useState(false);
+
+  const count = episodeCount || Math.max(...episodes.map((e) => e.episode_number), 0) || episodes.length;
+  const episodeNumbers = count ? Array.from({ length: count }, (_, i) => i + 1) : episodes.map((e) => e.episode_number);
+  const watchedInSeason = episodeNumbers.filter((n) => watchedSet.has(`${season}:${n}`)).length;
+
+  const toggleExpand = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && tmdbId && Object.keys(descriptions).length === 0) {
+      setLoadingDesc(true);
+      const results = await Promise.all(
+        episodeNumbers.map((n) => getEpisodeMetadata(tmdbId, season, n).then(({ data }) => [n, data])),
+      );
+      setDescriptions(Object.fromEntries(results.filter(([, d]) => d)));
+      setLoadingDesc(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        onClick={toggleExpand}
+        className="flex w-full items-center justify-between rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
+      >
+        <span className="flex items-center gap-1.5">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          Season {season}
+        </span>
+        <span className="text-zinc-500 text-xs">{watchedInSeason}/{episodeNumbers.length}</span>
+      </button>
+      {expanded && (
+        <div className="mt-1.5 space-y-1.5">
+          {loadingDesc && <div className="py-2 text-center text-xs text-zinc-600">Loading episode details…</div>}
+          {episodeNumbers.map((n) => {
+            const watched = watchedSet.has(`${season}:${n}`);
+            const epRow = episodes.find((e) => e.episode_number === n);
+            const desc = descriptions[n];
+            return (
+              <div key={n} className="flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-2.5">
+                <div className="h-14 w-24 shrink-0 rounded bg-zinc-800 overflow-hidden flex items-center justify-center">
+                  {desc?.still_path
+                    ? <img src={tmdbImageUrl(desc.still_path, 'w300')} alt="" className="h-full w-full object-cover" />
+                    : <span className="text-xs text-zinc-700">{n}</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-sm text-zinc-200">
+                    <span className="text-zinc-500">E{n}</span>
+                    <span className="truncate">{desc?.name || `Episode ${n}`}</span>
+                  </div>
+                  {desc?.overview && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{desc.overview}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {epRow?.watch_count > 1 && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-purple-300">
+                      <Repeat size={10} /> {epRow.watch_count}x
+                    </span>
+                  )}
+                  <button
+                    onClick={() => (watched ? onRewatch(epRow) : onToggle(season, n, true))}
+                    onContextMenu={(e) => { e.preventDefault(); onToggle(season, n, !watched); }}
+                    title={watched ? 'Click to log a rewatch, right-click to unmark' : 'Mark watched'}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      watched ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:border-zinc-600'
+                    }`}
+                  >
+                    {watched ? 'Watched' : 'Mark'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -8,7 +8,9 @@
  *   • tracking-prod-records-v2.csv   — primary source: per-show follow state
  *     (`user-series-*` keys) + per-episode watch events (`watch-episode-*` keys)
  *   • tracking-prod-records.csv       — older, parallel source; the ONLY source
- *     for movies (`follow`/`towatch`/`rewatch_count` rows with entity_type=movie)
+ *     for movies (`watch`/`follow`/`towatch`/`rewatch_count` rows with
+ *     entity_type=movie — `watch` means actually watched; `follow` alone
+ *     just means tracked/added and is NOT a watched signal)
  *     and for each show's last-watched-episode pointer (`last-episode-watched`)
  *   • user_tv_show_data.csv           — only source for `is_favorited`
  *   • show_addiction_score.csv        — per-show engagement score
@@ -175,11 +177,22 @@ function parseV1(rows) {
   for (const r of rows) {
     const type = str(r.type);
     if (!type) continue;
-    if (type === 'follow' && str(r.entity_type) === 'movie') {
+    if (type === 'watch' && str(r.entity_type) === 'movie' && int(r.runtime)) {
+      // The actual "I watched this" signal — distinct from `follow`, which
+      // TVTime writes alongside `watch` (and also on its own for movies
+      // merely tracked/added, not watched) and does NOT mean watched. Some
+      // `watch` rows carry a blank `runtime` (a stray/auto event, not a
+      // completed watch) — a genuinely-finished movie has runtime filled in,
+      // so require it to avoid the same false-positive as trusting `follow`.
       const name = str(r.movie_name);
       if (!name) continue;
       const m = getMovie(name);
       m.is_followed = true;
+      m.release_date = str(r.release_date)?.slice(0, 10) ?? m.release_date;
+    } else if (type === 'follow' && str(r.entity_type) === 'movie') {
+      const name = str(r.movie_name);
+      if (!name) continue;
+      const m = getMovie(name);
       m.release_date = str(r.release_date)?.slice(0, 10) ?? m.release_date;
     } else if (type === 'towatch' && str(r.entity_type) === 'movie') {
       const name = str(r.movie_name);
@@ -206,18 +219,24 @@ function parseV1(rows) {
   return { movies, lastWatched };
 }
 
-// ── Upsert (owner-scoped clear + insert, matching seed-financial.mjs) ────────
-async function reseed(supabase, table, rows) {
+// ── Upsert on the table's natural key (owner + import-supplied identity) —
+//    NOT a clear + insert. A delete+insert would blow away anything this
+//    script doesn't itself own: TMDB matches from match-tmdb.mjs or the
+//    in-app "Re-match" control, notes, and any show/movie added by hand
+//    in the app (their synthetic/no tvtime id means they're simply absent
+//    from this run's rows, so upsert leaves them untouched instead of
+//    deleting them). Only the columns this script actually sets get
+//    overwritten on conflict; unlisted columns (tmdb_id, tmdb_match_status,
+//    notes, ...) keep whatever value is already in the database.
+async function reseed(supabase, table, rows, onConflict) {
   if (DRY) {
     console.log(`\n[dry] ${table}: ${rows.length} rows`);
     console.log(JSON.stringify(rows.slice(0, 2), null, 2));
     return;
   }
   if (!rows.length) { console.log(`  · ${table}: nothing to write`); return; }
-  const { error: delErr } = await supabase.from(table).delete().eq('owner', OWNER_UID);
-  if (delErr) { console.error(`  ✗ ${table} clear: ${delErr.message}`); return; }
-  const { error: insErr } = await supabase.from(table).insert(rows);
-  if (insErr) { console.error(`  ✗ ${table} insert: ${insErr.message}`); return; }
+  const { error: upsertErr } = await supabase.from(table).upsert(rows, { onConflict });
+  if (upsertErr) { console.error(`  ✗ ${table} upsert: ${upsertErr.message}`); return; }
   console.log(`  ✓ ${table}: ${rows.length} rows`);
 }
 
@@ -326,7 +345,7 @@ async function main() {
   });
 
   console.log(DRY ? '\nDRY RUN — no writes' : '\nWriting to Supabase (owner-scoped reseed)…');
-  await reseed(supabase, 'wt_shows', showList);
+  await reseed(supabase, 'wt_shows', showList, 'owner,tvtime_show_id');
 
   // wt_episodes / wt_show_scores need each show's generated uuid PK, so they
   // must run after wt_shows is written and can be looked up by tvtime_show_id.
@@ -352,7 +371,7 @@ async function main() {
       last_watched_at: e.last_watched_at,
     });
   }
-  await reseed(supabase, 'wt_episodes', episodeRows);
+  await reseed(supabase, 'wt_episodes', episodeRows, 'owner,show_id,season_number,episode_number');
 
   const scoreRowsResolved = [];
   for (const s of scoreList) {
@@ -367,9 +386,9 @@ async function main() {
       last_action_at: s.last_action_at,
     });
   }
-  await reseed(supabase, 'wt_show_scores', scoreRowsResolved);
+  await reseed(supabase, 'wt_show_scores', scoreRowsResolved, 'owner,show_id');
 
-  await reseed(supabase, 'wt_movies', movieList);
+  await reseed(supabase, 'wt_movies', movieList, 'owner,movie_name');
 
   if (latestStats) {
     const statsRow = {

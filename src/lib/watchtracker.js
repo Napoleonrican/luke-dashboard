@@ -13,6 +13,24 @@ export async function fetchShows() {
   return s.from('wt_shows').select('*').order('series_name');
 }
 
+export async function getShow(id) {
+  if (!s) return { data: null, error: null };
+  return s.from('wt_shows').select('*').eq('id', id).maybeSingle();
+}
+
+export async function getMovie(id) {
+  if (!s) return { data: null, error: null };
+  return s.from('wt_movies').select('*').eq('id', id).maybeSingle();
+}
+
+// Bulk read of already-cached TMDB metadata (no live API calls) — used to
+// classify shows (e.g. finished vs. still airing) without fetching anything.
+export async function getShowsMetaCached(tmdbIds) {
+  if (!s || !tmdbIds.length) return { data: [], error: null };
+  return s.from('wt_metadata_cache').select('tmdb_id, number_of_episodes, raw_json')
+    .eq('media_type', 'tv').in('tmdb_id', tmdbIds);
+}
+
 export async function fetchEpisodes(showId) {
   if (!s) return { data: [], error: null };
   let q = s.from('wt_episodes').select('*').order('season_number').order('episode_number');
@@ -230,6 +248,33 @@ export async function matchShow(showId, tmdbId, status = 'confirmed') {
 
 export async function matchMovie(movieId, tmdbId, status = 'confirmed') {
   return updateMovie(movieId, { tmdb_id: tmdbId, tmdb_match_status: status });
+}
+
+// ── Add a new title picked from TMDB search (not part of the original
+//    TVTime export) ──────────────────────────────────────────────────────────
+
+export async function addShow(tmdbId, name) {
+  if (!s) return { error: { message: 'Not configured' } };
+  // wt_shows.tvtime_show_id is NOT NULL + unique per owner; real imported ids
+  // are positive, so a manually-added show gets a synthetic negative one.
+  return s.from('wt_shows').insert({
+    tvtime_show_id: -tmdbId,
+    series_name: name,
+    is_followed: true,
+    tmdb_id: tmdbId,
+    tmdb_match_status: 'confirmed',
+  }).select().maybeSingle();
+}
+
+export async function addMovie(tmdbId, name, releaseDate) {
+  if (!s) return { error: { message: 'Not configured' } };
+  return s.from('wt_movies').insert({
+    movie_name: name,
+    is_followed: true,
+    release_date: releaseDate || null,
+    tmdb_id: tmdbId,
+    tmdb_match_status: 'confirmed',
+  }).select().maybeSingle();
 }
 
 export { searchShow, searchMovie };

@@ -1,20 +1,26 @@
 // tmdb.js — thin client for The Movie Database API. Same "no-op if
 // unconfigured" shape as supabase.js/fin.js. Requires a free API key from
 // themoviedb.org (Settings → API), set as VITE_TMDB_API_KEY.
+import { enqueue } from './fetchQueue';
+
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const BASE = 'https://api.themoviedb.org/3';
 const IMG_BASE = 'https://image.tmdb.org/t/p';
 
+// Every request goes through the shared queue so pages that render many
+// cards/rows at once (Shows, Movies) can't burst past TMDB's rate limit.
 async function get(path) {
   if (!API_KEY) return { data: null, error: { message: 'TMDB not configured' } };
-  const url = `${BASE}${path}${path.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return { data: null, error: { message: `TMDB ${res.status}` } };
-    return { data: await res.json(), error: null };
-  } catch (err) {
-    return { data: null, error: { message: err.message } };
-  }
+  return enqueue(async () => {
+    const url = `${BASE}${path}${path.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return { data: null, error: { message: `TMDB ${res.status}` } };
+      return { data: await res.json(), error: null };
+    } catch (err) {
+      return { data: null, error: { message: err.message } };
+    }
+  });
 }
 
 export const tmdbConfigured = !!API_KEY;
@@ -60,4 +66,9 @@ export function tmdbRating(meta) {
   const count = meta?.raw_json?.vote_count;
   if (!avg || !count) return null;
   return { stars: (avg / 2).toFixed(1), count };
+}
+
+// TMDB's /tv/{id} status field: "Returning Series" | "Ended" | "Canceled" | …
+export function tmdbStatus(meta) {
+  return meta?.raw_json?.status ?? null;
 }

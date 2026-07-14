@@ -5,15 +5,15 @@ import { tmdbImageUrl, tmdbConfigured, tmdbRating } from '../../lib/tmdb';
 
 // TMDB-derived rating + real streaming availability — shown in place of
 // TVTime's user-entered star rating and manual "where did you watch" picker.
-export default function RatingAndProviders({ tmdbId, mediaType, meta }) {
+export default function RatingAndProviders({ tmdbId, mediaType, meta, enabled = true }) {
   const [providers, setProviders] = useState(undefined); // undefined = loading, null = none
 
   useEffect(() => {
-    if (!tmdbConfigured || !tmdbId) return;
+    if (!tmdbConfigured || !tmdbId || !enabled) return;
     let active = true;
     getWatchProvidersCached(tmdbId, mediaType).then(({ data }) => { if (active) setProviders(data); });
     return () => { active = false; };
-  }, [tmdbId, mediaType]);
+  }, [tmdbId, mediaType, enabled]);
 
   if (!tmdbConfigured || !tmdbId) return null;
 
