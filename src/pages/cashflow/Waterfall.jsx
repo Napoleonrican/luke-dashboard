@@ -260,16 +260,20 @@ export default function Waterfall() {
     return a ? (a.balance ?? 0) : 0;
   };
 
-  // "Already in Bill Pay" mode sweeps whatever's actually sitting in Bill Pay
-  // Checking into this week's pool, then treats that account as if it started
-  // the week at $0 — the plan below decides how much of it comes back into
-  // Bill Pay (via 0b/2/4) versus flows to every other account. Every other
-  // account's balance is untouched (real, not swept). `effectiveBalFor` is
-  // what the plan reasons with; `balanceFor` (real) stays for Current
-  // Balances and anywhere else that should show what's actually in the bank.
+  // Bill Pay Checking is always treated as $0 when the plan reasons about
+  // needs — it's the distribution hub money flows THROUGH each payday (paycheck
+  // in, Earnin out same-day, the rest pushed to other accounts), so we plan its
+  // fills from scratch rather than netting against whatever's transiently
+  // sitting there. This makes every Bill Pay gate (0b Earnin, 0c on-deck bills,
+  // 2 immediate bills, 4 floor) show its full intended need, so you see the
+  // complete flow of the incoming money. The two modes differ only in what the
+  // pool is: "Planning ahead" pours the upcoming paycheck (+ side-gig);
+  // "Already in Bill Pay" pours the balance already sitting there (+ side-gig).
+  // `balanceFor` (real) still backs Current Balances and anything that should
+  // show what's actually in the bank.
   const billPayBalance = balanceFor('Bill Pay Checking');
   const effectiveBalFor = (name) => (
-    !includePaycheck && name.trim().toLowerCase() === 'bill pay checking' ? 0 : balanceFor(name)
+    name.trim().toLowerCase() === 'bill pay checking' ? 0 : balanceFor(name)
   );
 
   const ctx = {
@@ -524,13 +528,14 @@ export default function Waterfall() {
           </div>
           {includePaycheck ? (
             <p className="mt-3 text-[11px] text-zinc-500">
-              &ldquo;Planning ahead&rdquo; — the paycheck hasn&rsquo;t landed yet, so it&rsquo;s poured as new money on top of your current balances.
+              &ldquo;Planning ahead&rdquo; — the upcoming paycheck (+ side-gig) is the pool. Bill Pay Checking is
+              planned from $0, so every gate shows its full intended need (Earnin repayment, bills, floor) and you see the complete flow.
             </p>
           ) : (
             <p className="mt-3 text-[11px] text-amber-500/80">
-              &ldquo;Already in Bill Pay&rdquo; — Bill Pay Checking&rsquo;s current balance
-              (<Redacted on={privacy}><span className="tabular-nums">{fmtDec(billPayBalance)}</span></Redacted>) becomes this week&rsquo;s pool,
-              treated as if that account started the week at $0. The plan below decides how much comes back into it versus flows elsewhere.
+              &ldquo;Already in Bill Pay&rdquo; — the balance already sitting in Bill Pay Checking
+              (<Redacted on={privacy}><span className="tabular-nums">{fmtDec(billPayBalance)}</span></Redacted>) is the pool.
+              Bill Pay is planned from $0, so the plan below decides how much of that balance stays vs. flows elsewhere.
             </p>
           )}
         </div>

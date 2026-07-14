@@ -17,23 +17,23 @@
 //   remainder — a single catch-all that sweeps whatever's left.
 
 export const DEFAULT_STEPS = [
-  { id: '0a', label: 'Uber Pro Card — Backup Balance Repayment',      account: 'Uber Pro Card',      tier: 'gate', auto: 'uberBackup' },
+  { id: '0a', label: 'Uber Pro Card — Backup Repayment',              account: 'Uber Pro Card',      tier: 'gate', auto: 'uberBackup' },
   { id: '0b', label: 'Bill Pay — Earnin Repayment',                   account: 'Bill Pay Checking',  tier: 'gate', auto: 'earninRepay' },
   { id: '0c', label: 'Bill Pay — On-Deck Bills',                      account: 'Bill Pay Checking',  tier: 'gate', auto: 'onDeckBills' },
-  { id: '1',  label: 'Weekly Essentials (Fuel + Groceries)',          account: 'Operating Checking', tier: 'gate', auto: 'essentials' },
-  { id: '2',  label: 'Bill Pay — Immediate Bills (7-Day Runway)',     account: 'Bill Pay Checking',  tier: 'gate', auto: 'bills7' },
-  { id: '3',  label: 'Debt Pay — Debt / Loan Radar (7-Day)',          account: 'Debt Pay Checking',  tier: 'gate', auto: 'debtRadar7' },
-  { id: '4',  label: 'Bill Pay — Floor Build (Core Stability)',       account: 'Bill Pay Checking',  tier: 'gate', auto: 'floorBuild' },
-  { id: '5a', label: 'Debt Cleanup — Next tiny BNPL payoff',          account: 'Debt Pay Checking',  tier: 'surplus', pct: 15 },
-  { id: '5b', label: 'House Savings',                                 account: 'Primary Savings',    tier: 'surplus', pct: 25, gate: 'emergencyFundFull' },
-  { id: '5c', label: 'Debt Cleanup — Avalanche',                      account: 'Debt Pay Checking',  tier: 'surplus', pct: 20 },
-  { id: '6',  label: 'Operating Buffer (Side-Gig + Uber Pro)',        account: 'Operating Checking', tier: 'absorber', auto: 'operatingBuffer' },
-  { id: '7',  label: 'Credit Union Relationship Fund',                account: 'Credit Union Checking', tier: 'absorber', need: 25 },
-  { id: '8a', label: 'CX-5 — Primary Vehicle Catch-Up & Maintenance', account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'cx5' },
-  { id: '8b', label: 'Ongoing Vehicle Maintenance (CX-5)',            account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'vehicleOngoing' },
-  { id: '8c', label: 'Versa Revival',                                account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'versa' },
-  { id: '9',  label: 'Emergency Fund (Stage 1)',                     account: 'Primary Savings',    tier: 'absorber', auto: 'emergencyFund' },
-  { id: 'nw', label: 'Needs & Wants — Item Purchase / Extra to Avalanche', account: 'Operating Checking', tier: 'remainder' },
+  { id: '1',  label: 'Operating — Weekly Essentials (Fuel + Groceries)', account: 'Operating Checking', tier: 'gate', auto: 'essentials' },
+  { id: '2',  label: 'Bill Pay — Immediate Bills (7-day)',            account: 'Bill Pay Checking',  tier: 'gate', auto: 'bills7' },
+  { id: '3',  label: 'Debt Pay — Debt/Loan Radar (7-day)',            account: 'Debt Pay Checking',  tier: 'gate', auto: 'debtRadar7' },
+  { id: '4',  label: 'Bill Pay — Floor Build',                        account: 'Bill Pay Checking',  tier: 'gate', auto: 'floorBuild' },
+  { id: '5a', label: 'Debt Pay — BNPL Cleanup (next tiny payoff)',    account: 'Debt Pay Checking',  tier: 'surplus', pct: 15 },
+  { id: '5b', label: 'Primary Savings — House Savings',               account: 'Primary Savings',    tier: 'surplus', pct: 25, gate: 'emergencyFundFull' },
+  { id: '5c', label: 'Debt Pay — Avalanche Cleanup',                  account: 'Debt Pay Checking',  tier: 'surplus', pct: 20 },
+  { id: '6',  label: 'Operating — Buffer (Side-Gig + Uber Pro)',      account: 'Operating Checking', tier: 'absorber', auto: 'operatingBuffer' },
+  { id: '7',  label: 'Credit Union — Relationship Fund',              account: 'Credit Union Checking', tier: 'absorber', need: 25 },
+  { id: '8a', label: 'Vehicle Savings — CX-5 Catch-Up',              account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'cx5' },
+  { id: '8b', label: 'Vehicle Savings — CX-5 Ongoing Maintenance',   account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'vehicleOngoing' },
+  { id: '8c', label: 'Vehicle Savings — Versa Revival',             account: 'Vehicle Maintenance Savings', tier: 'absorber', auto: 'versa' },
+  { id: '9',  label: 'Primary Savings — Emergency Fund (Stage 1)',   account: 'Primary Savings',    tier: 'absorber', auto: 'emergencyFund' },
+  { id: 'nw', label: 'Operating — Needs & Wants / Extra to Avalanche', account: 'Operating Checking', tier: 'remainder' },
 ];
 
 export const TIER_META = {
