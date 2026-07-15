@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { Layers, Droplets, Receipt, CreditCard, Repeat, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Layers, Droplets, Receipt, CreditCard, Repeat, Banknote, Eye, EyeOff, LogOut, Sun, Moon, Menu, BookOpen } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useAuth } from '../../lib/useAuth';
 import { getPref, setPref } from '../../lib/fin';
@@ -125,6 +125,7 @@ export function Redacted({ children, on }) {
 function SettingsMenu({ theme, onToggleTheme, onSignOut, pageItems = [] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!open) return;
@@ -162,6 +163,11 @@ function SettingsMenu({ theme, onToggleTheme, onSignOut, pageItems = [] }) {
               <div className="my-1 border-t border-zinc-800" />
             </>
           )}
+          <MenuItem
+            icon={BookOpen}
+            label="How it works"
+            onClick={() => { setOpen(false); navigate('/cashflow/guide'); }}
+          />
           <MenuItem
             icon={theme === 'dark' ? Sun : Moon}
             label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
