@@ -397,8 +397,8 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
               <Field label="Purchase"><ModalEdit value={debt.purchase} onCommit={set('purchase')} /></Field>
               <Field label="Lender"><ModalEdit value={debt.lender} onCommit={set('lender')} /></Field>
               <Field label="Credit Type"><ModalEdit type="select" value={debt.credit_type} onCommit={set('credit_type')} options={CREDIT_TYPES} /></Field>
-              <Field label="Balance"><Redacted on={privacy}><ModalEdit type="currency" value={debt.balance} onCommit={set('balance')} /></Redacted></Field>
-              <Field label="Normal Payment"><Redacted on={privacy}><ModalEdit type="currency" value={debt.normal_payment} onCommit={set('normal_payment')} /></Redacted></Field>
+              <Field label="Balance"><Redacted on={privacy}><AmountEdit value={debt.balance} onCommit={set('balance')} className="text-zinc-200 font-medium" /></Redacted></Field>
+              <Field label="Normal Payment"><Redacted on={privacy}><AmountEdit value={debt.normal_payment} onCommit={set('normal_payment')} className="text-zinc-200" /></Redacted></Field>
               <Field label="Next Due Date"><ModalEdit type="date" value={debt.next_due_date} onCommit={set('next_due_date')} /></Field>
               <Field label="Day Due"><ModalEdit type="number" value={debt.day_due} onCommit={set('day_due')} /></Field>
               <Field label="Paydown Priority"><ModalEdit type="number" value={debt.paydown_priority} onCommit={set('paydown_priority')} /></Field>
@@ -426,8 +426,8 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
               <Field label="Origination Date"><ModalEdit type="date" value={debt.origination_date} onCommit={set('origination_date')} /></Field>
               <Field label="APR (e.g. 0.2999 = 29.99%)"><ModalEdit type="number" value={debt.apr} onCommit={set('apr')} /></Field>
               <Field label="Term (Months)"><ModalEdit type="number" value={debt.term_months} onCommit={set('term_months')} /></Field>
-              <Field label="Finance Charge"><Redacted on={privacy}><ModalEdit type="currency" value={debt.finance_charge} onCommit={set('finance_charge')} /></Redacted></Field>
-              <Field label="Limit"><Redacted on={privacy}><ModalEdit type="currency" value={debt.credit_limit} onCommit={set('credit_limit')} /></Redacted></Field>
+              <Field label="Finance Charge"><Redacted on={privacy}><AmountEdit value={debt.finance_charge} onCommit={set('finance_charge')} className="text-zinc-500" nullable /></Redacted></Field>
+              <Field label="Limit"><Redacted on={privacy}><AmountEdit value={debt.credit_limit} onCommit={set('credit_limit')} className="text-zinc-500" nullable /></Redacted></Field>
               <Field label="Total Due (calculated · Limit + Finance Charge)">
                 <Redacted on={privacy}>
                   <span className="text-sm font-semibold text-zinc-200 tabular-nums">{calc.total_due == null ? '—' : fmtDec(calc.total_due)}</span>
@@ -445,7 +445,7 @@ function DebtModal({ debt, privacy, onChange, onClose }) {
                 </Redacted>
               </Field>
               <Field label="Last Date"><ModalEdit type="date" value={debt.last_date} onCommit={set('last_date')} /></Field>
-              <Field label="New Min."><Redacted on={privacy}><ModalEdit type="currency" value={debt.new_min} onCommit={set('new_min')} /></Redacted></Field>
+              <Field label="New Min."><Redacted on={privacy}><AmountEdit value={debt.new_min} onCommit={set('new_min')} className="text-zinc-400" nullable /></Redacted></Field>
             </div>
           </MoreDetails>
         </div>
