@@ -29,6 +29,7 @@ const Bills = lazy(() => import('./pages/cashflow/Bills'));
 const Debts = lazy(() => import('./pages/cashflow/Debts'));
 const Subscriptions = lazy(() => import('./pages/cashflow/Subscriptions'));
 const Earnin = lazy(() => import('./pages/cashflow/Earnin'));
+const CashflowGuide = lazy(() => import('./pages/cashflow/Guide'));
 const WatchTrackerLayout = lazy(() => import('./pages/watchtracker/WatchTrackerLayout'));
 const Shows = lazy(() => import('./pages/watchtracker/Shows'));
 const ShowDetail = lazy(() => import('./pages/watchtracker/ShowDetail'));
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="debts" element={<Debts />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="earnin" element={<Earnin />} />
+          <Route path="guide" element={<CashflowGuide />} />
           {/* Runway merged into Waterfall (used together, now one page) — keep
               the old URL working. Inputs & Targets was retired earlier for the
               same reason: Plan Inputs replaced it with live-wired values. */}
