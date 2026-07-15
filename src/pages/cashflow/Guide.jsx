@@ -14,11 +14,11 @@ import {
 
 const SECTIONS = [
   { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-14' },
-  { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-14' },
-  { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-14' },
-  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-14' },
-  { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-14' },
-  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-14' },
+  { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
+  { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
+  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-15' },
+  { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
+  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-15' },
 ];
 
 // Every waterfall step, in pour order, in plain English. Mirrors DEFAULT_STEPS
@@ -202,26 +202,100 @@ export default function Guide() {
         </Block>
       </section>
 
-      {/* ── Stubs ───────────────────────────────────────────────────────────── */}
-      {['summary', 'bills', 'debts', 'subscriptions', 'earnin'].map((id) => {
-        const s = meta(id);
-        const summary = {
-          summary: 'A roll-up view of the whole module — totals and how the pieces add up.',
-          bills: 'Your recurring bills — amounts, due dates, and categories that feed the waterfall’s bill needs.',
-          debts: 'Debts and loans — balances, APRs, minimums, and payoff projections (also feeds the Debt Payoff Calculator).',
-          subscriptions: 'Digital and consumable subscriptions — the running total that feeds the subscription floor.',
-          earnin: 'A log of Earnin advances/repayments; its running balance drives the Waterfall’s Earnin need, and the Pending checkbox posts to Current Balances.',
-        }[id];
-        return (
-          <section key={id} id={id} className="space-y-3 scroll-mt-6">
-            <SectionHeader s={s} />
-            <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/50 p-4">
-              <p className="text-sm text-zinc-400">{summary}</p>
-              <p className="text-xs text-zinc-600 mt-2">Detailed guide coming soon.</p>
-            </div>
-          </section>
-        );
-      })}
+      {/* ── Summary ─────────────────────────────────────────────────────────── */}
+      <section id="summary" className="space-y-4 scroll-mt-6">
+        <SectionHeader s={meta('summary')} />
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          A single read-only rollup of every obligation across the module — nothing here is editable;
+          each row derives from its own tab. It’s the view other tools (like the Debt Payoff Calculator)
+          build on.
+        </p>
+        <Block title="How rows are built">
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong className="text-zinc-300">Bill</strong> rows — one per Bills-tab row, monthly-equivalent amount.</li>
+            <li><strong className="text-zinc-300">Debt</strong> rows — rolled up <em>by lender</em> (not by individual purchase), so several BNPL purchases with the same lender collapse into one line with a count.</li>
+            <li><strong className="text-zinc-300">Subscription</strong> rows — two lines only: “Digital Subscriptions” and “Consumable Subscriptions,” each the active-only monthly total from the Subscriptions tab.</li>
+          </ul>
+          <p>Rows group by category (Bill → Debt → Operating → Subscription) and sort by monthly cost within each group, with a subtotal per group and a grand total row.</p>
+        </Block>
+        <Block title="The four stat cards">
+          <p><strong className="text-zinc-300">Total monthly</strong> (everything), <strong className="text-zinc-300">Debt balance</strong> (sum of all debt balances), <strong className="text-zinc-300">Debt payments/mo</strong> (sum of debt minimums), <strong className="text-zinc-300">Annualized</strong> (total monthly × 12).</p>
+        </Block>
+      </section>
+
+      {/* ── Bills ───────────────────────────────────────────────────────────── */}
+      <section id="bills" className="space-y-4 scroll-mt-6">
+        <SectionHeader s={meta('bills')} />
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Recurring bills — amounts, due dates, and categories. This is the source of truth for two
+          things the Waterfall reads live: the 7-day “immediate bills” total, and (for <strong className="text-zinc-300">Bill</strong>-category
+          rows only) the Floor Build target.
+        </p>
+        <Block title="Category matters">
+          <p>Only two categories exist: <strong className="text-zinc-300">Bill</strong> and <strong className="text-zinc-300">Operating</strong>. Only <strong className="text-zinc-300">Bill</strong> rows count toward the Waterfall’s “Total fixed bills” figure (Floor Build) — Operating rows (like variable day-to-day spend) don’t. Subscriptions intentionally don’t live here at all — they have their own tab, so they aren’t double-counted in the Summary’s Subscription group.</p>
+        </Block>
+        <Block title="Table & editor">
+          <p>Inline-editable table with a freshness-dated <strong className="text-zinc-300">Updated</strong> column and a heat-colored <strong className="text-zinc-300">Days</strong> badge (red = due soon/overdue, green = plenty of runway). <strong className="text-zinc-300">All columns</strong> reveals Cat 2/3, Priority, Day Due, Payment Source, Total Updated, YoY change, and the raw Amount/Frequency (the table always shows the derived <strong className="text-zinc-300">Mon.</strong> — monthly-equivalent — column). Open the full editor (expand icon, or tap a card on mobile) for the same fields grouped into Key fields up top and the rest under More details.</p>
+        </Block>
+      </section>
+
+      {/* ── Debts ───────────────────────────────────────────────────────────── */}
+      <section id="debts" className="space-y-4 scroll-mt-6">
+        <SectionHeader s={meta('debts')} />
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Every debt/loan/BNPL balance, minimum, and payoff projection — feeds the Waterfall’s Debt
+          Radar (7-day minimums due) and the standalone Debt Payoff Calculator.
+        </p>
+        <Block title="Calculated fields (read-only)">
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong className="text-zinc-300">Total Due</strong> = Limit + Finance Charge.</li>
+            <li><strong className="text-zinc-300">Available Credit</strong> = Limit − Balance — <strong className="text-zinc-300">Credit Card</strong> type only; loans and BNPL show “—” (no revolving credit to speak of).</li>
+            <li><strong className="text-zinc-300">Payments Remaining</strong> — BNPL: balance ÷ payment, rounded up. Loan/Credit Card: an amortization calculation (NPER) off balance, APR, and payment.</li>
+            <li><strong className="text-zinc-300">Expected Payoff Date</strong> — the amortized payoff date, or the manual <strong className="text-zinc-300">Last Date</strong> if that’s earlier.</li>
+          </ul>
+          <p>Total Due and Available Credit recompute (and save) automatically whenever you edit the limit, finance charge, balance, or credit type — so the stored values the Payoff Calculator reads never drift out of sync.</p>
+        </Block>
+        <Block title="Adding a debt & the editor layout">
+          <p><strong className="text-zinc-300">Add debt</strong> opens the full editor immediately on the new row. Fields are ordered by how often you touch them: Purchase, Lender, Credit Type, Balance, Normal Payment, Next Due, Day Due, Priority up top; a <strong className="text-zinc-300">Loan origination details</strong> collapsible (APR, origination date, term, finance charge, limit + calculated Total Due); and <strong className="text-zinc-300">More details</strong> for Available Credit, Last Date, New Min. The <strong className="text-zinc-300">Updated</strong> date + freshness dot + one-click refresh live in the header next to the debt name.</p>
+        </Block>
+      </section>
+
+      {/* ── Subscriptions ───────────────────────────────────────────────────── */}
+      <section id="subscriptions" className="space-y-4 scroll-mt-6">
+        <SectionHeader s={meta('subscriptions')} />
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Two separate tables under one tab — <strong className="text-zinc-300">Digital</strong> (fixed-price recurring, like
+          streaming) and <strong className="text-zinc-300">Consumable</strong> (recurring purchases priced per order, like a
+          reorder-every-N-weeks item). Their combined active-only monthly total (halved) feeds the
+          Waterfall’s subscription floor.
+        </p>
+        <Block title="Digital vs. Consumable math">
+          <p><strong className="text-zinc-300">Digital</strong> is just amount × frequency, same monthly-equivalent conversion as Bills.</p>
+          <p><strong className="text-zinc-300">Consumable</strong> is entered as a cost-per-order and a reorder frequency (in weeks in the UI, stored as days): <strong className="text-zinc-300">Cost/Type</strong> = cost ÷ count-per-order, <strong className="text-zinc-300">Orders/Yr</strong> = 52 ÷ weeks, <strong className="text-zinc-300">Cost/Year</strong> = cost-per-order × orders/yr, and the monthly estimate derives from that (falling back to a local calc if the database hasn’t generated it yet for a brand-new row).</p>
+        </Block>
+        <Block title="Spend by category & Change over time">
+          <p><strong className="text-zinc-300">Spend by category</strong> bars active-only monthly spend across both tables, largest first. <strong className="text-zinc-300">Snapshot this month</strong> saves the current active set + totals; once you have a snapshot, the panel diffs today against it — Added, Dropped, and Price changed, plus the net monthly change. Only active subscriptions count toward every total; toggle <strong className="text-zinc-300">Showing active only</strong> to filter the table itself the same way.</p>
+        </Block>
+      </section>
+
+      {/* ── Earnin ──────────────────────────────────────────────────────────── */}
+      <section id="earnin" className="space-y-4 scroll-mt-6">
+        <SectionHeader s={meta('earnin')} />
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          A transaction log for Earnin advances and repayments — until a Monarch export can backfill
+          full history. Its running balance feeds the Waterfall live, and it can post directly to
+          Current Balances as a pending transfer.
+        </p>
+        <Block title="Advance vs. Repay">
+          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Clicking <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now — instead of starting at $0. “Currently owed” is simply advances minus repayments, running.</p>
+        </Block>
+        <Block title="The Pending checkbox → Current Balances">
+          <p>Check <strong className="text-zinc-300">Pending</strong> on a row before the money’s actually landed or cleared. It creates a real pending transfer on Bill Pay Checking — an advance posts as money <em>in</em>, a repay posts as money <em>out</em> — which is the same table Current Balances reads for its projected-balance lines. Editing the amount or date afterward keeps the linked transfer in sync; uncheck it (or delete the row) once the real transaction posts, and the transfer goes with it.</p>
+        </Block>
+        <Block title="Feeds the Waterfall live">
+          <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly.</p>
+        </Block>
+      </section>
     </div>
   );
 }
