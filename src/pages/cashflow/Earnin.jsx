@@ -4,7 +4,7 @@ import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-rea
 import { Redacted } from './CashflowLayout';
 import {
   fetchEarninTransactions, upsertEarninTransaction, deleteRow,
-  fetchAccounts, upsertPendingTransfer,
+  fetchAccounts, upsertPendingTransfer, accountNameMatches,
 } from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, todayISO } from './format';
 import { AmountEdit } from './ModalField';
@@ -44,7 +44,7 @@ export default function Earnin() {
     });
     fetchAccounts().then(({ data }) => {
       if (!active) return;
-      const bp = (data || []).find((a) => a.name === BILL_PAY_NAME);
+      const bp = (data || []).find((a) => accountNameMatches(a, BILL_PAY_NAME));
       setBillPayAccountId(bp?.id ?? null);
     });
     return () => { active = false; };

@@ -10,6 +10,7 @@ import {
   fetchBills, fetchDebts, fetchDigitalSubs, fetchConsumableSubs, fetchRunwayManual, fetchRunwayDeck,
   addToDeck, updateDeck, upsertRunwayManual,
   fetchPendingTransfers, upsertPendingTransfer, fetchEarninTransactions,
+  accountNameMatches,
 } from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil } from './format';
 import { AmountEdit } from './ModalField';
@@ -274,12 +275,12 @@ export default function Waterfall() {
   const grocWeekly = grocWeeklyDynamic(inputs.grocWeeklyBase);
 
   const balanceFor = (name) => {
-    const a = accounts.find((x) => (x.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+    const a = accounts.find((x) => accountNameMatches(x, name));
     return a ? (a.balance ?? 0) : 0;
   };
 
   const billPayBalance = balanceFor('Bill Pay Checking');
-  const billPayId = accounts.find((a) => (a.name || '').trim().toLowerCase() === 'bill pay checking')?.id;
+  const billPayId = accounts.find((a) => accountNameMatches(a, 'Bill Pay Checking'))?.id;
 
   // "Banked" accounts get swept into this week's pool AND planned from $0 (the
   // plan reasons about their needs as if the account started empty) — one
@@ -292,7 +293,7 @@ export default function Waterfall() {
   const bankedSet = new Set(bankedIds.filter((id) => accounts.some((a) => a.id === id)));
   if (!includePaycheck && billPayId) bankedSet.add(billPayId);
   const isBanked = (name) => {
-    const a = accounts.find((x) => (x.name || '').trim().toLowerCase() === name.trim().toLowerCase());
+    const a = accounts.find((x) => accountNameMatches(x, name));
     return a ? bankedSet.has(a.id) : false;
   };
   const bankedTotal = accounts.filter((a) => bankedSet.has(a.id)).reduce((s, a) => s + (a.balance ?? 0), 0);
