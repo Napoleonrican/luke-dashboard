@@ -52,7 +52,7 @@ function MoneyButton() {
     <div className="relative" ref={ref}>
       <ActionButton icon={Wallet} label="Money" accent="text-emerald-400" chevron onClick={() => setOpen((o) => !o)} />
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/40">
+        <div className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/40">
           {items.map((m) => (
             <Link
               key={m.id}
@@ -98,7 +98,7 @@ function AllModulesButton() {
         <span className="hidden sm:inline">All</span>
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-2 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/40">
+        <div className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 max-h-[70vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/40">
           <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">All modules</p>
           {MODULES.map((m) => (
             <button
