@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu, ListChecks } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import SettingsPanel from '../components/SettingsPanel';
+import ShiftPanel from '../components/ShiftPanel';
 import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'gig_tracker_state';
+// Completed-shift history (crash-safe local mirror of gig_tracker_shift_history)
+const HISTORY_STORAGE_KEY = 'gig_tracker_history';
 // Last-used platform + strike-tracking prefs persist per-device (separate from shift state)
 const LAST_PLATFORM_KEY = 'gig_tracker_last_platform';
 const STRIKE_MODE_KEY = 'gig_tracker_strike_mode';
@@ -126,7 +129,14 @@ export default function GigTracker() {
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
   const [hamburgerOpen, setHamburgerOpen] = useState(false);
+  const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
   const [prefsLoadKey, setPrefsLoadKey] = useState(0);
+  // Shift Setup now lives in a modal (opened from the menu / pre-shift card)
+  const [setupModalOpen, setSetupModalOpen] = useState(false);
+  // End-of-shift recap screen; null = not showing
+  const [recap, setRecap] = useState(null);
+  // Most recent completed shift, shown on the pre-shift screen; null = none yet / still loading
+  const [lastShift, setLastShift] = useState(null);
 
   // Strike-tracking behavior: 'manual' | 'hybrid' | 'auto' (persisted per-device)
   const [strikeMode, setStrikeMode] = useState(() => localStorage.getItem(STRIKE_MODE_KEY) || 'hybrid');
@@ -196,7 +206,7 @@ export default function GigTracker() {
     async function loadPrefs() {
       if (!supabase) return;
       const todayFull = DOW_FULL[todayDay()];
-      const [prefsRes, schedRes] = await Promise.all([
+      const [prefsRes, schedRes, activeRes] = await Promise.all([
         supabase
           .from('gig_tracker_prefs')
           .select('zone, min_goal_hours, min_goal_dollars, stretch_goal_hours, stretch_goal_dollars, start_time, order_type, updated_at')
@@ -208,8 +218,26 @@ export default function GigTracker() {
           .order('week_start_date', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase
+          .from('gig_tracker_active_shift')
+          .select('state')
+          .eq('id', 'default')
+          .maybeSingle(),
       ]);
       if (cancelled) return;
+
+      // Cross-device resume: if a durable active shift exists (and we aren't
+      // already showing a local resume prompt), offer it. Prefer whichever
+      // snapshot is fresher between local and remote.
+      if (prefsLoadKey === 0 && !activeRes?.error && activeRes?.data?.state?.shiftStarted) {
+        const remote = activeRes.data.state;
+        setSavedResume(prev => {
+          if (!prev) return remote;
+          // keep the one with more logged orders (proxy for freshness)
+          return (remote.orderLog?.length ?? 0) >= (prev.orderLog?.length ?? 0) ? remote : prev;
+        });
+        setResumePrompt(true);
+      }
       const data = prefsRes.data;
       if (!data || prefsRes.error) return;
 
@@ -283,6 +311,35 @@ export default function GigTracker() {
     return () => { cancelled = true; };
   }, []);
 
+  // Load the most recent completed shift, shown on the pre-shift screen.
+  // localStorage mirror paints instantly; Supabase (cross-device) reconciles
+  // in if it turns out to have something newer. Re-runs after End Shift/Reset
+  // (prefsLoadKey bump) so the card reflects the shift that just finished.
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      const local = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+      if (local.length > 0) {
+        const newest = [...local].sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at))[0];
+        setLastShift(newest);
+      }
+    } catch { /* ignore corrupt data */ }
+
+    async function loadRemote() {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('gig_tracker_shift_history')
+        .select('*')
+        .order('saved_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setLastShift(prev => (!prev || new Date(data.saved_at) > new Date(prev.saved_at)) ? data : prev);
+    }
+    loadRemote();
+    return () => { cancelled = true; };
+  }, [prefsLoadKey]);
+
   // Live clock — 1s tick (display only, not EPH)
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -320,11 +377,35 @@ export default function GigTracker() {
     return () => clearInterval(id);
   }, []);
 
-  // Persist every state change (only while a shift is active)
+  // Persist every state change (only while a shift is active).
+  // localStorage is the immediate crash-recovery layer; Supabase is a debounced
+  // durable mirror so the in-progress shift survives across devices/reloads
+  // (best-effort — silently degrades to localStorage-only if the table is absent).
+  const activeShiftSyncTimer = useRef(null);
   useEffect(() => {
     if (!state.shiftStarted) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!supabase) return;
+    if (activeShiftSyncTimer.current) clearTimeout(activeShiftSyncTimer.current);
+    const snapshot = state;
+    activeShiftSyncTimer.current = setTimeout(() => {
+      supabase
+        .from('gig_tracker_active_shift')
+        .upsert({ id: 'default', state: snapshot, updated_at: new Date().toISOString() })
+        .then(({ error }) => { if (error) console.warn('[active_shift sync]', error.message); });
+    }, 1500);
+    return () => { if (activeShiftSyncTimer.current) clearTimeout(activeShiftSyncTimer.current); };
   }, [state]);
+
+  // Clear the durable active-shift row (on end / reset / new shift start)
+  function clearActiveShiftRemote() {
+    if (!supabase) return;
+    supabase
+      .from('gig_tracker_active_shift')
+      .delete()
+      .eq('id', 'default')
+      .then(({ error }) => { if (error) console.warn('[active_shift clear]', error.message); });
+  }
 
   // Persist strike-tracking prefs whenever they change
   useEffect(() => { localStorage.setItem(STRIKE_MODE_KEY, strikeMode); }, [strikeMode]);
@@ -339,6 +420,7 @@ export default function GigTracker() {
     const elapsed = computeElapsedMinutes(state.startTime, totalBreak);
     update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now() });
     setResumePrompt(false);
+    setSetupModalOpen(false);
     if (supabase) {
       supabase.from('gig_tracker_prefs').upsert({
         id:                   'default',
@@ -354,6 +436,78 @@ export default function GigTracker() {
         if (error) console.error('[Supabase upsert error]', error.message);
       });
     }
+  }
+
+  // Save a completed shift to history (localStorage mirror + Supabase best-effort)
+  function saveShiftToHistory(s) {
+    if (!s.shiftStarted || (s.orderLog?.length ?? 0) === 0) return null;
+    const totalBreak = Number(s.breakMinutes) + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
+    const durationMinutes = Math.round(computeElapsedMinutes(s.startTime, totalBreak));
+    const totalEarnings = s.orderLog.reduce((sum, o) => sum + o.amount, 0);
+    const totalOrders = s.orderLog.length;
+    const shiftEph = durationMinutes > 0 ? totalEarnings / (durationMinutes / 60) : 0;
+    const entry = {
+      shift_date: s.shiftDate,
+      start_time: s.startTime,
+      zone: s.zone,
+      duration_minutes: durationMinutes,
+      total_earnings: Math.round(totalEarnings * 100) / 100,
+      total_orders: totalOrders,
+      eph: Math.round(shiftEph * 100) / 100,
+      order_log: s.orderLog,
+      saved_at: new Date().toISOString(),
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+      existing.push(entry);
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(existing));
+    } catch { /* ignore */ }
+    if (supabase) {
+      supabase.from('gig_tracker_shift_history').insert(entry)
+        .then(({ error }) => { if (error) console.warn('[shift_history insert]', error.message); });
+    }
+    return { durationMinutes, totalEarnings, totalOrders, shiftEph };
+  }
+
+  function handleEndShift() {
+    const s = stateRef.current;
+    const totalBreak = Number(s.breakMinutes) + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
+    const durationMinutes = Math.round(computeElapsedMinutes(s.startTime, totalBreak));
+    const totalEarnings = (s.orderLog ?? []).reduce((sum, o) => sum + o.amount, 0);
+    const totalOrders = (s.orderLog ?? []).length;
+    const shiftEph = durationMinutes > 0 ? totalEarnings / (durationMinutes / 60) : 0;
+    const ordersPerHr = durationMinutes > 0 && totalOrders > 0 ? totalOrders / (durationMinutes / 60) : 0;
+    const dayIdx = DAYS.indexOf(s.day);
+    const zd = zoneDataRef.current;
+    const dayMaxVal = zd
+      ? (Math.max(...ZONES.map(z => zd?.[z]?.[s.day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIdx] ?? 22))
+      : (DAY_MAX_EPH[dayIdx] ?? 22);
+    const zoneEphVal = zd?.[s.zone]?.[s.day]?.eph ?? ZONE_EPH[s.zone]?.[s.day] ?? 18;
+
+    saveShiftToHistory(s);
+    clearActiveShiftRemote();
+    localStorage.removeItem(STORAGE_KEY);
+    setSetupModalOpen(false);
+    setHamburgerOpen(false);
+    setResumePrompt(false);
+    setState(getDefaultState());
+    setPrefsLoadKey(k => k + 1);
+
+    if (totalOrders === 0) return; // nothing worth recapping
+
+    setRecap({
+      eph: shiftEph,
+      combined: totalEarnings,
+      totalOrders,
+      durationMinutes,
+      ordersPerHr,
+      dayMax: dayMaxVal,
+      zoneEPH: zoneEphVal,
+      minGoalDollars: Number(s.minGoalDollars) || 0,
+      minGoalHours: Number(s.minGoalHours) || 0,
+      stretchGoalDollars: Number(s.stretchGoalDollars) || 0,
+      stretchGoalHours: Number(s.stretchGoalHours) || 0,
+    });
   }
 
   function addOrder(platformLabel, amountStr) {
@@ -450,7 +604,7 @@ export default function GigTracker() {
   // Destructure for derived calcs
   const {
     shiftStarted, startTime, zone, day, breakMinutes, breakRunning, breakStartMs,
-    orderLog, ephElapsedMinutes, etaAnchorMs, strikes, setupCollapsed, statsCollapsed, orderLogCollapsed,
+    orderLog, ephElapsedMinutes, etaAnchorMs, strikes, statsCollapsed, orderLogCollapsed,
     lastOrderEph, orderType, ordersPerHour,
   } = state;
   // Coerce to numbers for calculations; state values may be '' while the user is typing
@@ -502,6 +656,9 @@ export default function GigTracker() {
   const midpoint = (zoneEPH + dayMax) / 2;
 
   const avgTripMins = zoneData?.[zone]?.[day]?.tripMins ?? ZONE_TRIP_MINS[zone]?.[day] ?? 30;
+  // Live avg trip time for THIS shift: elapsed minutes per logged order.
+  // Falls back to the zone benchmark until the first order is logged.
+  const liveAvgTripMins = totalOrders > 0 && elapsedMinutes > 0 ? elapsedMinutes / totalOrders : null;
   const avgMiles = zoneData?.[zone]?.[day]?.miles ?? ZONE_MILES[zone]?.[day] ?? 10;
   const orderMin = zoneEPH * (avgTripMins / 60);
 
@@ -512,6 +669,11 @@ export default function GigTracker() {
   const minTimeLeft = Math.max(0, minGoalHours * 60 - elapsedMinutes);
   const stretchTimeLeft = Math.max(0, stretchGoalHours * 60 - elapsedMinutes);
 
+  // Time-goal countdown rows: time remaining + the clock time you'll hit it.
+  // Target clock = now + time left, so in-progress breaks are reflected automatically.
+  const minTimeETA = minTimeLeft > 0 ? new Date(now.getTime() + minTimeLeft * 60000) : null;
+  const stretchTimeETA = stretchTimeLeft > 0 ? new Date(now.getTime() + stretchTimeLeft * 60000) : null;
+
   const minOrdersLeft = orderMin > 0 ? Math.ceil(minDollarLeft / orderMin) : 0;
   const stretchOrdersLeft = orderMin > 0 ? Math.ceil(stretchDollarLeft / orderMin) : 0;
 
@@ -519,27 +681,13 @@ export default function GigTracker() {
   const minOrdersEstimate = minDollarLeft > 0 ? Math.ceil(minDollarLeft / avgOrderValue) : 0;
   const stretchOrdersEstimate = stretchDollarLeft > 0 ? Math.ceil(stretchDollarLeft / avgOrderValue) : 0;
 
-  // Base start timestamp — derived from startTime string, not from the live `now`
-  let shiftStartMs = 0;
-  if (shiftStarted && startTime) {
-    const [sh, sm] = startTime.split(':').map(Number);
-    const sd = new Date();
-    sd.setHours(sh, sm, 0, 0);
-    if (sd > new Date()) sd.setDate(sd.getDate() - 1);
-    shiftStartMs = sd.getTime();
-  }
-
-  // ETAs anchored to snapshotted wall-clock time — only update on order add/remove or 5-min tick
+  // Dollar-goal ETAs anchored to snapshotted wall-clock time — only update on
+  // order add/remove or 5-min tick
   const minETA = eph > 0 && minDollarLeft > 0
     ? new Date(etaAnchorMs + (minDollarLeft / eph) * 3600000)
     : null;
   const stretchETA = eph > 0 && stretchDollarLeft > 0
     ? new Date(etaAnchorMs + (stretchDollarLeft / eph) * 3600000)
-    : null;
-
-  // Overall ETA: defaults to min goal mark, flips to stretch goal once min is cleared
-  const overallETA = shiftStartMs > 0
-    ? new Date(shiftStartMs + (elapsedHours < minGoalHours ? minGoalHours : stretchGoalHours) * 3600000)
     : null;
 
   const stretchGoalHit = shiftStarted && combined >= stretchGoalDollars && elapsedHours >= stretchGoalHours;
@@ -660,22 +808,10 @@ export default function GigTracker() {
     }
   }
 
-  // Shift Setup section — rendered at top (pre-shift) or bottom (active shift)
-  const shiftSetupSection = (
-    <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
-      <button
-        onClick={() => update({ setupCollapsed: !setupCollapsed })}
-        className="w-full flex items-center justify-between px-4 py-3 min-h-[48px]"
-      >
-        <span className="text-sm font-semibold text-zinc-200">Shift Setup</span>
-        {setupCollapsed
-          ? <ChevronDown size={16} className="text-zinc-500" />
-          : <ChevronUp size={16} className="text-zinc-500" />}
-      </button>
-
-      {!setupCollapsed && (
-        <div className="px-4 pb-5 space-y-4 border-t border-zinc-800">
-          <div className="grid grid-cols-2 gap-3 pt-4">
+  // Shift Setup fields — reused inside the setup modal (pre-shift + during-shift edit)
+  const shiftSetupInner = (
+    <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-zinc-500 mb-1.5">Start Time</label>
               <input
@@ -892,54 +1028,109 @@ export default function GigTracker() {
             )}
           </div>
 
-          {!shiftStarted && (
-            <button
-              onClick={startShift}
-              className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold rounded-xl py-3.5 min-h-[52px] text-sm transition-colors mt-2"
-            >
-              Start Shift
-            </button>
-          )}
-        </div>
-      )}
+    </div>
+  );
+
+  // Shift Setup modal — opened pre-shift (with Start Shift) or via the menu
+  // during a shift (with Done). Replaces the old inline top/bottom setup card.
+  const shiftSetupModal = setupModalOpen && (
+    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
+      <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3 border-b border-zinc-800 shrink-0">
+        <h2 className="text-lg font-bold text-zinc-100">Shift Setup</h2>
+        <button
+          onClick={() => setSetupModalOpen(false)}
+          className="flex items-center justify-center w-10 h-10 rounded-full text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          aria-label="Close shift setup"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-5 max-w-lg mx-auto w-full">
+        {shiftSetupInner}
+      </div>
+
+      <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-3 border-t border-zinc-800 shrink-0 max-w-lg mx-auto w-full">
+        {!shiftStarted ? (
+          <button
+            onClick={startShift}
+            className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-bold text-lg py-4 rounded-2xl min-h-[60px] transition-colors"
+          >
+            Start Shift
+          </button>
+        ) : (
+          <button
+            onClick={() => setSetupModalOpen(false)}
+            className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold py-4 rounded-2xl min-h-[60px] transition-colors"
+          >
+            Done
+          </button>
+        )}
+      </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <TopNav />
+      <TopNav title="Gig Tracker" />
 
-      {/* Hamburger button — fixed in top-right nav area */}
-      <button
-        onClick={() => setHamburgerOpen(true)}
-        className="fixed top-3 right-4 z-40 p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
-        aria-label="Open menu"
-      >
-        <Menu size={20} />
-      </button>
+      {/* Shift + Settings buttons — fixed in top-right nav area */}
+      <div className="fixed top-3 right-4 z-40 flex items-center gap-2">
+        {shiftStarted && (
+          <button
+            onClick={() => setShiftPanelOpen(true)}
+            className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
+            aria-label="Open shift controls"
+          >
+            <ListChecks size={20} />
+          </button>
+        )}
+        <button
+          onClick={() => setHamburgerOpen(true)}
+          className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
+          aria-label="Open settings"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
 
-      {/* Settings panel — slides in from right (Break Timer, Behavior, Reset) */}
+      {/* Settings panel — Behavior (strike tracking) only */}
       <SettingsPanel
         open={hamburgerOpen}
         onClose={() => setHamburgerOpen(false)}
+        strikeMode={strikeMode}
+        onStrikeModeChange={setStrikeMode}
+        strikeThreshold={strikeThreshold}
+        onStrikeThresholdChange={setStrikeThreshold}
+      />
+
+      {/* Shift panel — Edit Setup, Break Timer, End Shift, Reset together */}
+      <ShiftPanel
+        open={shiftPanelOpen}
+        onClose={() => setShiftPanelOpen(false)}
         shiftStarted={shiftStarted}
         breakMinutes={breakMinutes}
         breakRunning={breakRunning}
         breakStartMs={breakStartMs}
         onUpdate={update}
-        strikeMode={strikeMode}
-        onStrikeModeChange={setStrikeMode}
-        strikeThreshold={strikeThreshold}
-        onStrikeThresholdChange={setStrikeThreshold}
+        onEditSetup={() => { setShiftPanelOpen(false); setSetupModalOpen(true); }}
+        onEndShift={() => {
+          if (window.confirm('End shift? This saves it to your history and clears the tracker.')) {
+            handleEndShift();
+          }
+        }}
         onReset={() => {
-          if (window.confirm('Reset shift? This clears all orders and earnings.')) {
-            setHamburgerOpen(false);
+          if (window.confirm('Reset shift? This clears all orders and earnings without saving.')) {
+            setShiftPanelOpen(false);
+            clearActiveShiftRemote();
             localStorage.removeItem(STORAGE_KEY);
             setState(getDefaultState());
             setPrefsLoadKey(k => k + 1);
           }
         }}
       />
+
+      {shiftSetupModal}
 
       <main className="max-w-lg mx-auto px-4 pb-10">
 
@@ -956,8 +1147,9 @@ export default function GigTracker() {
               </button>
               <button
                 onClick={() => {
-                  // Clear localStorage so this prompt doesn't reappear on next load
+                  // Clear local + remote so this prompt doesn't reappear on next load
                   localStorage.removeItem(STORAGE_KEY);
+                  clearActiveShiftRemote();
                   setResumePrompt(false);
                 }}
                 className="rounded-lg bg-zinc-700 hover:bg-zinc-600 px-4 py-2 text-sm font-medium text-zinc-200 min-h-[40px] transition-colors"
@@ -986,50 +1178,89 @@ export default function GigTracker() {
           </div>
         )}
 
-        {/* Shift Setup — at TOP only when shift not yet started */}
-        {!shiftStarted && shiftSetupSection}
+        {/* Pre-shift entry card — setup now lives in a modal */}
+        {!shiftStarted && (
+          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-center space-y-4">
+            <div>
+              <div className="text-sm font-semibold text-zinc-200">Ready to roll?</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                {zone} · {day} · start {startTime} · min ${minGoalDollars}/{minGoalHours}h
+              </div>
+            </div>
+            <button
+              onClick={() => setSetupModalOpen(true)}
+              className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-semibold rounded-xl py-3.5 min-h-[52px] text-sm transition-colors"
+            >
+              Set Up &amp; Start Shift
+            </button>
+          </div>
+        )}
+
+        {/* Last Shift — lets you check yesterday's numbers without starting a new one */}
+        {!shiftStarted && lastShift && (
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Last Shift</span>
+              <span className="text-xs text-zinc-500">
+                {new Date(`${lastShift.shift_date}T00:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-zinc-500 mb-1">Earned</div>
+                <div className="text-2xl font-bold text-zinc-100 tabular-nums">{fmtMoney(lastShift.total_earnings)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-zinc-500 mb-1">EPH</div>
+                <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+                  {lastShift.eph > 0 ? fmtMoney(lastShift.eph) : '—'}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center gap-3 flex-wrap text-xs text-zinc-400">
+              <span>{fmtDuration(lastShift.duration_minutes)}</span>
+              <span className="text-zinc-700">·</span>
+              <span>{lastShift.total_orders} orders</span>
+              <span className="text-zinc-700">·</span>
+              <span>{lastShift.zone}</span>
+            </div>
+          </div>
+        )}
 
         {/* ── Live Dashboard ── */}
         {shiftStarted && (
           <>
-            {/* Elapsed / Done by card */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Elapsed</div>
-                  <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+            {/* Elapsed + time-goal countdown — compact single-line rows to
+                keep the whole "above the fold" view (time through order-min
+                line) visible without scrolling */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+              <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs text-zinc-500">Elapsed</span>
+                  <span className="text-xl font-bold text-zinc-100 tabular-nums">
                     {fmtDuration(elapsedMinutes)}
-                  </div>
+                  </span>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-zinc-500 mb-1">Done by</div>
-                  {eph === 0 ? (
-                    <div className="text-2xl font-bold text-zinc-600">—</div>
-                  ) : stretchTimeLeft <= 0 ? (
-                    <div className="text-2xl font-bold text-green-400">Done</div>
-                  ) : (
-                    <>
-                      <div className="text-2xl font-bold text-zinc-100 tabular-nums">
-                        {overallETA ? fmtTime(overallETA) : '—'}
-                      </div>
-                      <div className="text-xs text-zinc-600 mt-0.5">
-                        {elapsedHours < minGoalHours
-                          ? `min goal (${minGoalHours}h)`
-                          : `stretch goal (${stretchGoalHours}h)`}
-                      </div>
-                    </>
-                  )}
-                </div>
+                {breakRunning && (
+                  <span className="text-xs font-medium text-amber-400">⏸ on break</span>
+                )}
               </div>
-              <div className="border-t border-zinc-800 mt-3 pt-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className={`text-sm font-medium ${minTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-300'}`}>
-                    {minTimeLeft <= 0 ? '✓ Min goal' : `→ Min  ${fmtDuration(minTimeLeft)}`}
-                  </div>
-                  <div className={`text-sm font-medium text-right ${stretchTimeLeft <= 0 ? 'text-green-400' : 'text-zinc-300'}`}>
-                    {stretchTimeLeft <= 0 ? 'Stretch goal ✓' : `${fmtDuration(stretchTimeLeft)}  Stretch →`}
-                  </div>
-                </div>
+
+              <div className="mt-2 pt-2 border-t border-zinc-800 space-y-1.5">
+                {[
+                  { label: 'Min', hours: minGoalHours, left: minTimeLeft, eta: minTimeETA },
+                  { label: 'Stretch', hours: stretchGoalHours, left: stretchTimeLeft, eta: stretchTimeETA },
+                ].filter(g => g.hours > 0).map(({ label, left, eta }) => {
+                  const hit = left <= 0;
+                  return (
+                    <div key={label} className="flex items-center justify-between text-sm">
+                      <span className={`font-medium ${hit ? 'text-green-400' : 'text-zinc-400'}`}>{label}</span>
+                      <span className={`tabular-nums ${hit ? 'text-green-400 font-semibold' : 'text-zinc-300'}`}>
+                        {hit ? '✓ met' : `${fmtDuration(left)} left · ~${eta ? fmtTime(eta) : '—'}`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1179,21 +1410,16 @@ export default function GigTracker() {
               </div>
             )}
 
-            {/* Order guidance strip */}
+            {/* Order guidance strip — Order Min $ / Miles Max on one line */}
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-xs text-zinc-500">Order Min</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">${Math.round(orderMin)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500">Miles Max</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{Math.round(avgMiles)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500">Avg Trip</div>
-                  <div className="text-lg font-bold text-zinc-200 tabular-nums">{Math.round(avgTripMins)}m</div>
-                </div>
+              <div className="flex items-center justify-center gap-3 text-center">
+                <span className="text-lg font-bold text-zinc-200 tabular-nums">
+                  Order Min <span className="text-green-400">${Math.round(orderMin)}</span>
+                </span>
+                <span className="text-zinc-600 text-lg font-light">/</span>
+                <span className="text-lg font-bold text-zinc-200 tabular-nums">
+                  <span className="text-amber-400">{Math.round(avgMiles)}</span> Miles Max
+                </span>
               </div>
               <div className="border-t border-zinc-800 pt-3 text-center">
                 <div className="text-xs text-zinc-500">Recommended</div>
@@ -1325,15 +1551,16 @@ export default function GigTracker() {
                     <StatRow label="UberEats total" value={`${fmtMoney(ueTotal)} (${ueOrders.length} orders)`} />
                     <StatRow label="DoorDash total" value={`${fmtMoney(ddTotal)} (${ddOrders.length} orders)`} />
                     <StatRow label="Total orders" value={totalOrders} />
-                    <StatRow label="Avg trip time" value={`${Math.round(avgTripMins)} min`} />
+                    <StatRow
+                      label={liveAvgTripMins != null ? 'Avg trip time (shift)' : 'Avg trip time (zone)'}
+                      value={`${Math.round(liveAvgTripMins ?? avgTripMins)} min`}
+                    />
                   </div>
 
                 </div>
               )}
             </div>
 
-            {/* Shift Setup — at BOTTOM when shift is active */}
-            {shiftSetupSection}
           </>
         )}
 
@@ -1429,6 +1656,65 @@ export default function GigTracker() {
               className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-bold text-xl py-5 rounded-2xl min-h-[72px] transition-colors"
             >
               OK — Log Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* End-of-shift recap screen */}
+      {recap && (
+        <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 overflow-y-auto py-8">
+            <div className="text-center">
+              <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Shift Complete</div>
+              <div className={`text-5xl font-black tabular-nums ${
+                recap.eph >= recap.dayMax ? 'text-green-400'
+                : recap.eph >= recap.zoneEPH ? 'text-amber-400'
+                : 'text-red-400'
+              }`}>
+                {fmtMoney(recap.eph)}
+              </div>
+              <div className="text-zinc-500 text-sm mt-1">/hr (EPH)</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                <div className="text-xs text-zinc-500 mb-1">Total Earned</div>
+                <div className="text-xl font-bold text-zinc-100 tabular-nums">{fmtMoney(recap.combined)}</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                <div className="text-xs text-zinc-500 mb-1">Shift Length</div>
+                <div className="text-xl font-bold text-zinc-100 tabular-nums">{fmtDuration(recap.durationMinutes)}</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                <div className="text-xs text-zinc-500 mb-1">Orders / hr</div>
+                <div className="text-xl font-bold text-zinc-100 tabular-nums">
+                  {recap.ordersPerHr > 0 ? recap.ordersPerHr.toFixed(1) : '—'}
+                </div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                <div className="text-xs text-zinc-500 mb-1">Total Orders</div>
+                <div className="text-xl font-bold text-zinc-100 tabular-nums">{recap.totalOrders}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-zinc-500">
+              {recap.minGoalDollars > 0 && (
+                <span className={recap.combined >= recap.minGoalDollars ? 'text-green-400' : 'text-zinc-500'}>
+                  {recap.combined >= recap.minGoalDollars ? '✓' : '·'} Min ${recap.minGoalDollars}
+                </span>
+              )}
+              {recap.stretchGoalDollars > 0 && (
+                <span className={recap.combined >= recap.stretchGoalDollars ? 'text-green-400' : 'text-zinc-500'}>
+                  {recap.combined >= recap.stretchGoalDollars ? '✓' : '·'} Stretch ${recap.stretchGoalDollars}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-4">
+            <button
+              onClick={() => setRecap(null)}
+              className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-bold text-lg py-4 rounded-2xl min-h-[60px] transition-colors"
+            >
+              Done
             </button>
           </div>
         </div>
