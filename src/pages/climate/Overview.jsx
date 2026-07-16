@@ -76,7 +76,7 @@ const MODE_LABELS = {
 };
 const FAN_LABELS = { AUTO: 'Auto', LOW: 'Low', MED: 'Med', HIGH: 'High' };
 const SOURCE_LABELS = {
-  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'comfort mode',
+  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'override',
 };
 
 function fmtLiveState(s) {
@@ -102,7 +102,7 @@ function useControlMode(comfortMode, executorEnabled, goalsText) {
 const CONTROL_MODE_CONFIG = {
   comfort: {
     Icon: Sparkles,
-    label: 'Comfort Mode Active',
+    label: 'Schedule Override Active',
     desc: 'Normal schedule is paused — the executor is following your manual instruction.',
     border: 'border-violet-500/40',
     bg: 'bg-violet-500/10',
@@ -175,22 +175,30 @@ export default function Overview() {
 
   const { active, next } = useMemo(() => computeActiveAndNext(schedule), [schedule]);
 
-  // Comfort mode panel state — freeform intent the AI interprets (Layer 3 override)
+  // Schedule Override panel state — freeform rationale (required) plus a couple of
+  // optional quick-action controls (turn AC off, fan speed, cooling mode). Everything
+  // else (room, target temp, etc.) goes in the text box for the agent to interpret.
   const [cmExpanded, setCmExpanded] = useState(false);
   const [intentText, setIntentText] = useState('');
-  const [cmRoom, setCmRoom] = useState(null);
-  const [cmTemp, setCmTemp] = useState(null);
+  const [cmPowerOff, setCmPowerOff] = useState(false);
+  const [cmFan, setCmFan] = useState('');
+  const [cmMode, setCmMode] = useState('');
   const [cmSaving, setCmSaving] = useState(false);
 
   async function handleActivate() {
     if (!intentText.trim()) return;
     setCmSaving(true);
-    await activateComfortMode(intentText.trim(), { goalRoom: cmRoom, goalTempF: cmTemp });
+    await activateComfortMode(intentText.trim(), {
+      goalPower: cmPowerOff ? 'off' : null,
+      goalFan: cmPowerOff ? null : (cmFan || null),
+      goalMode: cmPowerOff ? null : (cmMode || null),
+    });
     setCmSaving(false);
     setCmExpanded(false);
     setIntentText('');
-    setCmRoom(null);
-    setCmTemp(null);
+    setCmPowerOff(false);
+    setCmFan('');
+    setCmMode('');
   }
 
   async function handleClear() {
@@ -248,7 +256,7 @@ export default function Overview() {
           <span className="text-sm font-semibold text-zinc-100">AC right now</span>
           {comfortMode ? (
             <span className="ml-auto text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border text-violet-400 border-violet-500/30 flex items-center gap-1">
-              <Sparkles size={11} /> Comfort Mode
+              <Sparkles size={11} /> Schedule Override
             </span>
           ) : (
             <span
@@ -298,7 +306,7 @@ export default function Overview() {
               </span>
             </div>
             <div className="text-xs text-zinc-500 mt-2">
-              Last adjusted {new Date(lastAcPush.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} by comfort mode ·{' '}
+              Last adjusted {new Date(lastAcPush.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} by schedule override ·{' '}
               <span className="text-zinc-400">schedule paused</span>
             </div>
           </>
@@ -332,14 +340,14 @@ export default function Overview() {
         )}
       </div>
 
-      {/* Comfort mode panel */}
+      {/* Schedule Override panel */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         {comfortMode ? (
           /* Active state */
           <div className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles size={14} className="text-violet-400" />
-              <span className="text-sm font-semibold text-violet-300">Comfort Mode Active</span>
+              <span className="text-sm font-semibold text-violet-300">Override Active</span>
               <button
                 onClick={handleClear}
                 disabled={cmSaving}
@@ -350,8 +358,23 @@ export default function Overview() {
               </button>
             </div>
             <p className="text-sm text-zinc-200 leading-snug">{comfortMode.intent_text}</p>
-            {(comfortMode.goal_room || comfortMode.goal_temp_f) && (
-              <div className="flex gap-2 mt-1.5">
+            {(comfortMode.goal_power || comfortMode.goal_fan || comfortMode.goal_mode || comfortMode.goal_room || comfortMode.goal_temp_f) && (
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {comfortMode.goal_power === 'off' && (
+                  <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
+                    AC Off
+                  </span>
+                )}
+                {comfortMode.goal_mode && (
+                  <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
+                    {MODE_LABELS[comfortMode.goal_mode] ?? comfortMode.goal_mode}
+                  </span>
+                )}
+                {comfortMode.goal_fan && (
+                  <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
+                    Fan {FAN_LABELS[comfortMode.goal_fan] ?? comfortMode.goal_fan}
+                  </span>
+                )}
                 {comfortMode.goal_room && (
                   <span className="text-[11px] rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 px-2 py-0.5">
                     {comfortMode.goal_room === 'living_room' ? 'Living Room' : 'Bedroom'}
@@ -375,13 +398,13 @@ export default function Overview() {
             </p>
           </div>
         ) : cmExpanded ? (
-          /* Expanded input state — freeform instruction the AI interprets */
+          /* Expanded input state — rationale required, quick-action controls optional */
           <div className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles size={14} className="text-violet-400" />
-              <span className="text-sm font-semibold text-zinc-100">Comfort Mode</span>
+              <span className="text-sm font-semibold text-zinc-100">Schedule Override</span>
               <button
-                onClick={() => { setCmExpanded(false); setIntentText(''); }}
+                onClick={() => { setCmExpanded(false); setIntentText(''); setCmPowerOff(false); setCmFan(''); setCmMode(''); }}
                 className="ml-auto text-zinc-500 hover:text-zinc-300"
               >
                 <X size={14} />
@@ -391,35 +414,45 @@ export default function Overview() {
               value={intentText}
               onChange={(e) => setIntentText(e.target.value)}
               rows={3}
-              placeholder={'e.g. "Keep the bedroom around 68°F tonight" or "Get the living room to 72°F"'}
+              placeholder={'What’s going on? e.g. "Don’t want it on in the bedroom right now" or "Get the living room to 72°F" — required so the agent has context.'}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
             />
-            {/* Optional structured hints — auto-parsed from text too, but explicit is better */}
-            <div className="flex flex-wrap gap-2 mt-2.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-zinc-500">Room</span>
-                {[['bedroom', 'Bedroom'], ['living_room', 'Living Room']].map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setCmRoom(cmRoom === val ? null : val)}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${cmRoom === val ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            {/* Optional quick actions — everything else goes in the text box above */}
+            <div className="flex flex-wrap items-center gap-2 mt-2.5">
+              <button
+                type="button"
+                onClick={() => setCmPowerOff((v) => !v)}
+                className={`flex items-center gap-1.5 text-[11px] rounded-full px-2.5 py-1 border transition-colors ${cmPowerOff ? 'bg-violet-600/30 border-violet-500 text-violet-300' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'}`}
+              >
+                <PowerOff size={12} /> Turn AC Off
+              </button>
+              <div className={`flex items-center gap-1.5 ${cmPowerOff ? 'opacity-40 pointer-events-none' : ''}`}>
+                <span className="text-[11px] text-zinc-500">Fan</span>
+                <select
+                  value={cmFan}
+                  onChange={(e) => setCmFan(e.target.value)}
+                  disabled={cmPowerOff}
+                  className="text-[11px] rounded-md border border-zinc-700 bg-zinc-800 text-zinc-300 px-1.5 py-1 focus:outline-none focus:border-zinc-500"
+                >
+                  <option value="">Auto (default)</option>
+                  <option value="AUTO">Auto</option>
+                  <option value="LOW">Low</option>
+                  <option value="MED">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
               </div>
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-[11px] text-zinc-500 shrink-0">Goal</span>
-                <input
-                  type="range"
-                  min={62}
-                  max={86}
-                  value={cmTemp ?? 72}
-                  onChange={(e) => setCmTemp(Number(e.target.value))}
-                  className="flex-1 h-1 accent-violet-500 cursor-pointer"
-                />
-                <span className="text-[11px] text-zinc-300 tabular-nums w-8 text-right shrink-0">{cmTemp ?? 72}°F</span>
+              <div className={`flex items-center gap-1.5 ${cmPowerOff ? 'opacity-40 pointer-events-none' : ''}`}>
+                <span className="text-[11px] text-zinc-500">Mode</span>
+                <select
+                  value={cmMode}
+                  onChange={(e) => setCmMode(e.target.value)}
+                  disabled={cmPowerOff}
+                  className="text-[11px] rounded-md border border-zinc-700 bg-zinc-800 text-zinc-300 px-1.5 py-1 focus:outline-none focus:border-zinc-500"
+                >
+                  <option value="">Let agent decide</option>
+                  <option value="COOL">Cool</option>
+                  <option value="ENERGY_SAVER">Eco</option>
+                </select>
               </div>
             </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">
@@ -445,7 +478,7 @@ export default function Overview() {
               onClick={() => setCmExpanded(true)}
               className="ml-auto text-xs text-violet-400 hover:text-violet-300 border border-zinc-700 hover:border-zinc-600 rounded px-2 py-0.5 transition-colors"
             >
-              Enable Comfort Mode
+              Schedule Override
             </button>
           </div>
         )}
