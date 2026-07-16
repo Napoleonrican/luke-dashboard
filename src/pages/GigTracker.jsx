@@ -135,6 +135,8 @@ export default function GigTracker() {
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   // End-of-shift recap screen; null = not showing
   const [recap, setRecap] = useState(null);
+  // Most recent completed shift, shown on the pre-shift screen; null = none yet / still loading
+  const [lastShift, setLastShift] = useState(null);
 
   // Strike-tracking behavior: 'manual' | 'hybrid' | 'auto' (persisted per-device)
   const [strikeMode, setStrikeMode] = useState(() => localStorage.getItem(STRIKE_MODE_KEY) || 'hybrid');
@@ -308,6 +310,35 @@ export default function GigTracker() {
     loadBenchmarks();
     return () => { cancelled = true; };
   }, []);
+
+  // Load the most recent completed shift, shown on the pre-shift screen.
+  // localStorage mirror paints instantly; Supabase (cross-device) reconciles
+  // in if it turns out to have something newer. Re-runs after End Shift/Reset
+  // (prefsLoadKey bump) so the card reflects the shift that just finished.
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      const local = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+      if (local.length > 0) {
+        const newest = [...local].sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at))[0];
+        setLastShift(newest);
+      }
+    } catch { /* ignore corrupt data */ }
+
+    async function loadRemote() {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('gig_tracker_shift_history')
+        .select('*')
+        .order('saved_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      setLastShift(prev => (!prev || new Date(data.saved_at) > new Date(prev.saved_at)) ? data : prev);
+    }
+    loadRemote();
+    return () => { cancelled = true; };
+  }, [prefsLoadKey]);
 
   // Live clock — 1s tick (display only, not EPH)
   useEffect(() => {
@@ -1041,7 +1072,7 @@ export default function GigTracker() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <TopNav />
+      <TopNav title="Gig Tracker" />
 
       {/* Shift + Settings buttons — fixed in top-right nav area */}
       <div className="fixed top-3 right-4 z-40 flex items-center gap-2">
@@ -1162,6 +1193,37 @@ export default function GigTracker() {
             >
               Set Up &amp; Start Shift
             </button>
+          </div>
+        )}
+
+        {/* Last Shift — lets you check yesterday's numbers without starting a new one */}
+        {!shiftStarted && lastShift && (
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Last Shift</span>
+              <span className="text-xs text-zinc-500">
+                {new Date(`${lastShift.shift_date}T00:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs text-zinc-500 mb-1">Earned</div>
+                <div className="text-2xl font-bold text-zinc-100 tabular-nums">{fmtMoney(lastShift.total_earnings)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-zinc-500 mb-1">EPH</div>
+                <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+                  {lastShift.eph > 0 ? fmtMoney(lastShift.eph) : '—'}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-zinc-800 mt-3 pt-3 flex items-center gap-3 flex-wrap text-xs text-zinc-400">
+              <span>{fmtDuration(lastShift.duration_minutes)}</span>
+              <span className="text-zinc-700">·</span>
+              <span>{lastShift.total_orders} orders</span>
+              <span className="text-zinc-700">·</span>
+              <span>{lastShift.zone}</span>
+            </div>
           </div>
         )}
 
