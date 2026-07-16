@@ -16,6 +16,8 @@ export default function SettingsPanel({
   onStrikeModeChange,
   strikeThreshold,
   onStrikeThresholdChange,
+  onEditSetup,
+  onEndShift,
   onReset,
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -82,6 +84,19 @@ export default function SettingsPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+          {/* Shift */}
+          {shiftStarted && (
+            <div>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">Shift</h3>
+              <button
+                onClick={onEditSetup}
+                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+              >
+                Edit Shift Setup
+              </button>
+            </div>
+          )}
+
           {/* Break Timer */}
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">Break Timer</h3>
@@ -178,16 +193,24 @@ export default function SettingsPanel({
             </div>
           </div>
 
-          {/* Danger zone */}
+          {/* End / Reset */}
           {shiftStarted && (
             <div>
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">Danger Zone</h3>
-              <button
-                onClick={onReset}
-                className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
-              >
-                Reset Shift
-              </button>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">End of Shift</h3>
+              <div className="space-y-2.5">
+                <button
+                  onClick={onEndShift}
+                  className="w-full bg-red-700 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+                >
+                  End Shift &amp; Save
+                </button>
+                <button
+                  onClick={onReset}
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm font-medium py-3 rounded-lg min-h-[44px] transition-colors"
+                >
+                  Reset (discard without saving)
+                </button>
+              </div>
             </div>
           )}
         </div>
