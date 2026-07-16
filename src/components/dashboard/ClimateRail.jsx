@@ -11,6 +11,13 @@ const SOURCE_TONE = {
   manual: 'text-zinc-400',
 };
 
+// ac_change_log.source is an internal identifier ('comfort_mode' predates the
+// Schedule Override rename) — map it to the user-facing label here rather than
+// touching the stored value, since other code still filters/writes on the raw string.
+const SOURCE_LABEL = {
+  comfort_mode: 'override',
+};
+
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'just now';
@@ -26,7 +33,7 @@ function timeAgo(iso) {
 export default function ClimateRail({ climate, outdoor }) {
   if (!climate?.indoorTemp) return null;
   const comfort = climate.comfortActive;
-  const stateLabel = comfort ? 'Comfort Mode' : climate.executorEnabled ? 'Dashboard control' : 'Manual control';
+  const stateLabel = comfort ? 'Schedule Override' : climate.executorEnabled ? 'Dashboard control' : 'Manual control';
 
   const s = climate.acSetting;
   const settingLine = s && (s.setpointF != null || s.mode || s.power)
@@ -74,7 +81,7 @@ export default function ClimateRail({ climate, outdoor }) {
             <span className="ml-auto text-[10px] text-zinc-600">{timeAgo(climate.lastLog.ts)}</span>
           </div>
           <p className="text-xs leading-snug text-zinc-300">
-            <span className={`font-medium ${SOURCE_TONE[climate.lastLog.source] || 'text-zinc-400'}`}>{climate.lastLog.source}</span>
+            <span className={`font-medium ${SOURCE_TONE[climate.lastLog.source] || 'text-zinc-400'}`}>{SOURCE_LABEL[climate.lastLog.source] || climate.lastLog.source}</span>
             {' · '}{climate.lastLog.text}
           </p>
           {climate.lastLog.reason && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-zinc-500">{climate.lastLog.reason}</p>}

@@ -76,7 +76,7 @@ const MODE_LABELS = {
 };
 const FAN_LABELS = { AUTO: 'Auto', LOW: 'Low', MED: 'Med', HIGH: 'High' };
 const SOURCE_LABELS = {
-  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'comfort mode',
+  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'override',
 };
 
 function fmtLiveState(s) {

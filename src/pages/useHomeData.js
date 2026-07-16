@@ -88,7 +88,7 @@ async function loadClimate(unit) {
     const pref = prefs?.[0] ?? null;
     const executorEnabled = Boolean(pref?.executor_enabled);
     const acState = comfortActive
-      ? 'Comfort Mode'
+      ? 'Schedule Override'
       : executorEnabled ? 'Dashboard control' : 'Manual control';
 
     // Confirmed AC setting (null fields collapse to nulls the rail can skip).
