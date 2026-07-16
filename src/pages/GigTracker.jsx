@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu, ListChecks } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import SettingsPanel from '../components/SettingsPanel';
+import ShiftPanel from '../components/ShiftPanel';
 import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'gig_tracker_state';
@@ -128,6 +129,7 @@ export default function GigTracker() {
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
   const [hamburgerOpen, setHamburgerOpen] = useState(false);
+  const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
   const [prefsLoadKey, setPrefsLoadKey] = useState(0);
   // Shift Setup now lives in a modal (opened from the menu / pre-shift card)
   const [setupModalOpen, setSetupModalOpen] = useState(false);
@@ -636,12 +638,10 @@ export default function GigTracker() {
   const minTimeLeft = Math.max(0, minGoalHours * 60 - elapsedMinutes);
   const stretchTimeLeft = Math.max(0, stretchGoalHours * 60 - elapsedMinutes);
 
-  // Time-goal countdown tiles (item 4): time remaining + the clock time you'll hit it.
+  // Time-goal countdown rows: time remaining + the clock time you'll hit it.
   // Target clock = now + time left, so in-progress breaks are reflected automatically.
   const minTimeETA = minTimeLeft > 0 ? new Date(now.getTime() + minTimeLeft * 60000) : null;
   const stretchTimeETA = stretchTimeLeft > 0 ? new Date(now.getTime() + stretchTimeLeft * 60000) : null;
-  const minTimePct = minGoalHours > 0 ? Math.min(100, (elapsedMinutes / (minGoalHours * 60)) * 100) : 0;
-  const stretchTimePct = stretchGoalHours > 0 ? Math.min(100, (elapsedMinutes / (stretchGoalHours * 60)) * 100) : 0;
 
   const minOrdersLeft = orderMin > 0 ? Math.ceil(minDollarLeft / orderMin) : 0;
   const stretchOrdersLeft = orderMin > 0 ? Math.ceil(stretchDollarLeft / orderMin) : 0;
@@ -1043,29 +1043,46 @@ export default function GigTracker() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <TopNav />
 
-      {/* Hamburger button — fixed in top-right nav area */}
-      <button
-        onClick={() => setHamburgerOpen(true)}
-        className="fixed top-3 right-4 z-40 p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
-        aria-label="Open menu"
-      >
-        <Menu size={20} />
-      </button>
+      {/* Shift + Settings buttons — fixed in top-right nav area */}
+      <div className="fixed top-3 right-4 z-40 flex items-center gap-2">
+        {shiftStarted && (
+          <button
+            onClick={() => setShiftPanelOpen(true)}
+            className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
+            aria-label="Open shift controls"
+          >
+            <ListChecks size={20} />
+          </button>
+        )}
+        <button
+          onClick={() => setHamburgerOpen(true)}
+          className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors flex items-center justify-center"
+          aria-label="Open settings"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
 
-      {/* Settings panel — slides in from right (Break Timer, Behavior, Reset) */}
+      {/* Settings panel — Behavior (strike tracking) only */}
       <SettingsPanel
         open={hamburgerOpen}
         onClose={() => setHamburgerOpen(false)}
+        strikeMode={strikeMode}
+        onStrikeModeChange={setStrikeMode}
+        strikeThreshold={strikeThreshold}
+        onStrikeThresholdChange={setStrikeThreshold}
+      />
+
+      {/* Shift panel — Edit Setup, Break Timer, End Shift, Reset together */}
+      <ShiftPanel
+        open={shiftPanelOpen}
+        onClose={() => setShiftPanelOpen(false)}
         shiftStarted={shiftStarted}
         breakMinutes={breakMinutes}
         breakRunning={breakRunning}
         breakStartMs={breakStartMs}
         onUpdate={update}
-        strikeMode={strikeMode}
-        onStrikeModeChange={setStrikeMode}
-        strikeThreshold={strikeThreshold}
-        onStrikeThresholdChange={setStrikeThreshold}
-        onEditSetup={() => { setHamburgerOpen(false); setSetupModalOpen(true); }}
+        onEditSetup={() => { setShiftPanelOpen(false); setSetupModalOpen(true); }}
         onEndShift={() => {
           if (window.confirm('End shift? This saves it to your history and clears the tracker.')) {
             handleEndShift();
@@ -1073,7 +1090,7 @@ export default function GigTracker() {
         }}
         onReset={() => {
           if (window.confirm('Reset shift? This clears all orders and earnings without saving.')) {
-            setHamburgerOpen(false);
+            setShiftPanelOpen(false);
             clearActiveShiftRemote();
             localStorage.removeItem(STORAGE_KEY);
             setState(getDefaultState());
@@ -1151,52 +1168,34 @@ export default function GigTracker() {
         {/* ── Live Dashboard ── */}
         {shiftStarted && (
           <>
-            {/* Elapsed + time-goal countdown tiles */}
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <div className="flex items-baseline justify-between mb-4">
-                <div>
-                  <div className="text-xs text-zinc-500 mb-1">Elapsed</div>
-                  <div className="text-3xl font-bold text-zinc-100 tabular-nums">
+            {/* Elapsed + time-goal countdown — compact single-line rows to
+                keep the whole "above the fold" view (time through order-min
+                line) visible without scrolling */}
+            <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+              <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs text-zinc-500">Elapsed</span>
+                  <span className="text-xl font-bold text-zinc-100 tabular-nums">
                     {fmtDuration(elapsedMinutes)}
-                  </div>
+                  </span>
                 </div>
                 {breakRunning && (
                   <span className="text-xs font-medium text-amber-400">⏸ on break</span>
                 )}
               </div>
 
-              <div className="space-y-2.5">
+              <div className="mt-2 pt-2 border-t border-zinc-800 space-y-1.5">
                 {[
-                  { label: 'MIN GOAL', hours: minGoalHours, left: minTimeLeft, eta: minTimeETA, pct: minTimePct },
-                  { label: 'STRETCH', hours: stretchGoalHours, left: stretchTimeLeft, eta: stretchTimeETA, pct: stretchTimePct },
-                ].filter(g => g.hours > 0).map(({ label, hours, left, eta, pct }) => {
+                  { label: 'Min', hours: minGoalHours, left: minTimeLeft, eta: minTimeETA },
+                  { label: 'Stretch', hours: stretchGoalHours, left: stretchTimeLeft, eta: stretchTimeETA },
+                ].filter(g => g.hours > 0).map(({ label, left, eta }) => {
                   const hit = left <= 0;
                   return (
-                    <div
-                      key={label}
-                      className={`rounded-lg border px-3 py-2.5 ${
-                        hit ? 'border-green-800 bg-green-950/40' : 'border-zinc-800 bg-zinc-800/40'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold tracking-wide ${hit ? 'text-green-400' : 'text-zinc-400'}`}>
-                          {label}
-                        </span>
-                        <span className={`text-sm font-bold tabular-nums ${hit ? 'text-green-400' : 'text-zinc-200'}`}>
-                          {hit ? '✓ met' : `${fmtDuration(left)} left`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${hit ? 'bg-green-500' : 'bg-zinc-500'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-zinc-500 tabular-nums shrink-0 w-16 text-right">
-                          {hit ? `${hours}h done` : eta ? `~${fmtTime(eta)}` : '—'}
-                        </span>
-                      </div>
+                    <div key={label} className="flex items-center justify-between text-sm">
+                      <span className={`font-medium ${hit ? 'text-green-400' : 'text-zinc-400'}`}>{label}</span>
+                      <span className={`tabular-nums ${hit ? 'text-green-400 font-semibold' : 'text-zinc-300'}`}>
+                        {hit ? '✓ met' : `${fmtDuration(left)} left · ~${eta ? fmtTime(eta) : '—'}`}
+                      </span>
                     </div>
                   );
                 })}
@@ -1500,17 +1499,6 @@ export default function GigTracker() {
               )}
             </div>
 
-            {/* End Shift */}
-            <button
-              onClick={() => {
-                if (window.confirm('End shift? This saves it to your history and clears the tracker.')) {
-                  handleEndShift();
-                }
-              }}
-              className="mt-3 w-full rounded-xl border border-red-900 bg-red-950/40 hover:bg-red-950/70 text-red-300 font-semibold py-3.5 min-h-[52px] text-sm transition-colors"
-            >
-              End Shift
-            </button>
           </>
         )}
 
