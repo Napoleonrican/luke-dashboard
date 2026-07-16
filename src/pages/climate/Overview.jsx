@@ -183,12 +183,17 @@ export default function Overview() {
   const [cmPowerOff, setCmPowerOff] = useState(false);
   const [cmFan, setCmFan] = useState('');
   const [cmMode, setCmMode] = useState('');
+  const [cmDurationHrs, setCmDurationHrs] = useState('');
   const [cmSaving, setCmSaving] = useState(false);
 
   async function handleActivate() {
     if (!intentText.trim()) return;
     setCmSaving(true);
+    const expiresAt = cmDurationHrs
+      ? new Date(Date.now() + Number(cmDurationHrs) * 3600 * 1000).toISOString()
+      : null;
     await activateComfortMode(intentText.trim(), {
+      expiresAt,
       goalPower: cmPowerOff ? 'off' : null,
       goalFan: cmPowerOff ? null : (cmFan || null),
       goalMode: cmPowerOff ? null : (cmMode || null),
@@ -199,6 +204,7 @@ export default function Overview() {
     setCmPowerOff(false);
     setCmFan('');
     setCmMode('');
+    setCmDurationHrs('');
   }
 
   async function handleClear() {
@@ -404,7 +410,7 @@ export default function Overview() {
               <Sparkles size={14} className="text-violet-400" />
               <span className="text-sm font-semibold text-zinc-100">Schedule Override</span>
               <button
-                onClick={() => { setCmExpanded(false); setIntentText(''); setCmPowerOff(false); setCmFan(''); setCmMode(''); }}
+                onClick={() => { setCmExpanded(false); setIntentText(''); setCmPowerOff(false); setCmFan(''); setCmMode(''); setCmDurationHrs(''); }}
                 className="ml-auto text-zinc-500 hover:text-zinc-300"
               >
                 <X size={14} />
@@ -454,9 +460,24 @@ export default function Overview() {
                   <option value="ENERGY_SAVER">Eco</option>
                 </select>
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-zinc-500">Expires</span>
+                <select
+                  value={cmDurationHrs}
+                  onChange={(e) => setCmDurationHrs(e.target.value)}
+                  className="text-[11px] rounded-md border border-zinc-700 bg-zinc-800 text-zinc-300 px-1.5 py-1 focus:outline-none focus:border-zinc-500"
+                >
+                  <option value="">Until I clear it</option>
+                  <option value="1">1 hour</option>
+                  <option value="2">2 hours</option>
+                  <option value="4">4 hours</option>
+                  <option value="8">8 hours</option>
+                </select>
+              </div>
             </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">
-              The agent checks sensors every few minutes and adjusts the AC toward your instruction. Clears manually.
+              The agent checks sensors every few minutes and adjusts the AC toward your instruction.
+              {cmDurationHrs ? ` Reverts to the normal schedule automatically in ${cmDurationHrs}h.` : ' Clears manually unless you set an expiration above.'}
             </p>
             <div className="flex justify-end mt-3">
               <button
