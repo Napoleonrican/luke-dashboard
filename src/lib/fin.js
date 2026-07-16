@@ -4,6 +4,14 @@ import { supabase } from './supabase';
 
 const s = supabase; // alias so callers can check if null
 
+// Match an account by name the way the Cashflow module expects: trimmed and
+// case-insensitive, so incidental whitespace or casing on the stored name
+// (e.g. "bill pay checking " vs "Bill Pay Checking") never causes a lookup to
+// miss. Shared by the Waterfall balance lookups and the Earnin tab so the two
+// can't drift apart.
+export const accountNameMatches = (account, name) =>
+  (account?.name || '').trim().toLowerCase() === (name || '').trim().toLowerCase();
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
 export async function fetchAccounts() {
