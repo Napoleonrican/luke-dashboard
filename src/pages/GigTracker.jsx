@@ -56,6 +56,16 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Copy for the resume banner. Names the actual date of the offered shift so it
+// never falsely claims "today's shift" for a stale/older snapshot.
+function resumePromptLabel(shiftDate) {
+  if (!shiftDate || shiftDate === todayISO()) return "Resume today's shift?";
+  const d = new Date(`${shiftDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return 'Resume unfinished shift?';
+  const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return `Resume shift from ${label}?`;
+}
+
 function computeElapsedMinutes(startTime, breakLength) {
   if (!startTime) return 0;
   const now = new Date();
@@ -231,12 +241,21 @@ export default function GigTracker() {
       // snapshot is fresher between local and remote.
       if (prefsLoadKey === 0 && !activeRes?.error && activeRes?.data?.state?.shiftStarted) {
         const remote = activeRes.data.state;
-        setSavedResume(prev => {
-          if (!prev) return remote;
-          // keep the one with more logged orders (proxy for freshness)
-          return (remote.orderLog?.length ?? 0) >= (prev.orderLog?.length ?? 0) ? remote : prev;
-        });
-        setResumePrompt(true);
+        // Mirror the local path's same-day guard: the active_shift row is only
+        // cleared on End/Reset/Discard, so a tab/app killed mid-shift leaves an
+        // orphaned row that would otherwise offer "resume" forever, on any
+        // device, feeding a stale startTime into the elapsed-time/EPH math.
+        if (remote.shiftDate === todayISO()) {
+          setSavedResume(prev => {
+            if (!prev) return remote;
+            // keep the one with more logged orders (proxy for freshness)
+            return (remote.orderLog?.length ?? 0) >= (prev.orderLog?.length ?? 0) ? remote : prev;
+          });
+          setResumePrompt(true);
+        } else {
+          // Stale remote row from a prior day — clear it so it stops resurfacing.
+          clearActiveShiftRemote();
+        }
       }
       const data = prefsRes.data;
       if (!data || prefsRes.error) return;
@@ -1137,7 +1156,7 @@ export default function GigTracker() {
         {/* Resume banner */}
         {resumePrompt && (
           <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-900 p-4 flex items-center justify-between gap-3">
-            <span className="text-sm text-zinc-300">Resume today&apos;s shift?</span>
+            <span className="text-sm text-zinc-300">{resumePromptLabel(savedResume?.shiftDate)}</span>
             <div className="flex gap-2">
               <button
                 onClick={() => { setState({ ...getDefaultState(), ...savedResume }); setResumePrompt(false); }}
