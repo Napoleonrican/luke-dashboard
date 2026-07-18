@@ -13,7 +13,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-14' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-15' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-15' },
@@ -32,18 +32,17 @@ const TIERS = [
       ['0b', 'Bill Pay — Earnin Repayment', 'Bill Pay Checking', 'Covers what you owe Earnin (it auto-repays same-day as your paycheck). Live from the Earnin tab’s running balance.'],
       ['0c', 'Bill Pay — On-Deck Bills', 'Bill Pay Checking', 'Covers the Bill-type items you’ve staged On Deck, after Earnin is covered.'],
       ['1', 'Operating — Weekly Essentials', 'Operating Checking', 'This week’s fuel + groceries need (tapered by day of week), net of what’s already in Operating + the Uber Pro Card.'],
-      ['2', 'Bill Pay — Immediate Bills (7-day)', 'Bill Pay Checking', 'Bills due in the next 7 days (plus the subscription floor), net of the Bill Pay balance left after Earnin.'],
-      ['3', 'Debt Pay — Debt/Loan Radar (7-day)', 'Debt Pay Checking', 'Debt/loan minimums due in the next 7 days (plus anything on deck), net of the Debt/Loan Checking balance.'],
+      ['2', 'Bill Pay — Immediate Bills', 'Bill Pay Checking', 'Bills due within your selected window (the 7/14/30/Until-Paycheck selector drives this), plus the subscription floor, net of the Bill Pay balance left after Earnin.'],
+      ['3', 'Debt Pay — Debt/Loan Radar', 'Debt Pay Checking', 'Debt/loan minimums due within your selected window (plus anything on deck), net of the Debt/Loan Checking balance.'],
       ['4', 'Bill Pay — Floor Build', 'Bill Pay Checking', 'Builds Bill Pay up toward your total fixed monthly bills (live from the Bills tab), after step 2’s allocation.'],
     ],
   },
   {
     key: 'surplus', label: 'Surplus Slices',
-    blurb: 'Fixed percentages of whatever survives the gates (the “surplus pool”). The two percentages here are the only Need values you edit directly in the table.',
+    blurb: 'Fixed percentages of whatever survives the gates (the “surplus pool”). Both percentages here are editable directly in the table.',
     steps: [
-      ['5a', 'Debt Pay — BNPL Cleanup', 'Debt Pay Checking', '15% of the surplus, toward knocking out the next tiny BNPL balance.'],
+      ['5a', 'Debt Pay — Extra to Debt Payoff', 'Debt Pay Checking', '35% of the surplus, straight toward paying down debt.'],
       ['5b', 'Primary Savings — House Savings', 'Primary Savings', '25% of the surplus — but only once the emergency fund is fully funded (gated).'],
-      ['5c', 'Debt Pay — Avalanche Cleanup', 'Debt Pay Checking', '20% of the surplus, toward the highest-APR debt.'],
     ],
   },
   {
@@ -150,7 +149,7 @@ export default function Guide() {
 
         <Block title="3. The waterfall table (Step · Need · Allocate · Left)">
           <p><strong className="text-zinc-300">Need</strong> is what each step wants; <strong className="text-zinc-300">Allocate</strong> is what it actually got (the smaller of its need and what was left); <strong className="text-zinc-300">Left</strong> is the pool remaining after it.</p>
-          <p>Almost every Need is <span className="text-amber-400 font-medium">live</span> — computed from your accounts, the 7-day bill/debt totals, on-deck amounts, and Plan Inputs (hover the <span className="text-amber-400">live</span> badge for the exact math). Only two Needs are typed directly in the table: the <strong className="text-zinc-300">surplus percentages</strong> (5a/5b/5c) and <strong className="text-zinc-300">Step 7’s flat amount</strong>.</p>
+          <p>Almost every Need is <span className="text-amber-400 font-medium">live</span> — computed from your accounts, the bill/debt totals for your selected window, on-deck amounts, and Plan Inputs (hover the <span className="text-amber-400">live</span> badge for the exact math). Only three Needs are typed directly in the table: the two <strong className="text-zinc-300">surplus percentages</strong> (5a/5b) and <strong className="text-zinc-300">Step 7’s flat amount</strong>.</p>
           <p>Steps are grouped into four tiers that pour in order:</p>
           {TIERS.map((t) => (
             <div key={t.key} className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
@@ -183,6 +182,7 @@ export default function Guide() {
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
           </ul>
           <p>Collapsing this section hides the cards <em>and</em> the detail tables; the header shows a Coming / On Deck / After summary when collapsed.</p>
+          <p>The window you pick here also drives how far ahead the plan reserves: Step 2 (Immediate Bills) and Step 3 (Debt Radar) cover bills/debts due within this same window. Since one paycheck has to last until the next, <strong className="text-zinc-300">Until Paycheck</strong> is the natural setting for planning a single paycheck; a 30-day window reserves more than one pay period will cover.</p>
         </Block>
 
         <Block title="6. On Deck · Coming Up · Ad Hoc">
@@ -228,7 +228,7 @@ export default function Guide() {
         <SectionHeader s={meta('bills')} />
         <p className="text-sm text-zinc-400 leading-relaxed">
           Recurring bills — amounts, due dates, and categories. This is the source of truth for two
-          things the Waterfall reads live: the 7-day “immediate bills” total, and (for <strong className="text-zinc-300">Bill</strong>-category
+          things the Waterfall reads live: the “immediate bills” total for your selected window, and (for <strong className="text-zinc-300">Bill</strong>-category
           rows only) the Floor Build target.
         </p>
         <Block title="Category matters">
@@ -244,7 +244,7 @@ export default function Guide() {
         <SectionHeader s={meta('debts')} />
         <p className="text-sm text-zinc-400 leading-relaxed">
           Every debt/loan/BNPL balance, minimum, and payoff projection — feeds the Waterfall’s Debt
-          Radar (7-day minimums due) and the standalone Debt Payoff Calculator.
+          Radar (minimums due within the selected window) and the standalone Debt Payoff Calculator.
         </p>
         <Block title="Calculated fields (read-only)">
           <ul className="list-disc pl-5 space-y-1">
