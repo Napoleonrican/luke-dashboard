@@ -270,7 +270,10 @@ export function useClimateData() {
   // goalRoom / goalTempF can be passed explicitly from the UI; when omitted we
   // best-effort parse them from the intent text so the Pi-side cooling guard has
   // structured data to work with even if the user just types freeform.
-  const activateComfortMode = useCallback(async (intentText, { expiresAt = null, goalRoom = null, goalTempF = null } = {}) => {
+  const activateComfortMode = useCallback(async (intentText, {
+    expiresAt = null, goalRoom = null, goalTempF = null,
+    goalPower = null, goalFan = null, goalMode = null,
+  } = {}) => {
     if (!supabase) return;
     if (!goalRoom) {
       const lower = intentText.toLowerCase();
@@ -286,6 +289,9 @@ export function useClimateData() {
     if (expiresAt) row.expires_at = expiresAt;
     if (goalRoom) row.goal_room = goalRoom;
     if (goalTempF != null) row.goal_temp_f = goalTempF;
+    if (goalPower) row.goal_power = goalPower;
+    if (goalFan) row.goal_fan = goalFan;
+    if (goalMode) row.goal_mode = goalMode;
     const { data } = await supabase
       .from('ac_comfort_mode')
       .insert(row)

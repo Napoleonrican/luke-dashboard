@@ -10,6 +10,7 @@ const DebtCalculator = lazy(() => import('./pages/DebtCalculator'));
 const DebtCalcSettings = lazy(() => import('./pages/DebtCalcSettings'));
 const VersaRepair = lazy(() => import('./pages/VersaRepair'));
 const GigTracker = lazy(() => import('./pages/GigTracker'));
+const PricingStudio = lazy(() => import('./pages/PricingStudio'));
 const ClimateLayout = lazy(() => import('./pages/climate/ClimateLayout'));
 const Overview = lazy(() => import('./pages/climate/Overview'));
 const History = lazy(() => import('./pages/climate/History'));
@@ -59,6 +60,10 @@ export default function App() {
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
         } />
         <Route path="/gig-tracker" element={<GigTracker />} />
+        {/* Standalone tier/pricing decision tool for the Gig Tracker app.
+            Public (no auth gate) so family/helpers can open the shared link;
+            not linked from the Home hub. See PricingStudio.jsx. */}
+        <Route path="/pricing-studio" element={<PricingStudio />} />
         <Route path="/climate" element={<ClimateLayout />}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<Overview />} />
