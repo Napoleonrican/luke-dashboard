@@ -413,7 +413,7 @@ async function main() {
     }
   }
 
-  console.log('\nDone. Re-running is safe — each table is cleared for this owner then reloaded.');
+  console.log('\nDone. Re-running is safe — rows are upserted by natural key, so existing TMDB matches and manual edits are preserved.');
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });
