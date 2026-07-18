@@ -56,12 +56,11 @@ i.e. our `fin_runway_deck` rows resolved to amounts.
 
 > Engine note: the workbook's single 0b gate `MAX(0, (Earnin_Debit + onDeckBills) − BillPay)` is split into two display lines (0b Earnin, 0c on-deck bills) that net the same Bill Pay balance in order — Earnin first, then the leftover covers on-deck bills. Their needs sum to the original, so the pour is unchanged.
 | 1 | Weekly Essentials | `MAX(0, EssentialsTotal − (Operating + UberProCard))` | essentials + accts D9,D11 |
-| 2 | Immediate Bills 7d | `IF(BillPay<Earnin_Debit, Bills7d+SubsFloor, Earnin_Debit+Bills7d+SubsFloor − BillPay)` | J3,J4,J9,D8 |
+| 2 | Immediate Bills | `IF(BillPay<Earnin_Debit, BillsWin+SubsFloor, Earnin_Debit+BillsWin+SubsFloor − BillPay)` | J3,J4,J9,D8 — `BillsWin` = bills due within the UI's selected window (7/14/30/Until-Paycheck), not a fixed 7d |
 | 3 | Debt/Loan Radar 7d | `MAX(0, (DebtMins7d + onDeckDebts + DebtBuffer) − DebtLoanChecking)` | J5, on-deck(Debt), J10, D10 |
 | 4 | Floor Build | `MROUND(MAX(0, TotalFixedBills − (BillPay + ImmediateBillsAlloc)), 10)` | Inputs!B2=1573, D8, E27 |
-| 5a | BNPL cleanup | `15% × surplus(F29)` | ✓ engine (pct) |
+| 5a | Extra to Debt Payoff | `35% × surplus(F29)` | ✓ engine (pct) — merged the old 5a BNPL (15%) + 5c avalanche (20%) into one debt slice |
 | 5b | House Savings | `IF(PrimarySavings < EmergencyGoal, 0, 25% × surplus)` | gated on emergency full |
-| 5c | Avalanche | `20% × surplus` | ✓ engine (pct) |
 | 6 | Operating Buffer | `MAX(0, OpBufStage1 − Operating − MIN(MAX(0,UberProCard−UberBackup), OpBufStage1))` | Inputs!B16, D9, D11, D12 |
 | 7 | Credit Union | flat `25` | ✓ engine |
 | 8a | CX-5 catch-up | `MAX(0, OutstandingCX5 − VehicleMaintSavings)` | Inputs!B25=1613, D13 |

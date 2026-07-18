@@ -198,8 +198,11 @@ export default function Waterfall() {
   // until the next biweekly paycheck (recomputed each render, never stale).
   const { days: daysToPaycheck, iso: nextPaycheckISO } = nextPaycheckInfo();
   // Exclude the paycheck day itself — anything due that day belongs to the
-  // next period, not this one, so the window stops the day before.
-  const windowDays = windowMode === 'paycheck' ? Math.max(0, daysToPaycheck - 1) : customWindowDays;
+  // next period, so the window stops the day before. On payday itself
+  // (daysToPaycheck === 0) roll to the next full period rather than a
+  // degenerate 0-day window (which would zero out the immediate-bills reserve).
+  const paycheckSpan = daysToPaycheck > 0 ? daysToPaycheck : PAYCHECK_PERIOD_DAYS;
+  const windowDays = windowMode === 'paycheck' ? Math.max(0, paycheckSpan - 1) : customWindowDays;
 
   // Toggle a collapsible group and persist all three states together.
   const toggleSection = (key, setter) => setter((v) => {
@@ -243,11 +246,14 @@ export default function Waterfall() {
     onDeck.reduce((acc, it) => { acc[it.type] = (acc[it.type] ?? 0) + (it.amount ?? 0); return acc; }, {}),
   ).sort((a, b) => b[1] - a[1]);
 
-  // 7-day bill/debt totals EXCLUDING items already on deck — the workbook
-  // counts an on-deck item once (via the sums above), not twice.
-  const in7 = withinWindow(items, 7).filter((it) => !deckSet.has(it.key));
-  const bills7 = in7.filter((it) => !isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
-  const debts7 = in7.filter((it) => isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
+  // Bill/debt totals for the SELECTED window (7/14/30/Until-Paycheck), excluding
+  // items already on deck — the workbook counts an on-deck item once (via the
+  // sums above), not twice. These feed Step 2 (Immediate Bills) and Step 3
+  // (Debt Radar), so the window selector drives how far ahead those gates
+  // reserve. (ctx keys stay `bills7`/`debts7` — the names the engine reads.)
+  const inWindow = withinWindow(items, windowDays).filter((it) => !deckSet.has(it.key));
+  const bills7 = inWindow.filter((it) => !isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
+  const debts7 = inWindow.filter((it) => isDebtType(it.type)).reduce((s, it) => s + (it.amount || 0), 0);
 
   const subsFloor = (
     digital.filter((s) => s.active).reduce((t, s) => t + monthlyDigital(s), 0)
@@ -307,7 +313,11 @@ export default function Waterfall() {
   // banked balance. In "Already in Bill Pay" the paycheck isn't added again —
   // it's inside Bill Pay's (auto-banked) balance.
   const pool = (includePaycheck ? paycheck : 0) + sideGig + bankedTotal;
-  const steps = applyOverrides(over);
+  // Steps 2 & 3 reserve for the selected window, so their labels show it.
+  const windowTag = windowMode === 'paycheck' ? 'until paycheck' : `next ${windowDays}d`;
+  const steps = applyOverrides(over).map((s) => (
+    s.id === '2' || s.id === '3' ? { ...s, label: `${s.label} (${windowTag})` } : s
+  ));
   const { rows, leftover } = allocate(steps, pool, ctx);
   const accountPlan = byAccount(rows);
   const totalAllocated = pool - leftover;
