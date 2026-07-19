@@ -914,19 +914,14 @@ export default function GigTracker() {
         breakStartMs={breakStartMs}
         onUpdate={update}
         onEditSetup={() => { setShiftPanelOpen(false); setSetupModalOpen(true); }}
-        onEndShift={() => {
-          if (window.confirm('End shift? This saves it to your history and clears the tracker.')) {
-            handleEndShift();
-          }
-        }}
+        // ShiftPanel now owns the confirmation UX (in-line "tap again to
+        // confirm"), so these handlers just perform the action.
+        onEndShift={handleEndShift}
         onReset={() => {
-          if (window.confirm('Reset shift? This clears all orders and earnings without saving.')) {
-            setShiftPanelOpen(false);
-            clearActiveShiftRemote();
-            localStorage.removeItem(STORAGE_KEY);
-            setState(getDefaultState());
-            setPrefsLoadKey(k => k + 1);
-          }
+          clearActiveShiftRemote();
+          localStorage.removeItem(STORAGE_KEY);
+          setState(getDefaultState());
+          setPrefsLoadKey(k => k + 1);
         }}
       />
 
