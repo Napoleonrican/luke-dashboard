@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu, ListChecks
 import TopNav from '../components/TopNav';
 import SettingsPanel from '../components/SettingsPanel';
 import ShiftPanel from '../components/ShiftPanel';
+import WeeklySchedulePanel from '../components/WeeklySchedulePanel';
 import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'gig_tracker_state';
@@ -172,13 +173,6 @@ export default function GigTracker() {
   // Supabase-fetched benchmark data; null = not yet loaded (fallback to hardcoded)
   const [zoneData, setZoneData] = useState(null);
   const [weeklySchedule, setWeeklySchedule] = useState(null);
-
-  // Schedule UI state
-  const [scheduleCollapsed, setScheduleCollapsed] = useState(true);
-  const [schedulePasteOpen, setSchedulePasteOpen] = useState(false);
-  const [schedulePasteText, setSchedulePasteText] = useState('');
-  const [schedulePreview, setSchedulePreview] = useState(null);
-  const [scheduleUpsertStatus, setScheduleUpsertStatus] = useState(null);
 
   // Always-fresh ref for use inside intervals
   const stateRef = useRef(state);
@@ -750,103 +744,6 @@ export default function GigTracker() {
     }
   }
 
-  // ── Schedule paste helpers ────────────────────────────────────────────────
-
-  function parsePastedSchedule(text) {
-    const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
-    if (lines.length === 0) return null;
-
-    function parseTime(val) {
-      if (val == null) return null;
-      const s = String(val).trim();
-      if (!s) return null;
-      // "5:00 PM" / "11:30 AM" (Excel renders times in 12h format on paste)
-      const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (ampm) {
-        let h = parseInt(ampm[1], 10);
-        const m = parseInt(ampm[2], 10);
-        if (/pm/i.test(ampm[3])) { if (h !== 12) h += 12; }
-        else { if (h === 12) h = 0; }
-        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-      }
-      // "17:30" — already 24h
-      const hhmm = s.match(/^(\d{1,2}):(\d{2})$/);
-      if (hhmm) return `${String(parseInt(hhmm[1])).padStart(2,'0')}:${hhmm[2]}`;
-      // Excel time fraction (0–1), e.g. 0.7708 = 18:30
-      const n = parseFloat(s);
-      if (!isNaN(n) && n > 0 && n < 1) {
-        const totalMin = Math.round(n * 1440);
-        const h = Math.floor(totalMin / 60) % 24;
-        const m = totalMin % 60;
-        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-      }
-      return null;
-    }
-
-    function parseMoney(val) {
-      if (val == null) return null;
-      const s = String(val).trim().replace(/[$,]/g, '');
-      if (s === '') return null;
-      const n = parseFloat(s);
-      return isNaN(n) ? null : n;
-    }
-
-    const parsed = lines.map(line => {
-      const cols = line.split('\t');
-      return {
-        lob:          cols[0] != null && cols[0] !== '' ? parseFloat(cols[0]) : null,
-        dow:          cols[1]?.trim() || null,
-        area:         cols[2]?.trim() || null,
-        earliest:     parseTime(cols[3]),
-        latest:       parseTime(cols[4]),
-        type:         cols[5]?.trim() || null,
-        min_earnings: parseMoney(cols[6]),
-        min_hours:    parseMoney(cols[7]),
-        max_earnings: parseMoney(cols[8]),
-        max_hours:    parseMoney(cols[9]),
-      };
-    });
-
-    const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return WEEK_DAYS.map(dow =>
-      parsed.find(r => r.dow === dow) ?? {
-        lob: null, dow, area: null, earliest: null, latest: null,
-        type: null, min_earnings: null, min_hours: null, max_earnings: null, max_hours: null,
-      }
-    );
-  }
-
-  function getThisWeekStart() {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().slice(0, 10);
-  }
-
-  async function confirmPastedSchedule() {
-    if (!schedulePreview || !supabase) return;
-    setScheduleUpsertStatus('saving');
-    const record = {
-      week_start_date: getThisWeekStart(),
-      rows: schedulePreview,
-      source_label: 'paste-ui',
-      updated_at: new Date().toISOString(),
-    };
-    const { error } = await supabase
-      .from('weekly_schedule')
-      .upsert(record, { onConflict: 'week_start_date' });
-    if (error) {
-      console.error('[weekly_schedule upsert]', error.message);
-      setScheduleUpsertStatus('error');
-    } else {
-      setWeeklySchedule(record);
-      setSchedulePasteOpen(false);
-      setSchedulePasteText('');
-      setSchedulePreview(null);
-      setScheduleUpsertStatus('ok');
-      setTimeout(() => setScheduleUpsertStatus(null), 3000);
-    }
-  }
-
   // Shift Setup fields — reused inside the setup modal (pre-shift + during-shift edit)
   const shiftSetupInner = (
     <div className="space-y-4">
@@ -929,142 +826,6 @@ export default function GigTracker() {
                 />
               </div>
             </div>
-          </div>
-
-          {/* This Week's Schedule */}
-          <div className="rounded-xl border border-zinc-800 overflow-hidden">
-            <button
-              onClick={() => setScheduleCollapsed(v => !v)}
-              className="w-full flex items-center justify-between px-3 py-2.5 min-h-[44px] bg-zinc-800"
-            >
-              <span className="text-xs font-semibold text-zinc-300">This Week&apos;s Schedule</span>
-              {scheduleCollapsed
-                ? <ChevronDown size={14} className="text-zinc-500" />
-                : <ChevronUp size={14} className="text-zinc-500" />}
-            </button>
-
-            {!scheduleCollapsed && (
-              <div className="px-3 pb-3 pt-2 space-y-3">
-                {weeklySchedule ? (
-                  <>
-                    <div className="text-xs text-zinc-500">
-                      Week of {weeklySchedule.week_start_date} &middot; Updated {new Date(weeklySchedule.updated_at).toLocaleDateString()}
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="text-xs w-full min-w-[480px]">
-                        <thead>
-                          <tr className="text-zinc-500 border-b border-zinc-700">
-                            <th className="text-left py-1 pr-2 font-medium">Day</th>
-                            <th className="text-left py-1 pr-2 font-medium">Zone</th>
-                            <th className="text-left py-1 pr-2 font-medium">Type</th>
-                            <th className="text-left py-1 pr-2 font-medium">Min$</th>
-                            <th className="text-left py-1 pr-2 font-medium">Min hrs</th>
-                            <th className="text-left py-1 pr-2 font-medium">Max$</th>
-                            <th className="text-left py-1 font-medium">Max hrs</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(weeklySchedule.rows || []).map((row, i) => (
-                            <tr key={i} className="border-b border-zinc-800 last:border-0">
-                              <td className="py-1 pr-2 text-zinc-200 font-medium">{row.dow || '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-300">{row.area || '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-400">{row.type || '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_hours != null ? row.min_hours : '—'}</td>
-                              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
-                              <td className="py-1 text-zinc-300 tabular-nums">{row.max_hours != null ? row.max_hours : '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-xs text-zinc-500">No schedule loaded yet.</div>
-                )}
-
-                {scheduleUpsertStatus === 'ok' && (
-                  <div className="text-xs text-green-400">✓ Schedule saved.</div>
-                )}
-                {scheduleUpsertStatus === 'error' && (
-                  <div className="text-xs text-red-400">Save failed — check console.</div>
-                )}
-
-                {!schedulePasteOpen ? (
-                  <button
-                    onClick={() => { setSchedulePasteOpen(true); setSchedulePreview(null); setSchedulePasteText(''); }}
-                    className="w-full text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded-lg py-2 min-h-[36px] transition-colors"
-                  >
-                    Paste new schedule
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="text-xs text-zinc-500">
-                      In Excel, select AX3:BG9 on the Scheduling tab, copy, then paste below.
-                    </div>
-                    <textarea
-                      rows={8}
-                      value={schedulePasteText}
-                      onChange={e => {
-                        setSchedulePasteText(e.target.value);
-                        const parsed = parsePastedSchedule(e.target.value);
-                        setSchedulePreview(parsed?.length > 0 ? parsed : null);
-                      }}
-                      placeholder="Paste tab-delimited rows here…"
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 outline-none focus:border-zinc-500 font-mono resize-none"
-                    />
-
-                    {schedulePreview && (
-                      <div className="overflow-x-auto">
-                        <div className="text-xs text-zinc-500 mb-1">Preview ({schedulePreview.length} rows):</div>
-                        <table className="text-xs w-full min-w-[480px]">
-                          <thead>
-                            <tr className="text-zinc-500 border-b border-zinc-700">
-                              <th className="text-left py-1 pr-2">Day</th>
-                              <th className="text-left py-1 pr-2">Zone</th>
-                              <th className="text-left py-1 pr-2">Type</th>
-                              <th className="text-left py-1 pr-2">Min$</th>
-                              <th className="text-left py-1 pr-2">Min hrs</th>
-                              <th className="text-left py-1 pr-2">Max$</th>
-                              <th className="text-left py-1">Max hrs</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {schedulePreview.map((row, i) => (
-                              <tr key={i} className="border-b border-zinc-800 last:border-0">
-                                <td className="py-1 pr-2 text-zinc-200">{row.dow || '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-300">{row.area || '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-400">{row.type || '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_hours != null ? row.min_hours : '—'}</td>
-                                <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
-                                <td className="py-1 text-zinc-300 tabular-nums">{row.max_hours != null ? row.max_hours : '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={confirmPastedSchedule}
-                        disabled={!schedulePreview || scheduleUpsertStatus === 'saving'}
-                        className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-xs font-medium rounded-lg py-2 min-h-[36px] transition-colors"
-                      >
-                        {scheduleUpsertStatus === 'saving' ? 'Saving…' : 'Confirm & Save'}
-                      </button>
-                      <button
-                        onClick={() => { setSchedulePasteOpen(false); setSchedulePasteText(''); setSchedulePreview(null); }}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs px-4 rounded-lg min-h-[36px] transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
     </div>
@@ -1264,6 +1025,12 @@ export default function GigTracker() {
               <span>{lastShift.zone}</span>
             </div>
           </div>
+        )}
+
+        {/* Weekly Schedule — pre-shift only; moved out of Shift Setup so it's
+            visible on the landing screen without opening a modal first */}
+        {!shiftStarted && (
+          <WeeklySchedulePanel weeklySchedule={weeklySchedule} onScheduleSaved={setWeeklySchedule} />
         )}
 
         {/* ── Live Dashboard ── */}
