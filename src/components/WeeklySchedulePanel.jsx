@@ -77,35 +77,82 @@ function getThisWeekStart() {
   return d.toISOString().slice(0, 10);
 }
 
-function ScheduleTable({ rows }) {
+// Type badge — categorical color coding (green/amber), mirroring the "Order"
+// vs "Hourly-Test" color coding from the source workbook.
+function TypeBadge({ type }) {
+  if (!type) return <span className="text-zinc-600">—</span>;
+  const isOrder = /order/i.test(type) && !/hourly/i.test(type);
+  const cls = isOrder
+    ? 'bg-emerald-900/50 text-emerald-300 border-emerald-800'
+    : 'bg-amber-900/40 text-amber-300 border-amber-800';
   return (
-    <div className="overflow-x-auto">
-      <table className="text-xs w-full min-w-[480px]">
-        <thead>
-          <tr className="text-zinc-500 border-b border-zinc-700">
-            <th className="text-left py-1 pr-2 font-medium">Day</th>
-            <th className="text-left py-1 pr-2 font-medium">Zone</th>
-            <th className="text-left py-1 pr-2 font-medium">Type</th>
-            <th className="text-left py-1 pr-2 font-medium">Min$</th>
-            <th className="text-left py-1 pr-2 font-medium">Min hrs</th>
-            <th className="text-left py-1 pr-2 font-medium">Max$</th>
-            <th className="text-left py-1 font-medium">Max hrs</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-zinc-800 last:border-0">
-              <td className="py-1 pr-2 text-zinc-200 font-medium">{row.dow || '—'}</td>
-              <td className="py-1 pr-2 text-zinc-300">{row.area || '—'}</td>
-              <td className="py-1 pr-2 text-zinc-400">{row.type || '—'}</td>
-              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}</td>
-              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.min_hours != null ? row.min_hours : '—'}</td>
-              <td className="py-1 pr-2 text-zinc-300 tabular-nums">{row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}</td>
-              <td className="py-1 text-zinc-300 tabular-nums">{row.max_hours != null ? row.max_hours : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <span className={`inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${cls}`}>
+      {type}
+    </span>
+  );
+}
+
+// Green→amber→red heat-scale color for a numeric value, relative to the
+// min/max of that same field across the week — the same idea as the
+// conditional-formatting color scale used in the source workbook, just
+// computed per-column at render time instead of baked into cell fills.
+function heatColor(value, lo, hi) {
+  if (value == null || !Number.isFinite(lo) || !Number.isFinite(hi) || hi === lo) return '#a1a1aa'; // zinc-400
+  const t = Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
+  const hue = t * 120; // 0 = red, 60 = amber, 120 = green
+  return `hsl(${hue}, 65%, 58%)`;
+}
+
+function columnRange(rows, field) {
+  const values = rows.map(r => r[field]).filter(v => v != null && Number.isFinite(v));
+  if (values.length === 0) return [0, 0];
+  return [Math.min(...values), Math.max(...values)];
+}
+
+// Stacked, wrap-friendly rows instead of a wide table — the 7-column table
+// this replaced needed horizontal scrolling on phone-width screens; this
+// never does, regardless of viewport width.
+function ScheduleRows({ rows }) {
+  const [minEarnLo, minEarnHi] = columnRange(rows, 'min_earnings');
+  const [maxEarnLo, maxEarnHi] = columnRange(rows, 'max_earnings');
+  const [minHoursLo, minHoursHi] = columnRange(rows, 'min_hours');
+  const [maxHoursLo, maxHoursHi] = columnRange(rows, 'max_hours');
+
+  return (
+    <div className="divide-y divide-zinc-800">
+      {rows.map((row, i) => {
+        const hasShift = row.area || row.type || row.min_earnings != null || row.max_earnings != null;
+        return (
+          <div key={i} className="py-2.5 first:pt-0 last:pb-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-zinc-100">{row.dow || '—'}</span>
+              <TypeBadge type={row.type} />
+            </div>
+            {hasShift ? (
+              <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+                <span className="text-zinc-400 truncate">{row.area || '—'}</span>
+                <span className="tabular-nums shrink-0 flex items-center gap-1 font-medium">
+                  <span style={{ color: heatColor(row.min_earnings, minEarnLo, minEarnHi) }}>
+                    {row.min_earnings != null ? `$${row.min_earnings.toFixed(0)}` : '—'}
+                  </span>
+                  <span style={{ color: heatColor(row.min_hours, minHoursLo, minHoursHi) }}>
+                    /{row.min_hours ?? '—'}h
+                  </span>
+                  <span className="text-zinc-700 mx-0.5">→</span>
+                  <span style={{ color: heatColor(row.max_earnings, maxEarnLo, maxEarnHi) }}>
+                    {row.max_earnings != null ? `$${row.max_earnings.toFixed(0)}` : '—'}
+                  </span>
+                  <span style={{ color: heatColor(row.max_hours, maxHoursLo, maxHoursHi) }}>
+                    /{row.max_hours ?? '—'}h
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-zinc-600">Off</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -165,7 +212,7 @@ export default function WeeklySchedulePanel({ weeklySchedule, onScheduleSaved })
               <div className="text-xs text-zinc-500 mb-2">
                 Week of {weeklySchedule.week_start_date} &middot; Updated {new Date(weeklySchedule.updated_at).toLocaleDateString()}
               </div>
-              <ScheduleTable rows={weeklySchedule.rows || []} />
+              <ScheduleRows rows={weeklySchedule.rows || []} />
             </>
           ) : (
             <div className="text-xs text-zinc-500">No schedule loaded yet — tap Edit to paste one in.</div>
@@ -193,7 +240,7 @@ export default function WeeklySchedulePanel({ weeklySchedule, onScheduleSaved })
                 <div className="text-xs text-zinc-500 mb-2">
                   Current — week of {weeklySchedule.week_start_date} &middot; Updated {new Date(weeklySchedule.updated_at).toLocaleDateString()}
                 </div>
-                <ScheduleTable rows={weeklySchedule.rows || []} />
+                <ScheduleRows rows={weeklySchedule.rows || []} />
               </div>
             )}
 
@@ -220,7 +267,7 @@ export default function WeeklySchedulePanel({ weeklySchedule, onScheduleSaved })
               {preview && (
                 <div>
                   <div className="text-xs text-zinc-500 mb-1">Preview ({preview.length} rows):</div>
-                  <ScheduleTable rows={preview} />
+                  <ScheduleRows rows={preview} />
                 </div>
               )}
             </div>
