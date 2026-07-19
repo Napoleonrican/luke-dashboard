@@ -66,6 +66,23 @@ function resumePromptLabel(shiftDate) {
   return `Resume shift from ${label}?`;
 }
 
+// A shift is still resumable if it started recently — NOT if it started
+// "today" by calendar date. Shifts routinely run past midnight, so a driver
+// who closes the browser at 1am and reopens it would otherwise see
+// shiftDate !== todayISO() and lose the resume offer (and have the durable
+// backup deleted as "stale") even though the shift is only an hour old.
+// 20 hours comfortably covers any realistic overnight shift while still
+// expiring truly abandoned snapshots from days earlier.
+const RESUMABLE_WINDOW_HOURS = 20;
+function isShiftResumable(shiftDate, startTime) {
+  if (!shiftDate) return false;
+  const [h, m] = (startTime || '00:00').split(':').map(Number);
+  const startedAt = new Date(`${shiftDate}T00:00:00`);
+  startedAt.setHours(h || 0, m || 0, 0, 0);
+  const hoursSinceStart = (Date.now() - startedAt.getTime()) / 3600000;
+  return hoursSinceStart >= -1 && hoursSinceStart < RESUMABLE_WINDOW_HOURS;
+}
+
 function computeElapsedMinutes(startTime, breakLength) {
   if (!startTime) return 0;
   const now = new Date();
@@ -202,7 +219,7 @@ export default function GigTracker() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const saved = JSON.parse(raw);
-          if (saved && saved.shiftDate === todayISO() && saved.shiftStarted) {
+          if (saved && saved.shiftStarted && isShiftResumable(saved.shiftDate, saved.startTime)) {
             setSavedResume(saved);
             setResumePrompt(true);
           }
@@ -241,11 +258,14 @@ export default function GigTracker() {
       // snapshot is fresher between local and remote.
       if (prefsLoadKey === 0 && !activeRes?.error && activeRes?.data?.state?.shiftStarted) {
         const remote = activeRes.data.state;
-        // Mirror the local path's same-day guard: the active_shift row is only
-        // cleared on End/Reset/Discard, so a tab/app killed mid-shift leaves an
-        // orphaned row that would otherwise offer "resume" forever, on any
-        // device, feeding a stale startTime into the elapsed-time/EPH math.
-        if (remote.shiftDate === todayISO()) {
+        // Mirror the local path's resumable-window guard (see isShiftResumable):
+        // the active_shift row is only cleared on End/Reset/Discard, so a
+        // tab/app killed mid-shift leaves an orphaned row that would otherwise
+        // offer "resume" forever, on any device. Gate on elapsed time since
+        // the shift's recorded start, NOT calendar-day equality — shifts
+        // routinely run past midnight, and a same-day check would wrongly
+        // treat (and delete) a still-active overnight shift as stale.
+        if (isShiftResumable(remote.shiftDate, remote.startTime)) {
           setSavedResume(prev => {
             if (!prev) return remote;
             // keep the one with more logged orders (proxy for freshness)
@@ -253,7 +273,7 @@ export default function GigTracker() {
           });
           setResumePrompt(true);
         } else {
-          // Stale remote row from a prior day — clear it so it stops resurfacing.
+          // Truly stale remote row (older than the resumable window) — clear it.
           clearActiveShiftRemote();
         }
       }
