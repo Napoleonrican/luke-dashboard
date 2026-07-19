@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Thermometer, Cloud, ArrowRight, History } from 'lucide-react';
 import Sparkline from '../Sparkline';
+import { SOURCE_LABELS } from '../../pages/climate/sourceLabels';
 
 // Source → color for the agent-log line (mirrors Climate's AgentLog view).
 const SOURCE_TONE = {
@@ -9,13 +10,6 @@ const SOURCE_TONE = {
   goal_follower: 'text-amber-400',
   comfort_mode: 'text-emerald-400',
   manual: 'text-zinc-400',
-};
-
-// ac_change_log.source is an internal identifier ('comfort_mode' predates the
-// Schedule Override rename) — map it to the user-facing label here rather than
-// touching the stored value, since other code still filters/writes on the raw string.
-const SOURCE_LABEL = {
-  comfort_mode: 'override',
 };
 
 function timeAgo(iso) {
@@ -81,7 +75,7 @@ export default function ClimateRail({ climate, outdoor }) {
             <span className="ml-auto text-[10px] text-zinc-600">{timeAgo(climate.lastLog.ts)}</span>
           </div>
           <p className="text-xs leading-snug text-zinc-300">
-            <span className={`font-medium ${SOURCE_TONE[climate.lastLog.source] || 'text-zinc-400'}`}>{SOURCE_LABEL[climate.lastLog.source] || climate.lastLog.source}</span>
+            <span className={`font-medium ${SOURCE_TONE[climate.lastLog.source] || 'text-zinc-400'}`}>{SOURCE_LABELS[climate.lastLog.source] || climate.lastLog.source}</span>
             {' · '}{climate.lastLog.text}
           </p>
           {climate.lastLog.reason && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-zinc-500">{climate.lastLog.reason}</p>}

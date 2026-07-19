@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle, Bot, PowerOff } from 'lucide-react';
 import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
+import { SOURCE_LABELS as SHARED_SOURCE_LABELS } from './sourceLabels';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const hasDay = (mask, i) => (mask & (1 << i)) !== 0;
@@ -76,7 +77,7 @@ const MODE_LABELS = {
 };
 const FAN_LABELS = { AUTO: 'Auto', LOW: 'Low', MED: 'Med', HIGH: 'High' };
 const SOURCE_LABELS = {
-  executor: 'schedule', goal_follower: 'goal follower', comfort_mode: 'override',
+  executor: 'schedule', goal_follower: 'goal follower', ...SHARED_SOURCE_LABELS,
 };
 
 function fmtLiveState(s) {
