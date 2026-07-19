@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { History } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { SOURCE_LABELS } from './sourceLabels';
 
 // Audit trail of every change pushed to the AC / schedule, from any source
 // (the agent, the executor, or a manual edit). Read-only view of ac_change_log.
@@ -27,13 +28,6 @@ export default function AgentLog() {
     goal_follower:'text-amber-400 border-amber-500/30',
     comfort_mode: 'text-emerald-400 border-emerald-500/30',
     manual:       'text-zinc-400 border-zinc-600/40',
-  };
-
-  // ac_change_log.source is an internal identifier ('comfort_mode' predates the
-  // Schedule Override rename) — map it to the user-facing label here rather than
-  // touching the stored value, since other code still filters/writes on the raw string.
-  const sourceLabel = {
-    comfort_mode: 'override',
   };
 
   return (
@@ -63,7 +57,7 @@ export default function AgentLog() {
             <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5">
               <div className="flex items-center gap-2 flex-wrap text-sm">
                 <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border ${tone[r.source] || tone.manual}`}>
-                  {sourceLabel[r.source] || r.source}
+                  {SOURCE_LABELS[r.source] || r.source}
                 </span>
                 <span className="text-zinc-100">{r.detail || r.action}</span>
                 <span className="text-[11px] text-zinc-600 ml-auto">
