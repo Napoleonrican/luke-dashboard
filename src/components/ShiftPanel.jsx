@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
-// Slide-in "Shift" panel: the 4 controls a driver reaches for mid-shift —
-// Edit Shift Setup, Break Timer, End Shift, Reset — grouped in one place
-// instead of split across the main page and the Settings panel.
+// Slide-in "Shift" panel: the controls a driver reaches for mid-shift —
+// Edit Shift Setup, plus a grouped Shift Controls card (Break, End Shift,
+// Reset) — in one place instead of split across the main page and Settings.
+//
+// End Shift and Reset use in-line "tap again to confirm" guards rather than
+// browser confirm() dialogs, so the whole flow stays inside the drawer and
+// works one-handed on mobile. Parent handlers should perform the action
+// directly (no confirm()); this component owns the confirmation UX.
 export default function ShiftPanel({
   open,
   onClose,
@@ -17,6 +22,25 @@ export default function ShiftPanel({
   onReset,
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const [endShiftConfirm, setEndShiftConfirm] = useState(false);
+  const [resetConfirming, setResetConfirming] = useState(false);
+  const endShiftConfirmTimerRef = useRef(null);
+  const resetTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(endShiftConfirmTimerRef.current);
+    clearTimeout(resetTimerRef.current);
+  }, []);
+
+  // Clear pending confirms when the panel closes so they don't linger.
+  useEffect(() => {
+    if (!open) {
+      clearTimeout(endShiftConfirmTimerRef.current);
+      clearTimeout(resetTimerRef.current);
+      setEndShiftConfirm(false);
+      setResetConfirming(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -30,6 +54,7 @@ export default function ShiftPanel({
 
   useEffect(() => {
     if (!open || !breakRunning) return;
+    setNow(Date.now()); // seed immediately so first paint isn't stale
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [open, breakRunning]);
@@ -50,6 +75,20 @@ export default function ShiftPanel({
   function handleEndBreak() {
     const elapsed = breakStartMs ? (Date.now() - breakStartMs) / 60000 : 0;
     onUpdate({ breakRunning: false, breakStartMs: null, breakMinutes: Number(breakMinutes) + elapsed });
+  }
+
+  function handleEndShiftConfirmed() {
+    clearTimeout(endShiftConfirmTimerRef.current);
+    setEndShiftConfirm(false);
+    onClose();
+    onEndShift();
+  }
+
+  function handleResetConfirmed() {
+    clearTimeout(resetTimerRef.current);
+    setResetConfirming(false);
+    onClose();
+    onReset();
   }
 
   return (
@@ -95,15 +134,19 @@ export default function ShiftPanel({
                 </button>
               </div>
 
-              {/* Break Timer */}
+              {/* Shift Controls — Break, End Shift, Reset grouped in one card,
+                  matching the Gig Tracker product version (inline tap-again
+                  confirms, break counter shown in-menu). */}
               <div>
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">Break Timer</h3>
-                <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-4 py-4">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">Shift Controls</h3>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-4 py-4 space-y-3">
+
+                  {/* Break timer */}
                   {breakRunning && breakStartMs ? (
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-xs text-zinc-500 mb-1">On break</div>
-                        <div className="text-3xl font-bold tabular-nums text-amber-400">{breakTimerDisplay}</div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-amber-400">On break</span>
+                        <span className="text-2xl font-bold tabular-nums text-amber-400">{breakTimerDisplay}</span>
                       </div>
                       <button
                         onClick={handleEndBreak}
@@ -116,37 +159,64 @@ export default function ShiftPanel({
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div>
                       <button
                         onClick={handleStartBreak}
-                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-3 min-h-[44px] transition-colors"
+                        className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg py-3 min-h-[44px] transition-colors"
                       >
                         Take Break
                       </button>
                       {Number(breakMinutes) > 0 && (
-                        <div className="text-xs text-zinc-500">Total break: {Math.round(Number(breakMinutes))} min</div>
+                        <div className="mt-1.5 text-xs text-zinc-500">
+                          Total break: {Math.round(Number(breakMinutes))} min
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* End / Reset */}
-              <div>
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3">End of Shift</h3>
-                <div className="space-y-2.5">
-                  <button
-                    onClick={onEndShift}
-                    className="w-full bg-red-700 hover:bg-red-600 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
-                  >
-                    End Shift &amp; Save
-                  </button>
-                  <button
-                    onClick={onReset}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm font-medium py-3 rounded-lg min-h-[44px] transition-colors"
-                  >
-                    Reset (discard without saving)
-                  </button>
+                  <div className="border-t border-zinc-700/50" />
+
+                  {/* End Shift — tap-again confirm, closes panel then fires */}
+                  {endShiftConfirm ? (
+                    <button
+                      onClick={handleEndShiftConfirmed}
+                      className="w-full bg-red-700 hover:bg-red-600 border border-red-500 text-white text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      Tap again to end shift
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEndShiftConfirm(true);
+                        clearTimeout(endShiftConfirmTimerRef.current);
+                        endShiftConfirmTimerRef.current = setTimeout(() => setEndShiftConfirm(false), 3000);
+                      }}
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 hover:text-zinc-100 text-sm font-semibold py-3 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      End Shift
+                    </button>
+                  )}
+
+                  {/* Reset Shift — visually subdued, destructive-guarded */}
+                  {resetConfirming ? (
+                    <button
+                      onClick={handleResetConfirmed}
+                      className="w-full bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      Tap again to confirm reset
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setResetConfirming(true);
+                        clearTimeout(resetTimerRef.current);
+                        resetTimerRef.current = setTimeout(() => setResetConfirming(false), 3000);
+                      }}
+                      className="w-full bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800 text-zinc-500 hover:text-zinc-400 text-xs font-medium py-3 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      Reset Shift
+                    </button>
+                  )}
                 </div>
               </div>
             </>
