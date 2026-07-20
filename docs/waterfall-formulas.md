@@ -86,7 +86,7 @@ but doesn't replicate the day-of-week taper.
 | Destination account | Fed by steps |
 |---------------------|--------------|
 | Bill Pay Checking | 0b Earnin + 2 Immediate + 4 Floor |
-| Debt Pay Checking | 3 Radar + 5a BNPL + 5c Avalanche |
+| Debt Pay Checking | 3 Radar + 5a Extra to Debt Payoff |
 | Uber Pro Card | 0a |
 | **Op Check or Uber Pro Card** | 6 Operating Buffer + **1 Essentials** |
 | Credit Union Checking | 7 |
