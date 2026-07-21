@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, ChevronDown, ChevronUp, X, Check,
-  Bot, Users, User, CheckCircle2, Pencil,
+  Bot, Users, User, CheckCircle2, Pencil, AlertTriangle, RotateCw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -79,7 +79,13 @@ export default function BacklogTab() {
     }
   }
 
+  async function retryLoad() {
+    setLoading(true);
+    await loadTasks();
+  }
+
   function openModal(task = null) {
+    if (!dbAvailable) return; // read-only while disconnected — nothing typed here would persist
     setModalTask(task
       ? { id: task.id, task_name: task.task_name, priority: task.priority, owner: task.owner, notes: task.notes || '', section: task.section || 'active_queue' }
       : { ...BLANK_MODAL });
@@ -145,16 +151,42 @@ export default function BacklogTab() {
         </p>
         <button
           onClick={() => openModal()}
-          className="flex items-center gap-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded px-3 py-1.5 transition-colors flex-shrink-0 ml-3"
+          disabled={!dbAvailable}
+          title={dbAvailable ? undefined : 'Not connected — reconnect to add tasks'}
+          className="flex items-center gap-1.5 text-xs bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-600 text-white rounded px-3 py-1.5 transition-colors flex-shrink-0 ml-3"
         >
           <Plus size={13} /> Add
         </button>
       </div>
 
+      {/* Offline / not-connected banner — the initial load failed, so this tab is
+          read-only: anything added or edited would live in React state only and
+          vanish on reload. Surface it loudly instead of silently no-op'ing writes. */}
+      {!dbAvailable && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-600/60 bg-amber-950/40 px-3.5 py-3">
+          <AlertTriangle size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-200">Not connected — changes won’t be saved.</p>
+            <p className="text-[11px] text-amber-300/80 mt-0.5 leading-relaxed">
+              The backlog couldn’t reach the database, so it’s read-only right now. Adding or editing
+              tasks is disabled until the connection is back — retry to reconnect.
+            </p>
+          </div>
+          <button
+            onClick={retryLoad}
+            className="flex items-center gap-1 text-[11px] font-medium bg-amber-700/50 hover:bg-amber-600/60 text-amber-100 rounded px-2.5 py-1.5 transition-colors flex-shrink-0"
+          >
+            <RotateCw size={11} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Active */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden mb-5">
         {activeTasks.length === 0 ? (
-          <p className="px-4 py-6 text-xs text-zinc-700 text-center">No active tasks — add one above.</p>
+          <p className="px-4 py-6 text-xs text-zinc-700 text-center">
+            {dbAvailable ? 'No active tasks — add one above.' : 'Tasks unavailable while disconnected.'}
+          </p>
         ) : (
           <div className="divide-y divide-zinc-800/50">
             {activeTasks.map(task => {
