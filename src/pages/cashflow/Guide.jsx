@@ -13,10 +13,10 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-15' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-22' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
-  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-15' },
+  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-22' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
   { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-15' },
 ];
@@ -181,12 +181,15 @@ export default function Guide() {
             <li><strong className="text-zinc-300">On Deck</strong> — what you’ve staged to pay, by type.</li>
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
           </ul>
+          <p>When you owe Earnin, an <strong className="text-zinc-300">Include Earnin owed</strong> toggle appears next to the window buttons. Off by default (Earnin debits only post on payday, so most days it isn’t due inside the window). Flip it on and the live Earnin-owed balance folds into <em>Coming up</em> (as its own line) and <em>Cash after</em> — handy on payday in <strong className="text-zinc-300">Already in Bill Pay</strong> mode, before the same-day Earnin debit actually posts, so “Cash after” isn’t rosier than reality.</p>
           <p>Collapsing this section hides the cards <em>and</em> the detail tables; the header shows a Coming / On Deck / After summary when collapsed.</p>
           <p>The window you pick here also drives how far ahead the plan reserves: Step 2 (Immediate Bills) and Step 3 (Debt Radar) cover bills/debts due within this same window. Since one paycheck has to last until the next, <strong className="text-zinc-300">Until Paycheck</strong> is the natural setting for planning a single paycheck; a 30-day window reserves more than one pay period will cover.</p>
         </Block>
 
         <Block title="6. On Deck · Coming Up · Ad Hoc">
           <p><strong className="text-zinc-300">Coming Up</strong> lists everything due in the window, live from Bills, Debts, Subscriptions and ad-hoc items. Move an item <strong className="text-zinc-300">On Deck</strong> to stage it for payment; on the On Deck list you can tick <strong className="text-zinc-300">Pending</strong> (Pending Withdrawal — it’s triggered and about to clear), <strong className="text-zinc-300">advance</strong> a recurring item to its next due date, or mark a one-off <strong className="text-zinc-300">paid &amp; remove</strong>. <strong className="text-zinc-300">Ad Hoc / Manual Entry</strong> is for one-offs that don’t live on the other tabs.</p>
+          <p>Ticking <strong className="text-zinc-300">Pending</strong> on a debt mirrors to that debt’s <em>Pending Withdrawal</em> flag on the Debts tab (which faded-yellow-highlights the row) — and clears again when you untick it or take it off deck.</p>
+          <p>Advancing a <strong className="text-zinc-300">debt</strong> opens a quick confirm: it prefills the <strong className="text-zinc-300">new balance</strong> (current − normal payment, editable), previews the next due date and the <strong className="text-zinc-300">expected payoff</strong> recalculated from that balance, and lets you record a <strong className="text-zinc-300">Last Date</strong> (an actual/hard payoff cap — the payoff shown is the earlier of the calculated date and this). Confirming applies the balance, rolls the due date, clears Pending, and drops it off deck. Bills and subscriptions still advance in one click.</p>
         </Block>
 
         <Block title="7. Current Balances & pending transfers">
@@ -257,6 +260,9 @@ export default function Guide() {
         </Block>
         <Block title="Adding a debt & the editor layout">
           <p><strong className="text-zinc-300">Add debt</strong> opens the full editor immediately on the new row. Fields are ordered by how often you touch them: Purchase, Lender, Credit Type, Balance, Normal Payment, Next Due, Day Due, Priority up top; a <strong className="text-zinc-300">Loan origination details</strong> collapsible (APR, origination date, term, finance charge, limit + calculated Total Due); and <strong className="text-zinc-300">More details</strong> for Available Credit, Last Date, New Min. The <strong className="text-zinc-300">Updated</strong> date + freshness dot + one-click refresh live in the header next to the debt name.</p>
+        </Block>
+        <Block title="Pending Withdrawal">
+          <p>The <strong className="text-zinc-300">Pending</strong> checkbox marks a payment as triggered and about to clear; a pending row gets a <strong className="text-zinc-300">faded-yellow highlight</strong> across the whole line. This flag is shared with the Waterfall’s On Deck list — ticking Pending there (on a debt) sets it here too, and confirming an <em>advance payment</em> from On Deck clears it.</p>
         </Block>
       </section>
 

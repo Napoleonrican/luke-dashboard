@@ -44,14 +44,14 @@ export function CardLoadError({ onRetry }) {
 
 // The card shell. Tapping anywhere opens the full editor (onOpen); the trash
 // button removes the row without opening it.
-export function Card({ dotColor, title, headline, onOpen, onDelete, deleteLabel, children }) {
+export function Card({ dotColor, title, headline, onOpen, onDelete, deleteLabel, children, surfaceClass = 'bg-zinc-900 hover:bg-zinc-800/40' }) {
   return (
     <div
       onClick={onOpen}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      className="rounded-xl border border-zinc-800 bg-zinc-900 p-3.5 cursor-pointer transition-colors hover:bg-zinc-800/40 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+      className={`rounded-xl border border-zinc-800 p-3.5 cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-600 ${surfaceClass}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
