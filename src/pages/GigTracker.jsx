@@ -53,8 +53,16 @@ function todayDay() {
   return DAYS[new Date().getDay()];
 }
 
+// Local calendar date (YYYY-MM-DD), NOT the UTC date. shiftDate must share the
+// same time basis as startTime (nowHHMM(), local wall-clock) and with how
+// isShiftResumable() reconstructs the start from `${shiftDate}T00:00:00` (parsed
+// as local midnight). toISOString() would return the UTC date, which rolls over
+// to "tomorrow" in the local evening for UTC-behind zones (US Eastern) — that
+// mismatch made isShiftResumable() compute a ~-24h offset and wipe the durable
+// remote backup right after an evening/overnight shift started (cc-review #135).
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Copy for the resume banner. Names the actual date of the offered shift so it
