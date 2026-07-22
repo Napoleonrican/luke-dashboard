@@ -72,6 +72,11 @@ const STICKY_1 = 'sticky left-0 z-10 bg-zinc-900 group-hover:bg-zinc-800';
 const STICKY_2 = 'sticky left-[128px] z-10 bg-zinc-900 group-hover:bg-zinc-800';
 const STICKY_HEAD_1 = 'sticky left-0 z-20 bg-zinc-900';
 const STICKY_HEAD_2 = 'sticky left-[128px] z-20 bg-zinc-900';
+// Opaque amber-tinted variants for a pending-withdrawal row — the frozen columns
+// can't use a translucent tint (they'd let scrolled cells show through), so they
+// get a solid dark-amber that reads as the same faded-yellow highlight.
+const STICKY_1_PENDING = 'sticky left-0 z-10 bg-[#2b2410] group-hover:bg-[#342c14]';
+const STICKY_2_PENDING = 'sticky left-[128px] z-10 bg-[#2b2410] group-hover:bg-[#342c14]';
 
 // A heat-colored, editable numeric/date cell (APR, Pmts Remaining, Payoff).
 function ColorCell({ value, type, colorFn, display, onSave, privacy }) {
@@ -230,10 +235,11 @@ export default function Debts() {
               const prC = paymentsRemainingColor(pr);
               const ep = expectedPayoffDate(d);
               const epC = payoffColor(ep);
+              const pending = !!d.pending_withdrawal;
               return (
-              <tr key={d.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                <Td className={`${STICKY_1} w-[128px]`}><UpdatedCell value={d.updated_on} onSave={(v) => update(d.id, 'updated_on', v)} /></Td>
-                <Td className={STICKY_2}>
+              <tr key={d.id} className={`border-b border-zinc-800/60 last:border-0 group ${pending ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'hover:bg-zinc-800/30'}`}>
+                <Td className={`${pending ? STICKY_1_PENDING : STICKY_1} w-[128px]`}><UpdatedCell value={d.updated_on} onSave={(v) => update(d.id, 'updated_on', v)} /></Td>
+                <Td className={pending ? STICKY_2_PENDING : STICKY_2}>
                   <span className="flex items-center gap-2">
                     <button onClick={() => setEditingId(d.id)} title="Open full editor" className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0">
                       <Maximize2 size={13} />
@@ -315,6 +321,7 @@ export default function Debts() {
             <Card
               key={d.id}
               dotColor={typeColor(d.credit_type)}
+              surfaceClass={d.pending_withdrawal ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'bg-zinc-900 hover:bg-zinc-800/40'}
               title={d.purchase || 'Debt'}
               deleteLabel={`Delete ${d.purchase || 'debt'}`}
               onOpen={() => setEditingId(d.id)}

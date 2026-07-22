@@ -12,7 +12,7 @@ import {
   fetchPendingTransfers, upsertPendingTransfer, fetchEarninTransactions,
   accountNameMatches,
 } from '../../lib/fin';
-import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil } from './format';
+import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil, expectedPayoffDate } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { DaysBadge } from './cells';
@@ -41,6 +41,8 @@ const BANKED_PREF = 'waterfall_banked_accounts';   // [accountId, …] swept int
 const INPUTS_UPDATED_PREF = 'waterfall_inputs_updated';   // { [inputKey]: ISO date }
 const PAYDAY_CHECK_PREF = 'waterfall_payday_check_dismissed_on';   // an ISO paycheck date
 const INCLUDE_EARNIN_NEEDS_PREF = 'waterfall_include_earnin_needs';   // fold Earnin owed into Short Term Needs figures
+
+const round2 = (n) => Math.round(((n ?? 0) + Number.EPSILON) * 100) / 100;
 const WINDOWS = [7, 14, 30];
 
 // Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
@@ -124,6 +126,9 @@ export default function Waterfall() {
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
   const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
   const [confirmRemovePending, setConfirmRemovePending] = useState(null);
+  // Advancing a debt payment opens a confirm modal (new balance, payoff, last
+  // date) instead of firing instantly like bills/subs do. Holds { it, deckId, debt }.
+  const [advanceModal, setAdvanceModal] = useState(null);
   const [balanceCheckDismissedOn, setBalanceCheckDismissedOn] = useState(null);
   const balancesSectionRef = useRef(null);
 
@@ -442,28 +447,58 @@ export default function Waterfall() {
     const { data } = await addToDeck(it.source_kind, it.source_id);
     if (data?.[0]) setDeck((prev) => [...prev.filter((r) => r.id !== data[0].id), data[0]]);
   };
-  const removeFromDeck = async (deckId) => {
-    setDeck((prev) => prev.filter((r) => r.id !== deckId));
-    await deleteRow('fin_runway_deck', deckId);
-  };
-  const togglePending = async (deckId, val) => {
-    setDeck((prev) => prev.map((r) => r.id === deckId ? { ...r, pending_withdrawal: val } : r));
-    await updateDeck(deckId, { pending_withdrawal: val });
-  };
   const patchSourceDue = (kind, id, fields) => {
     const setter = { bill: setBills, debt: setDebts, digital: setDigital, manual: setManual }[kind];
     setter?.((prev) => prev.map((r) => r.id === id ? { ...r, ...fields } : r));
   };
+  const removeFromDeck = async (it) => {
+    setDeck((prev) => prev.filter((r) => r.id !== it.deckId));
+    await deleteRow('fin_runway_deck', it.deckId);
+    // Taking a debt off deck also clears its Pending flag on the Debts tab —
+    // the two mirror each other (see togglePending).
+    if (it.source_kind === 'debt' && it.pending_withdrawal) {
+      patchSourceDue('debt', it.source_id, { pending_withdrawal: false });
+      await updateRow(TABLE_FOR.debt, it.source_id, { pending_withdrawal: false });
+    }
+  };
+  const togglePending = async (it, val) => {
+    setDeck((prev) => prev.map((r) => r.id === it.deckId ? { ...r, pending_withdrawal: val } : r));
+    await updateDeck(it.deckId, { pending_withdrawal: val });
+    // Two-way mirror: a debt's On-Deck pending flag and its Debts-tab
+    // pending_withdrawal column track together, so a pending payment shows up
+    // (and highlights) on both screens.
+    if (it.source_kind === 'debt') {
+      patchSourceDue('debt', it.source_id, { pending_withdrawal: val });
+      await updateRow(TABLE_FOR.debt, it.source_id, { pending_withdrawal: val });
+    }
+  };
   const HAS_UPDATED_ON = { bill: true, debt: true, digital: true, manual: false };
   const advanceFreqFor = (it) => (it.source_kind === 'bill' ? 'Monthly' : it.frequency);
-  const advance = async (it, deckId) => {
+  // Roll a source's due date forward one cycle and drop it from the deck. For
+  // debts, `extra` carries the confirmed new balance / last date and clears the
+  // pending flag (the payment just posted); other kinds pass nothing.
+  const applyAdvance = async (it, deckId, extra = {}) => {
     const next = advanceDate(it.dueISO, advanceFreqFor(it));
     if (!next) return;
     const fields = { [DUE_COL_FOR[it.source_kind]]: next };
     if (HAS_UPDATED_ON[it.source_kind]) fields.updated_on = todayISO();
+    if (it.source_kind === 'debt') {
+      if (extra.newBalance != null) fields.balance = extra.newBalance;
+      if ('lastDate' in extra) fields.last_date = extra.lastDate || null;
+      fields.pending_withdrawal = false;
+    }
     patchSourceDue(it.source_kind, it.source_id, fields);
     if (deckId) { setDeck((prev) => prev.filter((r) => r.id !== deckId)); await deleteRow('fin_runway_deck', deckId); }
     await updateRow(TABLE_FOR[it.source_kind], it.source_id, fields);
+  };
+  // Debts advance through a confirm modal (balance/payoff/last-date); everything
+  // else advances in one click.
+  const advance = (it, deckId) => {
+    if (it.source_kind === 'debt') {
+      const debt = debts.find((d) => d.id === it.source_id);
+      if (debt) { setAdvanceModal({ it, deckId, debt }); return; }
+    }
+    applyAdvance(it, deckId);
   };
   const canAdvance = (it) => !!advanceDate(it.dueISO, advanceFreqFor(it));
 
@@ -900,7 +935,7 @@ export default function Waterfall() {
                   <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
                   <Td className="text-center">
                     <input type="checkbox" checked={!!it.pending_withdrawal}
-                      onChange={(e) => togglePending(it.deckId, e.target.checked)}
+                      onChange={(e) => togglePending(it, e.target.checked)}
                       className="h-4 w-4 accent-amber-500 cursor-pointer" title="Pending Withdrawal" />
                   </Td>
                   <Td className="text-right">
@@ -913,7 +948,7 @@ export default function Waterfall() {
                         <button onClick={() => setConfirmRemoveManual(it)} title="Mark paid & remove — one-off items don't recur"
                           className="text-zinc-500 hover:text-emerald-400 transition-colors"><CheckCircle2 size={14} /></button>
                       )}
-                      <button onClick={() => removeFromDeck(it.deckId)} title="Take off deck (keeps it on the upcoming list)"
+                      <button onClick={() => removeFromDeck(it)} title="Take off deck (keeps it on the upcoming list)"
                         className="text-zinc-500 hover:text-red-400 transition-colors"><X size={15} /></button>
                     </span>
                   </Td>
@@ -1224,6 +1259,22 @@ export default function Waterfall() {
         </div>
       )}
 
+      {/* Advance debt payment — confirm the new balance, review the payoff, and
+          record a Last Date before the payment is applied and it leaves the deck. */}
+      {advanceModal && (
+        <AdvanceDebtModal
+          it={advanceModal.it}
+          deckId={advanceModal.deckId}
+          debt={advanceModal.debt}
+          privacy={privacy}
+          onCancel={() => setAdvanceModal(null)}
+          onConfirm={async ({ newBalance, lastDate }) => {
+            await applyAdvance(advanceModal.it, advanceModal.deckId, { newBalance, lastDate });
+            setAdvanceModal(null);
+          }}
+        />
+      )}
+
       {/* Plan Inputs modal — the only place non-flat needs get edited (never the
           table). Opened from the ⋯ menu's "Plan Inputs…" item (Waterfall only). */}
       {planInputsModalOpen && (
@@ -1497,6 +1548,88 @@ function OnDeckCard({ total, byType, count, privacy }) {
 // Coverage — does cash on hand cover what's staged (On Deck) and everything
 // due in the window (Coming up)? Headline is the window shortfall/surplus; the
 // sub-line answers the On Deck question. Green = surplus, red = short.
+// Confirm-and-apply dialog for advancing a debt payment off the deck. Prefills
+// the new balance as current − normal payment (editable), shows the payoff date
+// recomputed live from that balance, and lets Luke record a Last Date (a hard
+// payoff cap / actual date, which the payoff calc takes the earlier of). On
+// confirm it rolls the due date forward, writes the balance/last-date, clears
+// the pending flag, and drops the deck row.
+function AdvanceDebtModal({ it, deckId, debt, privacy, onCancel, onConfirm }) {
+  const suggested = Math.max(0, round2((debt.balance ?? 0) - (debt.normal_payment ?? 0)));
+  const [balance, setBalance] = useState(suggested);
+  const [lastDate, setLastDate] = useState(debt.last_date || '');
+  const [saving, setSaving] = useState(false);
+  const nextDue = advanceDate(it.dueISO, it.source_kind === 'bill' ? 'Monthly' : it.frequency);
+  const projectedPayoff = expectedPayoffDate({ ...debt, balance, last_date: lastDate || null });
+
+  const submit = async () => {
+    setSaving(true);
+    await onConfirm({ newBalance: round2(balance), lastDate: lastDate || null });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl p-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-2 mb-4">
+          <SkipForward size={18} className="text-emerald-400 mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold text-zinc-100 truncate">Advance payment — {debt.purchase}</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {deckId ? 'Applies the payment, then takes it off the deck.' : 'Applies the payment and rolls it to the next cycle.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-zinc-400">New balance
+              <span className="block text-[10px] text-zinc-600">was {fmt(debt.balance ?? 0)} · payment {fmt(debt.normal_payment ?? 0)}</span>
+            </span>
+            <Redacted on={privacy}>
+              <AmountEdit value={balance} onCommit={(v) => setBalance(v ?? 0)} className="text-zinc-100 font-medium" />
+            </Redacted>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-zinc-400">Next due date</span>
+            <span className="text-sm tabular-nums text-zinc-300">
+              {fmtDate(it.dueISO)} → <span className="text-zinc-100">{fmtDate(nextDue)}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-zinc-400">Expected payoff
+              <span className="block text-[10px] text-zinc-600">from the new balance</span>
+            </span>
+            <span className="text-sm tabular-nums text-zinc-300">{projectedPayoff ? fmtDate(projectedPayoff) : '—'}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-zinc-400">Last date
+              <span className="block text-[10px] text-zinc-600">actual / hard payoff cap</span>
+            </span>
+            <input
+              type="date" value={lastDate || ''} onChange={(e) => setLastDate(e.target.value)}
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 tabular-nums focus:border-emerald-600 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onCancel} disabled={saving}
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={saving}
+            className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3.5 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors disabled:opacity-50">
+            {saving ? 'Applying…' : 'Confirm & advance'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CoverageCard({ cash, deck, pendingWithdrawal, coming, windowDays, privacy }) {
   const vsComing = cash - coming;
   const vsDeck = cash - deck;

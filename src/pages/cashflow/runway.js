@@ -30,6 +30,9 @@ export function normalizeSources({ bills = [], debts = [], digital = [], manual 
       source_kind: 'debt', source_id: d.id, name: d.purchase,
       amount: d.normal_payment ?? 0, type: 'Debt/Loan',
       dueISO: d.next_due_date, frequency: 'Monthly',
+      // Carry the debt's own pending flag so the On Deck list can mirror it (the
+      // debt row is the source of truth for debt pending — see deckItems).
+      pending_withdrawal: !!d.pending_withdrawal,
     });
   }
   for (const s of digital) {
@@ -72,7 +75,13 @@ export function deckItems(deckRows, items) {
   const out = [];
   for (const row of deckRows) {
     const it = byKey.get(itemKey(row.source_kind, row.source_id));
-    if (it) out.push({ ...it, deckId: row.id, pending_withdrawal: row.pending_withdrawal });
+    // Debts take their pending flag from the debt row (the shared source of
+    // truth, so the Debts tab and On Deck stay mirrored); everything else uses
+    // the per-occurrence flag stored on the deck row.
+    if (it) {
+      const pending = it.source_kind === 'debt' ? !!it.pending_withdrawal : !!row.pending_withdrawal;
+      out.push({ ...it, deckId: row.id, pending_withdrawal: pending });
+    }
   }
   return out.sort((a, b) => (a.days ?? 0) - (b.days ?? 0));
 }
