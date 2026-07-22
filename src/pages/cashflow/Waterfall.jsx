@@ -40,6 +40,7 @@ const SECTIONS_PREF = 'waterfall_sections';   // { money, needs, payday } open/c
 const BANKED_PREF = 'waterfall_banked_accounts';   // [accountId, …] swept into the pool
 const INPUTS_UPDATED_PREF = 'waterfall_inputs_updated';   // { [inputKey]: ISO date }
 const PAYDAY_CHECK_PREF = 'waterfall_payday_check_dismissed_on';   // an ISO paycheck date
+const INCLUDE_EARNIN_NEEDS_PREF = 'waterfall_include_earnin_needs';   // fold Earnin owed into Short Term Needs figures
 const WINDOWS = [7, 14, 30];
 
 // Biweekly payday anchor — every other Wednesday, next landing 7/22/26.
@@ -114,6 +115,11 @@ export default function Waterfall() {
   const [paydayOpen, setPaydayOpen] = useState(false);
   const [customWindowDays, setCustomWindowDays] = useState(14);
   const [windowMode, setWindowMode] = useState('days');   // 'days' | 'paycheck'
+  // Fold the live Earnin-owed figure into the Short Term Needs cards. Off by
+  // default — Earnin debits only post on payday, so on most days it isn't an
+  // obligation inside the window. Toggle it on (esp. in "Already in Bill Pay"
+  // mode on payday, before the debit posts) to see a truthful "Cash after".
+  const [includeEarninInNeeds, setIncludeEarninInNeeds] = useState(false);
   const [synced, setSynced] = useState(false);
   const [confirmRemoveAccount, setConfirmRemoveAccount] = useState(null);
   const [confirmRemoveManual, setConfirmRemoveManual] = useState(null);
@@ -146,8 +152,9 @@ export default function Waterfall() {
       getPref(PAYCHECK_PREF), getPref(INCLUDE_PREF), getPref(SIDEGIG_PREF),
       getPref(OVER_PREF), getPref(INPUTS_PREF), getPref(WINDOW_PREF), getPref(BALANCE_CHECK_PREF),
       getPref(SECTIONS_PREF), getPref(BANKED_PREF), getPref(INPUTS_UPDATED_PREF), getPref(PAYDAY_CHECK_PREF),
+      getPref(INCLUDE_EARNIN_NEEDS_PREF),
     ]).then(
-      ([pc, inc, sg, ov, inp, win, bal, sec, bnk, inpUpd, pdc]) => {
+      ([pc, inc, sg, ov, inp, win, bal, sec, bnk, inpUpd, pdc, iein]) => {
         if (!active) return;
         if (typeof pc.data === 'number') setPaycheck(pc.data);
         if (typeof inc.data === 'boolean') setIncludePaycheck(inc.data);
@@ -170,6 +177,7 @@ export default function Waterfall() {
         if (Array.isArray(bnk.data)) setBankedIds(bnk.data);
         if (inpUpd.data && typeof inpUpd.data === 'object') setInputsUpdated(inpUpd.data);
         if (typeof pdc.data === 'string') setPaydayCheckDismissedOn(pdc.data);
+        if (typeof iein.data === 'boolean') setIncludeEarninInNeeds(iein.data);
         setSynced(true);
       },
     );
@@ -179,6 +187,7 @@ export default function Waterfall() {
   const savePaycheck = (v) => { setPaycheck(v); if (synced) setPref(PAYCHECK_PREF, v); };
   const saveSideGig = (v) => { setSideGig(v); if (synced) setPref(SIDEGIG_PREF, v); };
   const toggleInclude = () => setIncludePaycheck((p) => { const n = !p; if (synced) setPref(INCLUDE_PREF, n); return n; });
+  const toggleEarninInNeeds = () => setIncludeEarninInNeeds((p) => { const n = !p; if (synced) setPref(INCLUDE_EARNIN_NEEDS_PREF, n); return n; });
   const setWindow = (n) => {
     setWindowMode('days'); setCustomWindowDays(n);
     setPref(WINDOW_PREF, { mode: 'days', days: n });
@@ -276,6 +285,14 @@ export default function Waterfall() {
     (s, t) => s + (t.kind === 'advance' ? (t.amount ?? 0) : -(t.amount ?? 0)), 0,
   );
   const liveInputs = { ...inputs, earninOwed };
+
+  // When the "include Earnin" toggle is on, treat the live Earnin-owed balance
+  // as an upcoming obligation inside the Short Term Needs window — it isn't a
+  // bill or debt row, so it's added on top of totals.total for the "Coming up"
+  // and "Cash after" figures. (Most useful on payday in "Already in Bill Pay"
+  // mode, before the same-day Earnin debit actually posts.)
+  const earninInNeeds = includeEarninInNeeds ? earninOwed : 0;
+  const comingWithEarnin = totals.total + earninInNeeds;
 
   const fuelWeekly = fuelWeeklyDynamic(inputs.fuelWeeklyBase);
   const grocWeekly = grocWeeklyDynamic(inputs.grocWeeklyBase);
@@ -765,15 +782,29 @@ export default function Waterfall() {
         open={needsOpen} onToggle={() => toggleSection('needs', setNeedsOpen)}
         summary={
           <span className="hidden sm:flex items-center gap-3 text-[11px]">
-            <span className="text-zinc-500">Coming <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmt(totals.total)}</span></Redacted></span>
+            <span className="text-zinc-500">Coming <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmt(comingWithEarnin)}</span></Redacted></span>
             <span className="text-zinc-500">On Deck <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmt(onDeckTotal)}</span></Redacted></span>
-            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${cashOnHand - totals.total < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(cashOnHand - totals.total)}</span></Redacted></span>
+            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${cashOnHand - comingWithEarnin < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(cashOnHand - comingWithEarnin)}</span></Redacted></span>
           </span>
         }
       />
       {needsOpen && (
       <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {earninOwed > 0.005 && (
+          <button
+            onClick={toggleEarninInNeeds}
+            title={`Fold the ${fmt(earninOwed)} owed to Earnin (live from the Earnin tab) into the Coming up / Cash after figures. Useful on payday in "Already in Bill Pay" mode, before the Earnin debit posts.`}
+            className={`mr-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              includeEarninInNeeds
+                ? 'border-rose-800/60 bg-rose-900/30 text-rose-300'
+                : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${includeEarninInNeeds ? 'bg-rose-400' : 'bg-zinc-600'}`} />
+            Include Earnin owed
+          </button>
+        )}
         <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
           <button
             onClick={setWindowToPaycheck}
@@ -813,7 +844,7 @@ export default function Waterfall() {
         {/* Coming up — window total, with the bill/debt split as sub-lines */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-500 mb-1">Coming up — next {windowDays}d</p>
-          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-amber-400">{fmt(totals.total)}</span></Redacted>
+          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-amber-400">{fmt(comingWithEarnin)}</span></Redacted>
           <div className="mt-2 space-y-0.5">
             <div className="flex items-center justify-between gap-2 text-[11px]">
               <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: '#3b82f6' }} /><span className="text-zinc-400">Bills</span></span>
@@ -823,6 +854,12 @@ export default function Waterfall() {
               <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: '#8b5cf6' }} /><span className="text-zinc-400">Debts</span></span>
               <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmt(totals.debt)}</span></Redacted>
             </div>
+            {includeEarninInNeeds && earninOwed > 0.005 && (
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: '#f43f5e' }} /><span className="text-zinc-400">Earnin owed</span></span>
+                <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmt(earninOwed)}</span></Redacted>
+              </div>
+            )}
           </div>
         </div>
 
@@ -830,7 +867,7 @@ export default function Waterfall() {
         <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
 
         {/* Coverage — does cash on hand cover what's staged / coming up? */}
-        <CoverageCard cash={cashOnHand} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={totals.total} windowDays={windowDays} privacy={privacy} />
+        <CoverageCard cash={cashOnHand} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={comingWithEarnin} windowDays={windowDays} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}

@@ -13,7 +13,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-15' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-22' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-15' },
@@ -181,6 +181,7 @@ export default function Guide() {
             <li><strong className="text-zinc-300">On Deck</strong> — what you’ve staged to pay, by type.</li>
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
           </ul>
+          <p>When you owe Earnin, an <strong className="text-zinc-300">Include Earnin owed</strong> toggle appears next to the window buttons. Off by default (Earnin debits only post on payday, so most days it isn’t due inside the window). Flip it on and the live Earnin-owed balance folds into <em>Coming up</em> (as its own line) and <em>Cash after</em> — handy on payday in <strong className="text-zinc-300">Already in Bill Pay</strong> mode, before the same-day Earnin debit actually posts, so “Cash after” isn’t rosier than reality.</p>
           <p>Collapsing this section hides the cards <em>and</em> the detail tables; the header shows a Coming / On Deck / After summary when collapsed.</p>
           <p>The window you pick here also drives how far ahead the plan reserves: Step 2 (Immediate Bills) and Step 3 (Debt Radar) cover bills/debts due within this same window. Since one paycheck has to last until the next, <strong className="text-zinc-300">Until Paycheck</strong> is the natural setting for planning a single paycheck; a 30-day window reserves more than one pay period will cover.</p>
         </Block>
