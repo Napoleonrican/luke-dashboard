@@ -387,6 +387,16 @@ export default function Waterfall() {
   const totalNetPending = pending.reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
   const accountName = (id) => accounts.find((a) => a.id === id)?.name || '—';
 
+  // Cash the plan can actually draw on = balances of the accounts you've banked
+  // into the pool (Bill Pay auto-banks in "Already in Bill Pay" mode). Mirrors
+  // what "To Distribute" pools, so the Short Term Needs cards reason about the
+  // same money — not savings you've earmarked and left un-banked. Its pending
+  // projection likewise counts only transfers landing in banked accounts.
+  const availableCash = bankedTotal;
+  const availableNetPending = pending
+    .filter((p) => bankedSet.has(p.account_id))
+    .reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
+
   // Accounts whose balance hasn't been touched today — drives the "still
   // accurate?" banner above Current Balances. Skipped once dismissed for the
   // day, or once every account is already confirmed fresh.
@@ -819,7 +829,7 @@ export default function Waterfall() {
           <span className="hidden sm:flex items-center gap-3 text-[11px]">
             <span className="text-zinc-500">Coming <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmt(comingWithEarnin)}</span></Redacted></span>
             <span className="text-zinc-500">On Deck <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmt(onDeckTotal)}</span></Redacted></span>
-            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${cashOnHand - comingWithEarnin < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(cashOnHand - comingWithEarnin)}</span></Redacted></span>
+            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${availableCash - comingWithEarnin < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(availableCash - comingWithEarnin)}</span></Redacted></span>
           </span>
         }
       />
@@ -865,13 +875,18 @@ export default function Waterfall() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Available now — cash on hand, with projected once pending clears */}
+        {/* Available now — banked cash (the pool basis), projected once pending clears */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-500 mb-1">Available now</p>
-          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(cashOnHand)}</span></Redacted>
-          {Math.abs(totalNetPending) > 0.005 && (
+          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(availableCash)}</span></Redacted>
+          {Math.abs(availableNetPending) > 0.005 && (
             <p className="mt-1.5 text-[11px] text-zinc-500">
-              → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(cashOnHand + totalNetPending)}</span></Redacted> with pending
+              → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(availableCash + availableNetPending)}</span></Redacted> with pending
+            </p>
+          )}
+          {cashOnHand - availableCash > 0.005 && (
+            <p className="mt-1.5 text-[11px] text-zinc-600">
+              banked only · <Redacted on={privacy}><span className="tabular-nums">{fmt(cashOnHand)}</span></Redacted> cash on hand
             </p>
           )}
         </div>
@@ -902,7 +917,7 @@ export default function Waterfall() {
         <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
 
         {/* Coverage — does cash on hand cover what's staged / coming up? */}
-        <CoverageCard cash={cashOnHand} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={comingWithEarnin} windowDays={windowDays} privacy={privacy} />
+        <CoverageCard cash={availableCash} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={comingWithEarnin} windowDays={windowDays} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}

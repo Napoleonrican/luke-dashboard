@@ -13,7 +13,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-22' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-23' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-22' },
@@ -176,7 +176,7 @@ export default function Guide() {
         <Block title="5. Short Term Needs">
           <p>Four cards answer “can I cover what’s coming?” for a window you pick (<strong className="text-zinc-300">7 / 14 / 30 days</strong>, or <strong className="text-zinc-300">Until Paycheck</strong> — which stops the day <em>before</em> payday, since anything due that day belongs to the next period):</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li><strong className="text-zinc-300">Available now</strong> — cash on hand (and the projected total once pending transfers clear).</li>
+            <li><strong className="text-zinc-300">Available now</strong> — the cash you&rsquo;ve <strong className="text-zinc-300">banked</strong> into the pool (the same accounts feeding &ldquo;To Distribute&rdquo;; Bill Pay auto-banks in &ldquo;Already in Bill Pay&rdquo; mode), with the projected total once pending transfers into those accounts clear. Un-banked savings you&rsquo;ve earmarked aren&rsquo;t counted; a caption shows your full cash on hand when it differs. <em>Cash after</em> uses this same figure so the cards reconcile.</li>
             <li><strong className="text-zinc-300">Coming up</strong> — everything due in the window, split into Bills and Debts.</li>
             <li><strong className="text-zinc-300">On Deck</strong> — what you’ve staged to pay, by type.</li>
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
