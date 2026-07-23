@@ -13,7 +13,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-22' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-23' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-22' },
@@ -176,7 +176,7 @@ export default function Guide() {
         <Block title="5. Short Term Needs">
           <p>Four cards answer “can I cover what’s coming?” for a window you pick (<strong className="text-zinc-300">7 / 14 / 30 days</strong>, or <strong className="text-zinc-300">Until Paycheck</strong> — which stops the day <em>before</em> payday, since anything due that day belongs to the next period):</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li><strong className="text-zinc-300">Available now</strong> — cash on hand (and the projected total once pending transfers clear).</li>
+            <li><strong className="text-zinc-300">Available now</strong> — the cash you&rsquo;ve <strong className="text-zinc-300">banked</strong> into the pool (the same accounts feeding &ldquo;To Distribute&rdquo;; Bill Pay auto-banks in &ldquo;Already in Bill Pay&rdquo; mode), with the projected total once pending transfers into those accounts clear. Un-banked savings you&rsquo;ve earmarked aren&rsquo;t counted; a caption shows your full cash on hand when it differs. <em>Cash after</em> uses this same figure so the cards reconcile.</li>
             <li><strong className="text-zinc-300">Coming up</strong> — everything due in the window, split into Bills and Debts.</li>
             <li><strong className="text-zinc-300">On Deck</strong> — what you’ve staged to pay, by type.</li>
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
@@ -190,6 +190,7 @@ export default function Guide() {
           <p><strong className="text-zinc-300">Coming Up</strong> lists everything due in the window, live from Bills, Debts, Subscriptions and ad-hoc items. Move an item <strong className="text-zinc-300">On Deck</strong> to stage it for payment; on the On Deck list you can tick <strong className="text-zinc-300">Pending</strong> (Pending Withdrawal — it’s triggered and about to clear), <strong className="text-zinc-300">advance</strong> a recurring item to its next due date, or mark a one-off <strong className="text-zinc-300">paid &amp; remove</strong>. <strong className="text-zinc-300">Ad Hoc / Manual Entry</strong> is for one-offs that don’t live on the other tabs.</p>
           <p>Ticking <strong className="text-zinc-300">Pending</strong> on a debt mirrors to that debt’s <em>Pending Withdrawal</em> flag on the Debts tab (which faded-yellow-highlights the row) — and clears again when you untick it or take it off deck.</p>
           <p>Advancing a <strong className="text-zinc-300">debt</strong> opens a quick confirm: it prefills the <strong className="text-zinc-300">new balance</strong> (current − normal payment, editable), previews the next due date and the <strong className="text-zinc-300">expected payoff</strong> recalculated from that balance, and lets you record a <strong className="text-zinc-300">Last Date</strong> (an actual/hard payoff cap — the payoff shown is the earlier of the calculated date and this). Confirming applies the balance, rolls the due date, clears Pending, and drops it off deck. Bills and subscriptions still advance in one click.</p>
+          <p>Debt rows (in both Coming Up and On Deck) show the <strong className="text-zinc-300">lender</strong> as a small subtitle under the name, and an <strong className="text-zinc-300">(i)</strong> icon that opens a read-only lookup card — lender, type, balance, payment, APR, next due, expected payoff — so you can tell debts apart without hunting on the Debts tab.</p>
         </Block>
 
         <Block title="7. Current Balances & pending transfers">

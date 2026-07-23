@@ -30,6 +30,9 @@ export function normalizeSources({ bills = [], debts = [], digital = [], manual 
       source_kind: 'debt', source_id: d.id, name: d.purchase,
       amount: d.normal_payment ?? 0, type: 'Debt/Loan',
       dueISO: d.next_due_date, frequency: 'Monthly',
+      // Carry the lender so the Runway/On-Deck lists can show "who" at a glance
+      // (easy to forget which of several debts belongs to which lender).
+      lender: d.lender || null,
       // Carry the debt's own pending flag so the On Deck list can mirror it (the
       // debt row is the source of truth for debt pending — see deckItems).
       pending_withdrawal: !!d.pending_withdrawal,

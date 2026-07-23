@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, Link } from 'react-router-dom';
 import {
   Wallet, Plus, Trash2, Banknote, PiggyBank, ArrowDownToLine, SlidersHorizontal, ChevronDown, ChevronRight,
-  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff, ArrowLeftRight, Settings,
+  SkipForward, X, Layers, CalendarClock, CheckCircle2, BadgeCheck, Eye, EyeOff, ArrowLeftRight, Settings, Info,
 } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
@@ -129,6 +129,9 @@ export default function Waterfall() {
   // Advancing a debt payment opens a confirm modal (new balance, payoff, last
   // date) instead of firing instantly like bills/subs do. Holds { it, deckId, debt }.
   const [advanceModal, setAdvanceModal] = useState(null);
+  // Read-only debt detail card, opened from the (i) icon on a debt's name —
+  // quick lookup for "who is this again" without leaving Runway. Holds a debt id.
+  const [debtInfoId, setDebtInfoId] = useState(null);
   const [balanceCheckDismissedOn, setBalanceCheckDismissedOn] = useState(null);
   const balancesSectionRef = useRef(null);
 
@@ -387,6 +390,16 @@ export default function Waterfall() {
   const totalNetPending = pending.reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
   const accountName = (id) => accounts.find((a) => a.id === id)?.name || '—';
 
+  // Cash the plan can actually draw on = balances of the accounts you've banked
+  // into the pool (Bill Pay auto-banks in "Already in Bill Pay" mode). Mirrors
+  // what "To Distribute" pools, so the Short Term Needs cards reason about the
+  // same money — not savings you've earmarked and left un-banked. Its pending
+  // projection likewise counts only transfers landing in banked accounts.
+  const availableCash = bankedTotal;
+  const availableNetPending = pending
+    .filter((p) => bankedSet.has(p.account_id))
+    .reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
+
   // Accounts whose balance hasn't been touched today — drives the "still
   // accurate?" banner above Current Balances. Skipped once dismissed for the
   // day, or once every account is already confirmed fresh.
@@ -501,6 +514,7 @@ export default function Waterfall() {
     applyAdvance(it, deckId);
   };
   const canAdvance = (it) => !!advanceDate(it.dueISO, advanceFreqFor(it));
+  const openDebtInfo = (it) => setDebtInfoId(it.source_id);
 
   const updateManual = async (id, field, value) => {
     setManual((prev) => prev.map((m) => m.id === id ? { ...m, [field]: value } : m));
@@ -819,7 +833,7 @@ export default function Waterfall() {
           <span className="hidden sm:flex items-center gap-3 text-[11px]">
             <span className="text-zinc-500">Coming <Redacted on={privacy}><span className="tabular-nums text-amber-400">{fmt(comingWithEarnin)}</span></Redacted></span>
             <span className="text-zinc-500">On Deck <Redacted on={privacy}><span className="tabular-nums text-emerald-400">{fmt(onDeckTotal)}</span></Redacted></span>
-            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${cashOnHand - comingWithEarnin < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(cashOnHand - comingWithEarnin)}</span></Redacted></span>
+            <span className="text-zinc-500">After <Redacted on={privacy}><span className={`tabular-nums ${availableCash - comingWithEarnin < -0.005 ? 'text-red-400' : 'text-emerald-400'}`}>{fmt(availableCash - comingWithEarnin)}</span></Redacted></span>
           </span>
         }
       />
@@ -865,13 +879,18 @@ export default function Waterfall() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Available now — cash on hand, with projected once pending clears */}
+        {/* Available now — banked cash (the pool basis), projected once pending clears */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-500 mb-1">Available now</p>
-          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(cashOnHand)}</span></Redacted>
-          {Math.abs(totalNetPending) > 0.005 && (
+          <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(availableCash)}</span></Redacted>
+          {Math.abs(availableNetPending) > 0.005 && (
             <p className="mt-1.5 text-[11px] text-zinc-500">
-              → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(cashOnHand + totalNetPending)}</span></Redacted> with pending
+              → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(availableCash + availableNetPending)}</span></Redacted> with pending
+            </p>
+          )}
+          {cashOnHand - availableCash > 0.005 && (
+            <p className="mt-1.5 text-[11px] text-zinc-600">
+              banked only · <Redacted on={privacy}><span className="tabular-nums">{fmt(cashOnHand)}</span></Redacted> cash on hand
             </p>
           )}
         </div>
@@ -902,7 +921,7 @@ export default function Waterfall() {
         <OnDeckCard total={onDeckTotal} byType={onDeckByType} count={onDeck.length} privacy={privacy} />
 
         {/* Coverage — does cash on hand cover what's staged / coming up? */}
-        <CoverageCard cash={cashOnHand} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={comingWithEarnin} windowDays={windowDays} privacy={privacy} />
+        <CoverageCard cash={availableCash} deck={onDeckTotal} pendingWithdrawal={pendingWithdrawalTotal} coming={comingWithEarnin} windowDays={windowDays} privacy={privacy} />
       </div>
 
       {/* On Deck / Pending Withdrawal */}
@@ -929,7 +948,7 @@ export default function Waterfall() {
                 <tr><td colSpan={6} className="px-3 py-6 text-center text-zinc-600 text-xs">Nothing on deck. Move items down from the upcoming list below.</td></tr>
               ) : onDeck.map((it) => (
                 <tr key={it.deckId} className={`border-b border-zinc-800/60 last:border-0 group ${it.pending_withdrawal ? 'bg-amber-950/20' : 'hover:bg-zinc-800/30'}`}>
-                  <NameCell it={it} />
+                  <NameCell it={it} onInfo={openDebtInfo} />
                   <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
                   <AmountCell amount={it.amount} privacy={privacy} />
                   <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
@@ -984,7 +1003,7 @@ export default function Waterfall() {
                 <tr><td colSpan={5} className="px-3 py-8 text-center text-zinc-600 text-xs">Nothing due in the next {windowDays} days.</td></tr>
               ) : upcoming.map((it) => (
                 <tr key={it.key} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                  <NameCell it={it} />
+                  <NameCell it={it} onInfo={openDebtInfo} />
                   <Td className="tabular-nums text-zinc-300">{fmtDate(it.dueISO)}</Td>
                   <AmountCell amount={it.amount} privacy={privacy} />
                   <Td className="text-right"><DaysBadge iso={it.dueISO} /></Td>
@@ -1259,6 +1278,17 @@ export default function Waterfall() {
         </div>
       )}
 
+      {/* Debt info — read-only lookup card from the (i) icon next to a debt's
+          name on Runway/On Deck, so you don't have to remember (or go hunt on
+          the Debts tab for) who the lender is. */}
+      {debtInfoId && (
+        <DebtInfoModal
+          debt={debts.find((d) => d.id === debtInfoId)}
+          privacy={privacy}
+          onClose={() => setDebtInfoId(null)}
+        />
+      )}
+
       {/* Advance debt payment — confirm the new balance, review the payoff, and
           record a Last Date before the payment is applied and it leaves the deck. */}
       {advanceModal && (
@@ -1502,12 +1532,27 @@ export default function Waterfall() {
 // ── Small presentational cells ────────────────────────────────────────────────
 // The colored dot doubles as the type indicator — hover it for the type name
 // instead of a dedicated column.
-function NameCell({ it }) {
+// Debts carry their lender as a muted subtitle (easy to forget which of
+// several debts belongs to which lender), plus an info icon that opens the
+// full read-only detail card — no need to go hunt on the Debts tab.
+function NameCell({ it, onInfo }) {
   return (
     <Td>
       <span className="flex items-center gap-2">
         <span className="h-2 w-2 rounded-full shrink-0" style={{ background: typeColor(it.type) }} title={it.type} />
-        <span className="text-zinc-200 font-medium">{it.name}</span>
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5">
+            <span className="text-zinc-200 font-medium truncate">{it.name}</span>
+            {it.source_kind === 'debt' && onInfo && (
+              <button onClick={() => onInfo(it)} title="Debt details" className="text-zinc-600 hover:text-cyan-400 transition-colors shrink-0">
+                <Info size={13} />
+              </button>
+            )}
+          </span>
+          {it.source_kind === 'debt' && it.lender && (
+            <span className="block text-[11px] text-zinc-500 truncate">{it.lender}</span>
+          )}
+        </span>
       </span>
     </Td>
   );
@@ -1548,6 +1593,55 @@ function OnDeckCard({ total, byType, count, privacy }) {
 // Coverage — does cash on hand cover what's staged (On Deck) and everything
 // due in the window (Coming up)? Headline is the window shortfall/surplus; the
 // sub-line answers the On Deck question. Green = surplus, red = short.
+const fmtApr = (a) => (a == null ? '—' : `${(a * 100).toFixed(2)}%`);
+
+// Read-only "who/what is this debt" card — a quick answer to "who's the
+// lender again?" without leaving Runway or opening the full Debts editor.
+// Links out to the Debts tab for anything that needs an actual edit.
+function DebtInfoModal({ debt, privacy, onClose }) {
+  if (!debt) return null;
+  const days = daysUntil(debt.next_due_date);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl p-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: TYPE_COLOR['Debt/Loan'] }} />
+            <h3 className="text-sm font-semibold text-zinc-100 truncate">{debt.purchase || 'Debt'}</h3>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"><X size={16} /></button>
+        </div>
+
+        <div className="space-y-2.5 text-sm">
+          <InfoRow label="Lender" value={debt.lender || '—'} />
+          <InfoRow label="Type" value={debt.credit_type || '—'} />
+          <InfoRow label="Balance" value={<Redacted on={privacy}>{fmt(debt.balance ?? 0)}</Redacted>} />
+          <InfoRow label="Normal Payment" value={<Redacted on={privacy}>{fmt(debt.normal_payment ?? 0)}</Redacted>} />
+          <InfoRow label="APR" value={fmtApr(debt.apr)} />
+          <InfoRow label="Next Due" value={`${fmtDate(debt.next_due_date)}${days == null ? '' : days < 0 ? ` (${Math.abs(days)}d overdue)` : ` (${days}d)`}`} />
+          <InfoRow label="Expected Payoff" value={fmtDate(expectedPayoffDate(debt))} />
+          {debt.last_date && <InfoRow label="Last Date" value={fmtDate(debt.last_date)} />}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <Link to="/cashflow/debts" onClick={onClose} className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+            Open in Debts
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="tabular-nums text-zinc-200 font-medium">{value}</span>
+    </div>
+  );
+}
+
 // Confirm-and-apply dialog for advancing a debt payment off the deck. Prefills
 // the new balance as current − normal payment (editable), shows the payoff date
 // recomputed live from that balance, and lets Luke record a Last Date (a hard
