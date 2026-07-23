@@ -4,6 +4,7 @@ import {
   ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import Markdown from './Markdown';
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -77,7 +78,7 @@ function Thread({ thread, messages, reload }) {
       {expanded && (
         <div className="border-t border-zinc-800 px-4 py-3 space-y-3">
           {thread.summary && (
-            <p className="text-xs text-zinc-400 leading-relaxed">{thread.summary}</p>
+            <Markdown className="text-xs text-zinc-400">{thread.summary}</Markdown>
           )}
 
           {/* The explicit ask */}
@@ -86,7 +87,7 @@ function Thread({ thread, messages, reload }) {
               <CircleDot size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-[10px] font-semibold text-amber-300 uppercase tracking-wide mb-0.5">What to do</p>
-                <p className="text-xs text-amber-100/90 leading-relaxed">{thread.action}</p>
+                <Markdown className="text-xs text-amber-100/90">{thread.action}</Markdown>
               </div>
             </div>
           )}
@@ -104,7 +105,7 @@ function Thread({ thread, messages, reload }) {
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                       mine ? 'bg-emerald-900/25 text-emerald-50/90' : 'bg-zinc-800 text-zinc-300'
                     }`}>
-                      {m.body}
+                      <Markdown>{m.body}</Markdown>
                       <div className="text-[9px] text-zinc-600 mt-1">
                         {mine ? 'You' : 'Sidekick'} · {timeAgo(m.created_at)}
                         {mine && !m.synced && <span className="text-amber-500/70"> · sending…</span>}
