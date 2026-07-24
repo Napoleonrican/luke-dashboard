@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronDown, ChevronUp, Send, ExternalLink, AlertTriangle,
-  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User,
+  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from './Markdown';
@@ -19,6 +19,30 @@ const STATUS = {
   resolved:         { label: 'Resolved',     badge: 'bg-green-900/40 text-green-300' },
 };
 
+// Priority rides on the existing mc_threads.severity column (urgent | normal | low)
+// so this needs no schema change — it just presents that field as the same
+// three-tier priority Luke already uses on the Backlog tab.
+const PRIORITY = {
+  urgent: { label: 'High',   badge: 'bg-red-900/40 text-red-300' },
+  normal: { label: 'Medium', badge: 'bg-yellow-900/40 text-yellow-300' },
+  low:    { label: 'Low',    badge: 'bg-green-900/40 text-green-300' },
+};
+
+const PRIORITY_OPTIONS = [
+  { value: 'urgent', label: '🔴 High' },
+  { value: 'normal', label: '🟡 Medium' },
+  { value: 'low',    label: '🟢 Low' },
+];
+
+// Known projects for the compose dropdown; "Other…" reveals a free-text field so
+// Luke can start a thread for a brand-new project that has no repo yet.
+const PROJECTS = [
+  'personal-assistant', 'luke-dashboard', 'gig-tracker',
+  'gas-price-forecast', 'daily-planner', 'ac-schedule-agent',
+];
+
+const BLANK_COMPOSE = { title: '', details: '', repo: 'personal-assistant', otherRepo: '', priority: 'normal' };
+
 function timeAgo(iso) {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
@@ -30,6 +54,7 @@ function Thread({ thread, messages, reload }) {
 
   const cat = CATEGORY[thread.category] || CATEGORY.attention;
   const st  = STATUS[thread.status] || STATUS.needs_you;
+  const pr  = PRIORITY[thread.severity] || PRIORITY.normal;
   const Cat = cat.Icon;
 
   async function postReply() {
@@ -64,6 +89,7 @@ function Thread({ thread, messages, reload }) {
           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <span className="text-[10px] text-zinc-600">{thread.repo}</span>
             {thread.github_issue && <span className="text-[10px] text-zinc-600">#{thread.github_issue}</span>}
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${pr.badge}`}>{pr.label}</span>
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${st.badge}`}>{st.label}</span>
           </div>
           <p className={`text-sm leading-snug ${thread.status === 'resolved' ? 'text-zinc-400' : 'text-zinc-100'}`}>
@@ -162,8 +188,108 @@ function Thread({ thread, messages, reload }) {
   );
 }
 
+// Compose modal — Luke starts his own thread. It lands as a waiting_on_agent
+// thread with an unsynced opening message (author 'luke'), the same shape the
+// Sidekick routine already watches for when Luke replies, so it gets picked up
+// and acted on just like a reply does.
+function ComposeModal({ onClose, reload }) {
+  const [form, setForm]     = useState(BLANK_COMPOSE);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    function handleKey(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  const repo = form.repo === '__other__' ? form.otherRepo.trim() : form.repo;
+  const canSave = form.title.trim() && repo && !saving;
+
+  async function create() {
+    if (!canSave || !supabase) return;
+    setSaving(true);
+    const { data: thread } = await supabase.from('mc_threads').insert({
+      repo,
+      title: form.title.trim(),
+      category: 'action',
+      severity: form.priority,   // priority rides on severity — see PRIORITY map above
+      status: 'waiting_on_agent',
+    }).select().single();
+    if (thread && form.details.trim()) {
+      await supabase.from('mc_messages').insert({
+        thread_id: thread.id, author: 'luke', body: form.details.trim(), synced: false,
+      });
+    }
+    setSaving(false);
+    onClose();
+    reload();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-md p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-zinc-200">New thread</h2>
+          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={14} /></button>
+        </div>
+        <div className="space-y-3">
+          <input
+            autoFocus value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder="What's this about?"
+            className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+          <textarea
+            value={form.details}
+            onChange={e => setForm(f => ({ ...f, details: e.target.value }))}
+            placeholder="Details for your Sidekick — what you'd like done… (Markdown supported)"
+            rows={4}
+            className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
+          />
+          <div className="flex gap-2">
+            <select
+              value={form.repo}
+              onChange={e => setForm(f => ({ ...f, repo: e.target.value }))}
+              className="flex-1 min-w-0 text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
+            >
+              {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
+              <option value="__other__">Other…</option>
+            </select>
+            <select
+              value={form.priority}
+              onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+              className="flex-1 min-w-0 text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
+            >
+              {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          {form.repo === '__other__' && (
+            <input
+              value={form.otherRepo}
+              onChange={e => setForm(f => ({ ...f, otherRepo: e.target.value }))}
+              placeholder="New project name…"
+              className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            />
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5">Cancel</button>
+            <button
+              onClick={create}
+              disabled={!canSave}
+              className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-4 py-1.5 flex items-center gap-1.5 transition-colors"
+            >
+              <Check size={11} /> {saving ? 'Starting…' : 'Start thread'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InboxTab({ threads, messages, reload }) {
   const [showResolved, setShowResolved] = useState(false);
+  const [composing, setComposing]       = useState(false);
 
   const byThread = (id) => messages.filter(m => m.thread_id === id);
   const open     = threads.filter(t => t.status !== 'resolved');
@@ -171,6 +297,21 @@ export default function InboxTab({ threads, messages, reload }) {
 
   return (
     <div className="space-y-3">
+      {/* Start-your-own-thread control */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-zinc-500">
+          Start a thread and your Sidekick picks it up — for a new project or anything you want handled.
+        </p>
+        <button
+          onClick={() => setComposing(true)}
+          disabled={!supabase}
+          title={supabase ? undefined : 'Not connected — reconnect to start a thread'}
+          className="flex items-center gap-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded px-3 py-1.5 transition-colors flex-shrink-0 ml-3"
+        >
+          <Plus size={13} /> New thread
+        </button>
+      </div>
+
       {open.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle2 size={28} className="text-green-500/70 mx-auto mb-2" />
@@ -198,6 +339,8 @@ export default function InboxTab({ threads, messages, reload }) {
           )}
         </div>
       )}
+
+      {composing && <ComposeModal onClose={() => setComposing(false)} reload={reload} />}
     </div>
   );
 }
