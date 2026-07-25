@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, isMissingTableError } from '../../lib/supabase';
 
 // Shared lighting data for the Lighting master-detail pages. LightingLayout calls
 // this once and passes the result down via <Outlet context>, so Controls and
 // Scenes share one Supabase fetch and a single optimistic writer.
 
 export const DEFAULT_STATE = { id: 1, power: false, brightness: 100, r: 255, g: 160, b: 60, scene: null };
-
-const tableMissing = (error) =>
-  !!error && (error.code === 'PGRST205' || /strip_state/i.test(error.message || ''));
 
 // ── color helpers (shared with the Controls page) ──────────────────────────
 const clamp = (v) => Math.max(0, Math.min(255, v | 0));
@@ -44,7 +41,7 @@ export function useLightingData() {
     if (!supabase) return false;
     const { data, error } = await supabase.from('strip_state').select('*').eq('id', 1).limit(1);
     if (error) {
-      if (tableMissing(error)) setMissing(true);
+      if (isMissingTableError(error)) setMissing(true);
     } else if (data?.[0]) {
       setStrip({ ...DEFAULT_STATE, ...data[0] });
       setMissing(false);
@@ -77,7 +74,7 @@ export function useLightingData() {
       scene: next.scene ?? null,
       updated_at: new Date().toISOString(),
     });
-    if (tableMissing(error)) setMissing(true);
+    if (isMissingTableError(error)) setMissing(true);
   }, []);
 
   // Convenience writers used by the pages.
