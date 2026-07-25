@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, isMissingTableError } from '../../lib/supabase';
 
 // Schedule config for the Lighting → Schedule page. Separate from useLightingData
 // (which is live color/power state): this is the onboard wake/bedtime config that
@@ -17,9 +17,6 @@ export const DEFAULT_SCHEDULE = {
   sleep_brightness: 40,
   bedtime_trigger_at: null,
 };
-
-const tableMissing = (error) =>
-  !!error && (error.code === 'PGRST205' || /lighting_schedule/i.test(error.message || ''));
 
 // How long after the last change before we flush to Supabase. Sliders fire on
 // every drag pixel — without debouncing, each pixel triggers a BLE write on the
@@ -48,7 +45,7 @@ export function useLightingSchedule() {
     const { data, error } = await supabase
       .from('lighting_schedule').select('*').eq('id', 1).limit(1);
     if (error) {
-      if (tableMissing(error)) setMissing(true);
+      if (isMissingTableError(error)) setMissing(true);
     } else if (data?.[0]) {
       setSchedule({ ...DEFAULT_SCHEDULE, ...data[0] });
       setMissing(false);
@@ -81,7 +78,7 @@ export function useLightingSchedule() {
       ...snap, id: 1, updated_at: new Date().toISOString(),
     });
     flushing.current = false;
-    if (tableMissing(error)) setMissing(true);
+    if (isMissingTableError(error)) setMissing(true);
     // If any writes were skipped during the in-flight upsert, flush once more
     // with the latest ref state so nothing is silently dropped.
     if (dirty.current) {

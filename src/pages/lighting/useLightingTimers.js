@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, isMissingTableError } from '../../lib/supabase';
 
 // The strip's 4 native on/off timer slots (lighting_timers table, slots 0-3).
 // Separate from useLightingSchedule (wake/bedtime). The Pi writes each slot into
@@ -13,9 +13,6 @@ export const DEFAULT_TIMERS = [0, 1, 2, 3].map((slot) => ({
   minute: 0,
   days: 127, // bit0=Sun…bit6=Sat; 127 = every day, 0 = do not repeat
 }));
-
-const tableMissing = (error) =>
-  !!error && (error.code === 'PGRST205' || /lighting_timers/i.test(error.message || ''));
 
 const DEBOUNCE_MS = 600;
 
@@ -35,7 +32,7 @@ export function useLightingTimers() {
     const { data, error } = await supabase
       .from('lighting_timers').select('*').order('slot');
     if (error) {
-      if (tableMissing(error)) setMissing(true);
+      if (isMissingTableError(error)) setMissing(true);
     } else if (data?.length) {
       // Merge onto defaults so a missing slot row still renders.
       const merged = DEFAULT_TIMERS.map(
@@ -62,7 +59,7 @@ export function useLightingTimers() {
     const { error } = await supabase.from('lighting_timers').upsert({
       ...row, slot, updated_at: new Date().toISOString(),
     });
-    if (tableMissing(error)) setMissing(true);
+    if (isMissingTableError(error)) setMissing(true);
   }, []);
 
   // Update one slot: local state immediately, debounced upsert.
