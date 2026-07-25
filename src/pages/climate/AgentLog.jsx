@@ -27,6 +27,10 @@ export default function AgentLog() {
     agent:        'text-violet-400 border-violet-500/30',
     goal_follower:'text-amber-400 border-amber-500/30',
     comfort_mode: 'text-emerald-400 border-emerald-500/30',
+    // v2: shadow rows are deliberately muted — they record what the new
+    // controller WOULD have done, not anything that reached the AC.
+    controller_shadow: 'text-zinc-500 border-zinc-700/60',
+    controller:   'text-sky-400 border-sky-500/30',
     manual:       'text-zinc-400 border-zinc-600/40',
   };
 

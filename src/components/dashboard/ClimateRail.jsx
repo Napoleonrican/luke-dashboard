@@ -9,6 +9,8 @@ const SOURCE_TONE = {
   agent: 'text-violet-400',
   goal_follower: 'text-amber-400',
   comfort_mode: 'text-emerald-400',
+  controller_shadow: 'text-zinc-500',
+  controller: 'text-sky-400',
   manual: 'text-zinc-400',
 };
 

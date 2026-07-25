@@ -248,7 +248,10 @@ export function useClimateData() {
     const { data: pushLog } = await supabase
       .from('ac_change_log')
       .select('ts,source,action,detail')
-      .in('source', ['executor', 'comfort_mode'])
+      // 'controller' is the v2 writer (Phase 3+). Deliberately NOT
+      // 'controller_shadow' — shadow rows are decisions that never reached the
+      // AC, so they must never show up as "what the AC was last set to".
+      .in('source', ['executor', 'comfort_mode', 'controller'])
       .neq('action', 'noop')
       .order('ts', { ascending: false })
       .limit(1);
