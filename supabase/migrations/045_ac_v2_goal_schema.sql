@@ -103,7 +103,12 @@ SELECT
   s.time_local,
   CASE
     WHEN s.action = 'off' THEN 'off'
-    WHEN s.time_local = '01:00:00' THEN 'sleep'
+    -- 00:00 and 01:00 are both overnight sleep blocks: same goal (bedroom 68),
+    -- Luke is asleep, so they take the quiet gentle-hold sleep template (not a
+    -- noisy precool/Turbo push at midnight). The 00:00 block was added to
+    -- ac_schedule after this mapping was first written; it previously fell
+    -- through to the 'home' default (see 046_fix_ac_goal_schedule_midnight_phase).
+    WHEN s.time_local IN ('00:00:00', '01:00:00') THEN 'sleep'
     WHEN s.time_local = '08:30:00' THEN 'home'
     WHEN s.time_local = '17:30:00' THEN 'away'
     WHEN s.time_local = '18:30:00' THEN 'home'
@@ -116,7 +121,7 @@ SELECT
   END AS phase,
   CASE WHEN s.goal_room = 'living_room' THEN 'living' ELSE s.goal_room END AS goal_room,
   s.goal_temp_f,
-  CASE WHEN s.time_local = '01:00:00' THEN 2.5 ELSE 2.0 END AS deadband_f,
-  (s.time_local = '01:00:00') AS quiet,
+  CASE WHEN s.time_local IN ('00:00:00', '01:00:00') THEN 2.5 ELSE 2.0 END AS deadband_f,
+  (s.time_local IN ('00:00:00', '01:00:00')) AS quiet,
   s.enabled
 FROM public.ac_schedule s;
