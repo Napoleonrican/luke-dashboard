@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
-import { fetchShows, getShowsMetaCached } from '../../lib/watchtracker';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, ChevronDown, ChevronRight, Sparkles, Tv } from 'lucide-react';
+import { fetchShows, getShowsMetaCached, getShowsProvidersCached, getShowMetadata, updateShow } from '../../lib/watchtracker';
 import { tmdbStatus } from '../../lib/tmdb';
+import { buildProfile, scoreItem, showWeight } from '../../lib/recommend';
 import useScrollRestoration from '../../hooks/useScrollRestoration';
 import ShowCard from './ShowCard';
 import AddTitleModal from './AddTitleModal';
+import QuickRateModal from './QuickRateModal';
 
 const STALE_DAYS = 30;
 const RECENT_SEASON_DAYS = 120;
@@ -85,14 +87,37 @@ function sectionShows(shows, metaByTmdbId) {
   return { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished };
 }
 
+// First flatrate offer wins (subscription over rent/buy, since that's the
+// "which service should I sign up for" question this grouping is for);
+// falls back to rent/buy if the show isn't on any subscription service.
+function primaryProvider(providers) {
+  const offer = providers?.flatrate?.[0] ?? providers?.rent?.[0] ?? providers?.buy?.[0];
+  return offer?.provider_name ?? null;
+}
+
+function groupByProvider(shows, providersByTmdbId) {
+  const groups = new Map(); // provider name (or null) -> shows[]
+  for (const s of shows) {
+    const name = primaryProvider(providersByTmdbId.get(s.tmdb_id));
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(s);
+  }
+  // Known providers first (by group size, most shows first), unknown last.
+  const known = [...groups.entries()].filter(([name]) => name).sort((a, b) => b[1].length - a[1].length);
+  const unknown = groups.get(null);
+  return unknown ? [...known, ['Not sure yet', unknown]] : known;
+}
+
 export default function Shows() {
   const [shows, setShows] = useState([]);
   const [metaByTmdbId, setMetaByTmdbId] = useState(new Map());
+  const [providersByTmdbId, setProvidersByTmdbId] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [view, setView] = useState('sections'); // sections | archived | all
   const [showAdd, setShowAdd] = useState(false);
+  const [showQuickRate, setShowQuickRate] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
@@ -108,6 +133,8 @@ export default function Shows() {
       const tmdbIds = [...new Set(list.map((s) => s.tmdb_id).filter(Boolean))];
       const { data: metaRows } = await getShowsMetaCached(tmdbIds);
       if (active) setMetaByTmdbId(new Map((metaRows ?? []).map((m) => [m.tmdb_id, m])));
+      const { data: providerRows } = await getShowsProvidersCached(tmdbIds);
+      if (active) setProvidersByTmdbId(new Map((providerRows ?? []).map((p) => [p.tmdb_id, p.watch_providers])));
       setLoading(false);
     });
     return () => { active = false; };
@@ -115,6 +142,41 @@ export default function Shows() {
 
   const handleMeta = (tmdbId, meta) => {
     setMetaByTmdbId((prev) => (prev.get(tmdbId) === meta ? prev : new Map(prev).set(tmdbId, meta)));
+  };
+
+  const handleProviders = (tmdbId, providers) => {
+    setProvidersByTmdbId((prev) => (prev.get(tmdbId) === providers ? prev : new Map(prev).set(tmdbId, providers)));
+  };
+
+  // Taste profile from shows you've actually watched some/all of (not just
+  // "in your list") — rating > favorited > plain watch, as a weight — used
+  // to score "Haven't started" shows the same way Movies scores Want to Watch.
+  const watchedShows = useMemo(
+    () => shows.filter((s) => s.is_followed && !s.is_archived && (s.ep_watch_count ?? 0) > 0),
+    [shows],
+  );
+  const profile = useMemo(() => buildProfile(watchedShows, metaByTmdbId, showWeight), [watchedShows, metaByTmdbId]);
+  // Scored for every show, not just "Haven't started" — a show that helped
+  // build the profile will naturally score near 100% against itself, which
+  // is expected (it's part of what defines the profile), not a bug.
+  const scoreByShowId = useMemo(() => {
+    const map = new Map();
+    for (const s of shows) {
+      if (!s.tmdb_id) continue;
+      const score = scoreItem(metaByTmdbId.get(s.tmdb_id), profile);
+      if (score != null) map.set(s.id, score);
+    }
+    return map;
+  }, [shows, metaByTmdbId, profile]);
+
+  const rateCandidates = useMemo(
+    () => watchedShows
+      .filter((s) => s.tmdb_id && s.rating == null)
+      .map((s) => ({ id: s.id, title: s.series_name, tmdb_id: s.tmdb_id, watched_at: s.last_watched_at })),
+    [watchedShows],
+  );
+  const handleRated = (showId, rating) => {
+    setShows((prev) => prev.map((s) => (s.id === showId ? { ...s, rating } : s)));
   };
 
   const matchesQuery = (s) => s.series_name.toLowerCase().includes(query.toLowerCase());
@@ -159,6 +221,14 @@ export default function Shows() {
             </button>
           ))}
         </div>
+        {rateCandidates.length > 0 && (
+          <button
+            onClick={() => setShowQuickRate(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-700/60 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20"
+          >
+            <Sparkles size={13} /> Improve your recommendations
+          </button>
+        )}
         <button
           onClick={() => setShowAdd(true)}
           className="ml-auto flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
@@ -169,12 +239,18 @@ export default function Shows() {
 
       {view === 'sections' || searching ? (
         <div className="space-y-6">
-          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
-          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
-          <Section title="Haven't started" shows={notStarted} onMeta={handleMeta} />
-          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
-          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
-          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
+          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <NotStartedByProvider
+            shows={notStarted}
+            providersByTmdbId={providersByTmdbId}
+            onMeta={handleMeta}
+            onProviders={handleProviders}
+            scoreByShowId={scoreByShowId}
+          />
+          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
           {watchNext.length + haventWatched.length + notStarted.length + watchLater.length + caughtUp.length + finished.length === 0 && (
             <div className="py-12 text-center text-zinc-600">No shows match.</div>
           )}
@@ -182,30 +258,75 @@ export default function Shows() {
       ) : (
         <div className={GRID}>
           {listView.length === 0 && <div className="col-span-full py-12 text-center text-zinc-600">No shows match.</div>}
-          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} />)}
+          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} score={scoreByShowId.get(show.id)} />)}
         </div>
       )}
 
       {showAdd && (
         <AddTitleModal mediaType="tv" onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); reload(); }} />
       )}
+
+      {showQuickRate && (
+        <QuickRateModal
+          candidates={rateCandidates}
+          icon={Tv}
+          getMeta={getShowMetadata}
+          onRate={(id, n) => updateShow(id, { rating: n })}
+          onRated={handleRated}
+          onClose={() => setShowQuickRate(false)}
+        />
+      )}
     </div>
   );
 }
 
-function Section({ title, shows, onMeta }) {
+// "Haven't started" grouped by primary streaming provider — the point being
+// "what should I subscribe to next" for a one-service-at-a-time viewer.
+// Provider data is fetched by each card itself (fetchProviders=true, only
+// here) and reported back so a not-yet-cached show's card self-corrects
+// into the right group as it scrolls into view, same as section placement.
+function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders, scoreByShowId }) {
   if (shows.length === 0) return null;
+  const groups = groupByProvider(shows, providersByTmdbId);
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">{title}</h3>
-      <div className={GRID}>
-        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">Haven&rsquo;t started</h3>
+      <div className="space-y-4">
+        {groups.map(([name, groupShows]) => (
+          <div key={name}>
+            <h4 className="mb-2 text-xs font-medium text-zinc-500">{name} ({groupShows.length})</h4>
+            <div className={GRID}>
+              {groupShows.map((show) => (
+                <ShowCard
+                  key={show.id}
+                  show={show}
+                  onMeta={onMeta}
+                  fetchProviders
+                  onProviders={onProviders}
+                  score={scoreByShowId.get(show.id)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function CollapsibleSection({ title, shows, onMeta }) {
+function Section({ title, shows, onMeta, scoreByShowId }) {
+  if (shows.length === 0) return null;
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">{title}</h3>
+      <div className={GRID}>
+        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} score={scoreByShowId.get(show.id)} />)}
+      </div>
+    </div>
+  );
+}
+
+function CollapsibleSection({ title, shows, onMeta, scoreByShowId }) {
   const [open, setOpen] = useState(false);
   if (shows.length === 0) return null;
   return (
@@ -219,7 +340,7 @@ function CollapsibleSection({ title, shows, onMeta }) {
       </button>
       {open && (
         <div className={GRID}>
-          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
+          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} score={scoreByShowId.get(show.id)} />)}
         </div>
       )}
     </div>

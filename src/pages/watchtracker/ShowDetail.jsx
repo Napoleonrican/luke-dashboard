@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2, Check, MoreVertical, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2, Check, MoreVertical, Clock, Trash2, Sparkles } from 'lucide-react';
 import {
   getShow, getShowMetadata, fetchEpisodes, setEpisodeWatched, markEpisodesWatched,
-  updateShow, getEpisodeMetadata,
+  updateShow, getEpisodeMetadata, fetchShows, getShowsMetaCached,
 } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured, tmdbStatus } from '../../lib/tmdb';
+import { buildProfile, scoreItem, showWeight } from '../../lib/recommend';
 import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
 import ConfirmDialog from '../cashflow/ConfirmDialog';
 import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
 import CastList from './CastList';
+import StarRating from './StarRating';
 import AddTitleModal from './AddTitleModal';
 
 // Human summary for the catch-up prompt — lists episodes when they're all in
@@ -35,6 +37,7 @@ export default function ShowDetail() {
   const [showMatch, setShowMatch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [matchScore, setMatchScore] = useState(null);
   // { season, episode, missing: [episode_number, ...] } — offered after
   // marking an episode watched when earlier ones in the same season aren't.
   const [gapPrompt, setGapPrompt] = useState(null);
@@ -60,6 +63,25 @@ export default function ShowDetail() {
     const { data } = await getShow(id);
     setShow(data);
   };
+
+  // Own match score — same profile Shows.jsx builds (watched shows, rating
+  // > favorited > plain watch), computed here independently since this page
+  // can be opened directly without the Shows list ever having loaded.
+  useEffect(() => {
+    let active = true;
+    if (!meta) return;
+    (async () => {
+      const { data: allShows } = await fetchShows();
+      const watched = (allShows ?? []).filter((s) => s.is_followed && !s.is_archived && (s.ep_watch_count ?? 0) > 0);
+      const tmdbIds = [...new Set(watched.map((s) => s.tmdb_id).filter(Boolean))];
+      const { data: metaRows } = await getShowsMetaCached(tmdbIds);
+      if (!active) return;
+      const metaByTmdbId = new Map((metaRows ?? []).map((m) => [m.tmdb_id, m]));
+      const profile = buildProfile(watched, metaByTmdbId, showWeight);
+      setMatchScore(scoreItem(meta, profile));
+    })();
+    return () => { active = false; };
+  }, [meta]);
 
   const onMatched = async () => {
     setShowMatch(false);
@@ -170,6 +192,11 @@ export default function ShowDetail() {
                 <Clock size={10} /> Watch Later
               </span>
             )}
+            {matchScore != null && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                <Sparkles size={10} /> {matchScore}% match
+              </span>
+            )}
             <button
               onClick={() => setShowMatch(true)}
               className="flex items-center gap-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
@@ -185,6 +212,10 @@ export default function ShowDetail() {
             {watchedCount}{totalEpisodes ? ` / ${totalEpisodes}` : ''} episodes
           </div>
           {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5 max-w-xs" />}
+
+          <div className="mt-3">
+            <StarRating value={show.rating} onChange={(v) => updateShow(show.id, { rating: v }).then(reloadShow)} size={22} showLabel />
+          </div>
 
           <div className="mt-3">
             <RatingAndProviders tmdbId={show.tmdb_id} mediaType="tv" meta={meta} />

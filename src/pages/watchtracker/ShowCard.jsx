@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Tv } from 'lucide-react';
-import { getShowMetadata } from '../../lib/watchtracker';
+import { Star, Tv, Sparkles } from 'lucide-react';
+import { getShowMetadata, getWatchProvidersCached } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import ProgressBar from './ProgressBar';
 import useInView from '../../hooks/useInView';
@@ -13,7 +13,12 @@ import useInView from '../../hooks/useInView';
 // for section placement — a show whose metadata wasn't cached yet when the
 // page loaded self-corrects into the right section as its tile scrolls
 // into view, instead of staying misclassified for the rest of the session.
-export default function ShowCard({ show, onMeta }) {
+// fetchProviders + onProviders do the same for streaming-provider data,
+// used only by the "Haven't started" section's by-service grouping — most
+// tiles skip this fetch entirely since nothing else needs it. `score`
+// (optional) is the match % computed by the parent, shown only where it's
+// meaningful (Haven't started).
+export default function ShowCard({ show, onMeta, fetchProviders = false, onProviders, score }) {
   const [ref, inView] = useInView();
   const [meta, setMeta] = useState(null);
 
@@ -25,6 +30,11 @@ export default function ShowCard({ show, onMeta }) {
         setMeta(data);
         if (data) onMeta?.(show.tmdb_id, data);
       });
+      if (fetchProviders) {
+        getWatchProvidersCached(show.tmdb_id, 'tv').then(({ data }) => {
+          if (active) onProviders?.(show.tmdb_id, data);
+        });
+      }
     }
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,6 +55,11 @@ export default function ShowCard({ show, onMeta }) {
         {totalEpisodes > 0 && (
           <div className="absolute inset-x-0 bottom-0 bg-black/40 p-1">
             <ProgressBar value={watchedCount} total={totalEpisodes} />
+          </div>
+        )}
+        {score != null && (
+          <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+            <Sparkles size={9} /> {score}%
           </div>
         )}
       </div>

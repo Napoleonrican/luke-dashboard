@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat, Link2, Trash2 } from 'lucide-react';
-import { getMovie, getMovieMetadata, updateMovie } from '../../lib/watchtracker';
+import { ArrowLeft, Clapperboard, Check, Bookmark, Repeat, Link2, Trash2, Sparkles } from 'lucide-react';
+import { getMovie, getMovieMetadata, updateMovie, fetchMovies, getMoviesMetaCached } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
+import { buildProfile, scoreItem, movieWeight } from '../../lib/recommend';
 import { fmtDate } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
 import ConfirmDialog from '../cashflow/ConfirmDialog';
 import RatingAndProviders from './RatingAndProviders';
 import CastList from './CastList';
+import StarRating from './StarRating';
 import AddTitleModal from './AddTitleModal';
 
 // Import data (a "watch" event from the TVTime export) isn't always right —
@@ -22,6 +24,26 @@ export default function MovieDetail() {
   const [loading, setLoading] = useState(true);
   const [showMatch, setShowMatch] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [matchScore, setMatchScore] = useState(null);
+
+  // Own match score — same profile Movies.jsx builds (watched movies, rating
+  // > rewatch count > plain watch), computed here independently since this
+  // page can be opened directly without the Movies list ever having loaded.
+  useEffect(() => {
+    let active = true;
+    if (!meta) return;
+    (async () => {
+      const { data: allMovies } = await fetchMovies();
+      const watched = (allMovies ?? []).filter((m) => m.is_followed);
+      const tmdbIds = [...new Set(watched.map((m) => m.tmdb_id).filter(Boolean))];
+      const { data: metaRows } = await getMoviesMetaCached(tmdbIds);
+      if (!active) return;
+      const metaByTmdbId = new Map((metaRows ?? []).map((m) => [m.tmdb_id, m]));
+      const profile = buildProfile(watched, metaByTmdbId, movieWeight);
+      setMatchScore(scoreItem(meta, profile));
+    })();
+    return () => { active = false; };
+  }, [meta]);
 
   const reload = async () => {
     const { data } = await getMovie(id);
@@ -87,6 +109,11 @@ export default function MovieDetail() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-zinc-100">{movie.movie_name}</h1>
+            {matchScore != null && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                <Sparkles size={10} /> {matchScore}% match
+              </span>
+            )}
             <button
               onClick={() => setShowMatch(true)}
               className="flex items-center gap-1 rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] font-medium text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
@@ -97,6 +124,10 @@ export default function MovieDetail() {
           </div>
           {movie.release_date && <div className="mt-0.5 text-xs text-zinc-500">{fmtDate(movie.release_date)}</div>}
           {meta?.overview && <p className="mt-2 text-sm text-zinc-400">{meta.overview}</p>}
+
+          <div className="mt-3">
+            <StarRating value={movie.rating} onChange={(v) => updateMovie(movie.id, { rating: v }).then(reload)} size={22} showLabel />
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button

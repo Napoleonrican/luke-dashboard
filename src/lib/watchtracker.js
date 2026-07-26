@@ -31,6 +31,23 @@ export async function getShowsMetaCached(tmdbIds) {
     .eq('media_type', 'tv').in('tmdb_id', tmdbIds);
 }
 
+// Bulk read of already-cached watch-provider data (no live API calls) —
+// used to group shows by streaming service without fetching anything.
+export async function getShowsProvidersCached(tmdbIds) {
+  if (!s || !tmdbIds.length) return { data: [], error: null };
+  return s.from('wt_metadata_cache').select('tmdb_id, watch_providers')
+    .eq('media_type', 'tv').in('tmdb_id', tmdbIds);
+}
+
+// Bulk read of already-cached movie metadata (genres + credits live in
+// raw_json) — used to build/score the recommendation profile without any
+// live TMDB calls.
+export async function getMoviesMetaCached(tmdbIds) {
+  if (!s || !tmdbIds.length) return { data: [], error: null };
+  return s.from('wt_metadata_cache').select('tmdb_id, raw_json')
+    .eq('media_type', 'movie').in('tmdb_id', tmdbIds);
+}
+
 export async function fetchEpisodes(showId) {
   if (!s) return { data: [], error: null };
   let q = s.from('wt_episodes').select('*').order('season_number').order('episode_number');

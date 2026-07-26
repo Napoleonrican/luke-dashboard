@@ -169,7 +169,7 @@ function parseV1(rows) {
 
   const getMovie = (name) => {
     if (!movies.has(name)) {
-      movies.set(name, { movie_name: name, is_followed: false, is_for_later: false, rewatch_count: 0, release_date: null });
+      movies.set(name, { movie_name: name, is_followed: false, is_for_later: false, rewatch_count: 0, release_date: null, watched_at: null });
     }
     return movies.get(name);
   };
@@ -189,6 +189,8 @@ function parseV1(rows) {
       const m = getMovie(name);
       m.is_followed = true;
       m.release_date = str(r.release_date)?.slice(0, 10) ?? m.release_date;
+      const watchedAt = fromDateString(r.created_at);
+      if (watchedAt && (!m.watched_at || watchedAt > m.watched_at)) m.watched_at = watchedAt;
     } else if (type === 'follow' && str(r.entity_type) === 'movie') {
       const name = str(r.movie_name);
       if (!name) continue;
