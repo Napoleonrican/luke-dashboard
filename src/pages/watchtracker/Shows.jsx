@@ -156,10 +156,13 @@ export default function Shows() {
     [shows],
   );
   const profile = useMemo(() => buildProfile(watchedShows, metaByTmdbId, showWeight), [watchedShows, metaByTmdbId]);
+  // Scored for every show, not just "Haven't started" — a show that helped
+  // build the profile will naturally score near 100% against itself, which
+  // is expected (it's part of what defines the profile), not a bug.
   const scoreByShowId = useMemo(() => {
     const map = new Map();
     for (const s of shows) {
-      if (!s.tmdb_id || (s.ep_watch_count ?? 0) > 0) continue;
+      if (!s.tmdb_id) continue;
       const score = scoreItem(metaByTmdbId.get(s.tmdb_id), profile);
       if (score != null) map.set(s.id, score);
     }
@@ -236,8 +239,8 @@ export default function Shows() {
 
       {view === 'sections' || searching ? (
         <div className="space-y-6">
-          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
-          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
+          <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
           <NotStartedByProvider
             shows={notStarted}
             providersByTmdbId={providersByTmdbId}
@@ -245,9 +248,9 @@ export default function Shows() {
             onProviders={handleProviders}
             scoreByShowId={scoreByShowId}
           />
-          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
-          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
-          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
+          <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
+          <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} scoreByShowId={scoreByShowId} />
           {watchNext.length + haventWatched.length + notStarted.length + watchLater.length + caughtUp.length + finished.length === 0 && (
             <div className="py-12 text-center text-zinc-600">No shows match.</div>
           )}
@@ -255,7 +258,7 @@ export default function Shows() {
       ) : (
         <div className={GRID}>
           {listView.length === 0 && <div className="col-span-full py-12 text-center text-zinc-600">No shows match.</div>}
-          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} />)}
+          {listView.map((show) => <ShowCard key={show.id} show={show} onMeta={handleMeta} score={scoreByShowId.get(show.id)} />)}
         </div>
       )}
 
@@ -311,19 +314,19 @@ function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders, s
   );
 }
 
-function Section({ title, shows, onMeta }) {
+function Section({ title, shows, onMeta, scoreByShowId }) {
   if (shows.length === 0) return null;
   return (
     <div>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">{title}</h3>
       <div className={GRID}>
-        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
+        {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} score={scoreByShowId.get(show.id)} />)}
       </div>
     </div>
   );
 }
 
-function CollapsibleSection({ title, shows, onMeta }) {
+function CollapsibleSection({ title, shows, onMeta, scoreByShowId }) {
   const [open, setOpen] = useState(false);
   if (shows.length === 0) return null;
   return (
@@ -337,7 +340,7 @@ function CollapsibleSection({ title, shows, onMeta }) {
       </button>
       {open && (
         <div className={GRID}>
-          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} />)}
+          {shows.map((show) => <ShowCard key={show.id} show={show} onMeta={onMeta} score={scoreByShowId.get(show.id)} />)}
         </div>
       )}
     </div>
