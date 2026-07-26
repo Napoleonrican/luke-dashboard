@@ -8,6 +8,7 @@ import EditCell from '../cashflow/EditCell';
 import ConfirmDialog from '../cashflow/ConfirmDialog';
 import RatingAndProviders from './RatingAndProviders';
 import CastList from './CastList';
+import StarRating from './StarRating';
 import AddTitleModal from './AddTitleModal';
 
 // Import data (a "watch" event from the TVTime export) isn't always right —
@@ -120,6 +121,7 @@ export default function MovieDetail() {
                 <Repeat size={11} /> {movie.rewatch_count} rewatch{movie.rewatch_count === 1 ? '' : 'es'}
               </span>
             )}
+            <StarRating value={movie.rating} onChange={(v) => updateMovie(movie.id, { rating: v }).then(reload)} />
           </div>
 
           <div className="mt-3">

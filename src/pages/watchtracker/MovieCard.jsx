@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Bookmark, Clapperboard } from 'lucide-react';
+import { Check, Bookmark, Clapperboard, Sparkles } from 'lucide-react';
 import { getMovieMetadata } from '../../lib/watchtracker';
 import { tmdbImageUrl } from '../../lib/tmdb';
 import useInView from '../../hooks/useInView';
 
 // Poster-forward grid tile, mirrors ShowCard — lazily fetches its poster
-// only once scrolled into view.
-export default function MovieCard({ movie: m }) {
+// only once scrolled into view. onMeta (optional) reports the fetched
+// metadata back up to the Movies page for the match-score profile, same
+// self-correcting pattern as Shows' section placement. `score` (optional)
+// is the match % computed by the parent once metadata's available.
+export default function MovieCard({ movie: m, onMeta, score }) {
   const [ref, inView] = useInView();
   const [meta, setMeta] = useState(null);
 
   useEffect(() => {
     let active = true;
-    if (inView && m.tmdb_id) getMovieMetadata(m.tmdb_id).then(({ data }) => { if (active) setMeta(data); });
+    if (inView && m.tmdb_id) {
+      getMovieMetadata(m.tmdb_id).then(({ data }) => {
+        if (!active) return;
+        setMeta(data);
+        if (data) onMeta?.(m.tmdb_id, data);
+      });
+    }
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inView, m.tmdb_id]);
 
   return (
@@ -31,6 +41,11 @@ export default function MovieCard({ movie: m }) {
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/80 text-white"><Bookmark size={11} /></span>
           )}
         </div>
+        {score != null && !m.is_followed && (
+          <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+            <Sparkles size={9} /> {score}%
+          </div>
+        )}
       </div>
       <div className="mt-1.5 truncate text-xs font-medium text-zinc-300 group-hover:text-zinc-100">
         {m.movie_name}

@@ -12,6 +12,7 @@ import ConfirmDialog from '../cashflow/ConfirmDialog';
 import ProgressBar from './ProgressBar';
 import RatingAndProviders from './RatingAndProviders';
 import CastList from './CastList';
+import StarRating from './StarRating';
 import AddTitleModal from './AddTitleModal';
 
 // Human summary for the catch-up prompt — lists episodes when they're all in
@@ -185,6 +186,10 @@ export default function ShowDetail() {
             {watchedCount}{totalEpisodes ? ` / ${totalEpisodes}` : ''} episodes
           </div>
           {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5 max-w-xs" />}
+
+          <div className="mt-3">
+            <StarRating value={show.rating} onChange={(v) => updateShow(show.id, { rating: v }).then(reloadShow)} />
+          </div>
 
           <div className="mt-3">
             <RatingAndProviders tmdbId={show.tmdb_id} mediaType="tv" meta={meta} />
