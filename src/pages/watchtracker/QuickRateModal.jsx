@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Clapperboard } from 'lucide-react';
-import { Star } from 'lucide-react';
-import { updateMovie, getMovieMetadata } from '../../lib/watchtracker';
+import { X, Star } from 'lucide-react';
 import { tmdbImageUrl } from '../../lib/tmdb';
 import { fmtDate } from '../cashflow/format';
 
@@ -9,13 +7,16 @@ const BATCH_SIZE = 5;
 const LABELS = { 1: 'Bad', 2: 'Meh', 3: 'Good', 4: 'Great', 5: 'Loved it' };
 
 // "Improve your recommendations" — a short, bottom-sheet rating session:
-// shows an unrated watched movie, its poster, and (when we have it) the
+// shows an unrated watched title, its poster, and (when we have it) the
 // date you last watched it, then a labeled 1-5 star picker. Advances
-// through a small batch automatically so rating a dozen movies doesn't
+// through a small batch automatically so rating a dozen titles doesn't
 // feel like a chore, with a checkpoint every 5 to keep going or stop.
-export default function QuickRateModal({ candidates, onRated, onClose }) {
+// Media-type agnostic — candidates are pre-normalized by the caller to
+// { id, title, tmdb_id, watched_at }; persistence goes through the
+// caller's onRate so this component doesn't care if it's a show or movie.
+export default function QuickRateModal({ candidates, icon: FallbackIcon, getMeta, onRate, onRated, onClose }) {
   const [mounted, setMounted] = useState(false);
-  const [handled, setHandled] = useState(new Set()); // movie ids rated/skipped this session
+  const [handled, setHandled] = useState(new Set()); // ids rated/skipped this session
   const [batch, setBatch] = useState(() => pickBatch(candidates, new Set()));
   const [index, setIndex] = useState(0);
   const [meta, setMeta] = useState(null);
@@ -28,21 +29,22 @@ export default function QuickRateModal({ candidates, onRated, onClose }) {
   useEffect(() => {
     let active = true;
     if (current?.tmdb_id) {
-      getMovieMetadata(current.tmdb_id).then(({ data }) => { if (active) setMeta({ tmdbId: current.tmdb_id, data }); });
+      getMeta(current.tmdb_id).then(({ data }) => { if (active) setMeta({ tmdbId: current.tmdb_id, data }); });
     }
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.tmdb_id]);
 
   const currentMeta = meta?.tmdbId === current?.tmdb_id ? meta.data : null;
 
   const remaining = useMemo(
-    () => candidates.filter((m) => !handled.has(m.id)),
+    () => candidates.filter((c) => !handled.has(c.id)),
     [candidates, handled],
   );
 
-  const advance = (movieId) => {
+  const advance = (id) => {
     const nextHandled = new Set(handled);
-    if (movieId) nextHandled.add(movieId);
+    if (id) nextHandled.add(id);
     setHandled(nextHandled);
     if (index + 1 < batch.length) {
       setIndex(index + 1);
@@ -52,7 +54,7 @@ export default function QuickRateModal({ candidates, onRated, onClose }) {
   };
 
   const rate = async (n) => {
-    await updateMovie(current.id, { rating: n });
+    await onRate(current.id, n);
     onRated?.(current.id, n);
     advance(current.id);
   };
@@ -116,10 +118,10 @@ export default function QuickRateModal({ candidates, onRated, onClose }) {
               <div className="h-32 w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
                 {currentMeta?.poster_path
                   ? <img src={tmdbImageUrl(currentMeta.poster_path, 'w185')} alt="" className="h-full w-full object-cover" />
-                  : <div className="flex h-full w-full items-center justify-center"><Clapperboard className="text-zinc-700" size={22} /></div>}
+                  : <div className="flex h-full w-full items-center justify-center"><FallbackIcon className="text-zinc-700" size={22} /></div>}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-zinc-100">{current.movie_name}</div>
+                <div className="text-sm font-semibold text-zinc-100">{current.title}</div>
                 <p className="mt-1 text-xs text-zinc-500">
                   {current.watched_at
                     ? `You last watched this on ${fmtDate(current.watched_at)}. How would you rate it?`
@@ -141,7 +143,7 @@ export default function QuickRateModal({ candidates, onRated, onClose }) {
               ))}
             </div>
             <div className="mt-1 text-center text-xs font-medium text-amber-300">
-              {hoverStar ? LABELS[hoverStar] : ' '}
+              {hoverStar ? LABELS[hoverStar] : ' '}
             </div>
 
             <button onClick={skip} className="mt-3 block w-full text-center text-xs text-zinc-600 hover:text-zinc-400">
@@ -156,7 +158,7 @@ export default function QuickRateModal({ candidates, onRated, onClose }) {
 
 function pickBatch(candidates, handled) {
   return candidates
-    .filter((m) => !handled.has(m.id))
+    .filter((c) => !handled.has(c.id))
     .sort((a, b) => (b.watched_at || '').localeCompare(a.watched_at || ''))
     .slice(0, BATCH_SIZE);
 }

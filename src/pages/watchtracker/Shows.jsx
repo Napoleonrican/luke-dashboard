@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
-import { fetchShows, getShowsMetaCached, getShowsProvidersCached } from '../../lib/watchtracker';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, ChevronDown, ChevronRight, Sparkles, Tv } from 'lucide-react';
+import { fetchShows, getShowsMetaCached, getShowsProvidersCached, getShowMetadata, updateShow } from '../../lib/watchtracker';
 import { tmdbStatus } from '../../lib/tmdb';
+import { buildProfile, scoreItem, showWeight } from '../../lib/recommend';
 import useScrollRestoration from '../../hooks/useScrollRestoration';
 import ShowCard from './ShowCard';
 import AddTitleModal from './AddTitleModal';
+import QuickRateModal from './QuickRateModal';
 
 const STALE_DAYS = 30;
 const RECENT_SEASON_DAYS = 120;
@@ -115,6 +117,7 @@ export default function Shows() {
   const [query, setQuery] = useState('');
   const [view, setView] = useState('sections'); // sections | archived | all
   const [showAdd, setShowAdd] = useState(false);
+  const [showQuickRate, setShowQuickRate] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey((k) => k + 1);
 
@@ -143,6 +146,34 @@ export default function Shows() {
 
   const handleProviders = (tmdbId, providers) => {
     setProvidersByTmdbId((prev) => (prev.get(tmdbId) === providers ? prev : new Map(prev).set(tmdbId, providers)));
+  };
+
+  // Taste profile from shows you've actually watched some/all of (not just
+  // "in your list") — rating > favorited > plain watch, as a weight — used
+  // to score "Haven't started" shows the same way Movies scores Want to Watch.
+  const watchedShows = useMemo(
+    () => shows.filter((s) => s.is_followed && !s.is_archived && (s.ep_watch_count ?? 0) > 0),
+    [shows],
+  );
+  const profile = useMemo(() => buildProfile(watchedShows, metaByTmdbId, showWeight), [watchedShows, metaByTmdbId]);
+  const scoreByShowId = useMemo(() => {
+    const map = new Map();
+    for (const s of shows) {
+      if (!s.tmdb_id || (s.ep_watch_count ?? 0) > 0) continue;
+      const score = scoreItem(metaByTmdbId.get(s.tmdb_id), profile);
+      if (score != null) map.set(s.id, score);
+    }
+    return map;
+  }, [shows, metaByTmdbId, profile]);
+
+  const rateCandidates = useMemo(
+    () => watchedShows
+      .filter((s) => s.tmdb_id && s.rating == null)
+      .map((s) => ({ id: s.id, title: s.series_name, tmdb_id: s.tmdb_id, watched_at: s.last_watched_at })),
+    [watchedShows],
+  );
+  const handleRated = (showId, rating) => {
+    setShows((prev) => prev.map((s) => (s.id === showId ? { ...s, rating } : s)));
   };
 
   const matchesQuery = (s) => s.series_name.toLowerCase().includes(query.toLowerCase());
@@ -187,6 +218,14 @@ export default function Shows() {
             </button>
           ))}
         </div>
+        {rateCandidates.length > 0 && (
+          <button
+            onClick={() => setShowQuickRate(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-700/60 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20"
+          >
+            <Sparkles size={13} /> Improve your recommendations
+          </button>
+        )}
         <button
           onClick={() => setShowAdd(true)}
           className="ml-auto flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
@@ -199,7 +238,13 @@ export default function Shows() {
         <div className="space-y-6">
           <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
           <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
-          <NotStartedByProvider shows={notStarted} providersByTmdbId={providersByTmdbId} onMeta={handleMeta} onProviders={handleProviders} />
+          <NotStartedByProvider
+            shows={notStarted}
+            providersByTmdbId={providersByTmdbId}
+            onMeta={handleMeta}
+            onProviders={handleProviders}
+            scoreByShowId={scoreByShowId}
+          />
           <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
           <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
           <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
@@ -217,6 +262,17 @@ export default function Shows() {
       {showAdd && (
         <AddTitleModal mediaType="tv" onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); reload(); }} />
       )}
+
+      {showQuickRate && (
+        <QuickRateModal
+          candidates={rateCandidates}
+          icon={Tv}
+          getMeta={getShowMetadata}
+          onRate={(id, n) => updateShow(id, { rating: n })}
+          onRated={handleRated}
+          onClose={() => setShowQuickRate(false)}
+        />
+      )}
     </div>
   );
 }
@@ -226,7 +282,7 @@ export default function Shows() {
 // Provider data is fetched by each card itself (fetchProviders=true, only
 // here) and reported back so a not-yet-cached show's card self-corrects
 // into the right group as it scrolls into view, same as section placement.
-function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders }) {
+function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders, scoreByShowId }) {
   if (shows.length === 0) return null;
   const groups = groupByProvider(shows, providersByTmdbId);
   return (
@@ -238,7 +294,14 @@ function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders })
             <h4 className="mb-2 text-xs font-medium text-zinc-500">{name} ({groupShows.length})</h4>
             <div className={GRID}>
               {groupShows.map((show) => (
-                <ShowCard key={show.id} show={show} onMeta={onMeta} fetchProviders onProviders={onProviders} />
+                <ShowCard
+                  key={show.id}
+                  show={show}
+                  onMeta={onMeta}
+                  fetchProviders
+                  onProviders={onProviders}
+                  score={scoreByShowId.get(show.id)}
+                />
               ))}
             </div>
           </div>

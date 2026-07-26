@@ -1,27 +1,34 @@
 // recommend.js — a lightweight, explainable "match score" for your
-// Want-to-Watch movies. No ML/external service: it builds a genre + cast
-// affinity profile from your rated/watched history (weighted so a 5-star
-// favorite counts far more than something you watched once and shrugged
-// at), then scores each unwatched movie by weighted overlap against that
-// profile, with a small nudge from TMDB's own rating so it doesn't just
-// chase niche genre/cast matches over generally-good movies.
+// Want-to-Watch movies (and Haven't-started shows). No ML/external
+// service: it builds a genre + cast affinity profile from your rated/
+// watched history (weighted so a 5-star favorite counts far more than
+// something you watched once and shrugged at), then scores each unwatched
+// title by weighted overlap against that profile, with a small nudge from
+// TMDB's own rating so it doesn't just chase niche genre/cast matches over
+// generally-good titles.
 
 const MAX_CAST = 10; // top-billed only — bit parts shouldn't dilute the signal
 
-function movieWeight(movie) {
+export function movieWeight(movie) {
   if (movie.rating) return movie.rating; // 1-5, explicit signal wins
   if (movie.rewatch_count > 0) return 3 + Math.min(movie.rewatch_count, 2); // 4-5
   return 1; // watched once, unrated — still counts, just lightly
 }
 
-export function buildProfile(watchedMovies, metaByTmdbId) {
+export function showWeight(show) {
+  if (show.rating) return show.rating; // 1-5, explicit signal wins
+  if (show.is_favorited) return 5; // TVTime-imported favorite is a strong signal
+  return 1; // watched some/all episodes, unrated — still counts, just lightly
+}
+
+export function buildProfile(watchedItems, metaByTmdbId, weightFn = movieWeight) {
   const genreWeights = new Map(); // genre name -> total weight
   const actorWeights = new Map(); // person id -> { name, weight }
 
-  for (const movie of watchedMovies) {
-    const meta = metaByTmdbId.get(movie.tmdb_id);
+  for (const item of watchedItems) {
+    const meta = metaByTmdbId.get(item.tmdb_id);
     if (!meta) continue;
-    const weight = movieWeight(movie);
+    const weight = weightFn(item);
 
     for (const genre of meta.raw_json?.genres ?? []) {
       genreWeights.set(genre.name, (genreWeights.get(genre.name) ?? 0) + weight);
@@ -43,8 +50,9 @@ export function hasEnoughData(profile) {
 }
 
 // Returns 0-100, or null if there's no metadata to score against yet (the
-// caller should show "pending" rather than a misleading 0%).
-export function scoreMovie(meta, profile) {
+// caller should show "pending" rather than a misleading 0%). Media-type
+// agnostic — works for a show or movie's cached metadata either way.
+export function scoreItem(meta, profile) {
   if (!meta || !hasEnoughData(profile)) return null;
 
   const genres = meta.raw_json?.genres ?? [];
@@ -64,3 +72,7 @@ export function scoreMovie(meta, profile) {
   const combined = genreNorm * 0.55 + castNorm * 0.35 + ratingNorm * 0.10;
   return Math.round(combined * 100);
 }
+
+// Back-compat alias — scoreItem has no movie-specific logic, kept as the
+// name Movies.jsx already imports.
+export const scoreMovie = scoreItem;

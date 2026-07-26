@@ -188,7 +188,7 @@ export default function ShowDetail() {
           {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5 max-w-xs" />}
 
           <div className="mt-3">
-            <StarRating value={show.rating} onChange={(v) => updateShow(show.id, { rating: v }).then(reloadShow)} />
+            <StarRating value={show.rating} onChange={(v) => updateShow(show.id, { rating: v }).then(reloadShow)} size={22} showLabel />
           </div>
 
           <div className="mt-3">

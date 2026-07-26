@@ -99,6 +99,10 @@ export default function MovieDetail() {
           {movie.release_date && <div className="mt-0.5 text-xs text-zinc-500">{fmtDate(movie.release_date)}</div>}
           {meta?.overview && <p className="mt-2 text-sm text-zinc-400">{meta.overview}</p>}
 
+          <div className="mt-3">
+            <StarRating value={movie.rating} onChange={(v) => updateMovie(movie.id, { rating: v }).then(reload)} size={22} showLabel />
+          </div>
+
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               onClick={toggleWatched}
@@ -121,7 +125,6 @@ export default function MovieDetail() {
                 <Repeat size={11} /> {movie.rewatch_count} rewatch{movie.rewatch_count === 1 ? '' : 'es'}
               </span>
             )}
-            <StarRating value={movie.rating} onChange={(v) => updateMovie(movie.id, { rating: v }).then(reload)} />
           </div>
 
           <div className="mt-3">

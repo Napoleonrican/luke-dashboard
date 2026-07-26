@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Sparkles } from 'lucide-react';
-import { fetchMovies, getMoviesMetaCached } from '../../lib/watchtracker';
+import { Search, Plus, Sparkles, Clapperboard } from 'lucide-react';
+import { fetchMovies, getMoviesMetaCached, getMovieMetadata, updateMovie } from '../../lib/watchtracker';
 import { buildProfile, scoreMovie, hasEnoughData } from '../../lib/recommend';
 import useScrollRestoration from '../../hooks/useScrollRestoration';
 import MovieCard from './MovieCard';
@@ -45,7 +45,9 @@ export default function Movies() {
   };
 
   const rateCandidates = useMemo(
-    () => movies.filter((m) => m.is_followed && m.tmdb_id && m.rating == null),
+    () => movies
+      .filter((m) => m.is_followed && m.tmdb_id && m.rating == null)
+      .map((m) => ({ id: m.id, title: m.movie_name, tmdb_id: m.tmdb_id, watched_at: m.watched_at })),
     [movies],
   );
   const handleRated = (movieId, rating) => {
@@ -162,7 +164,14 @@ export default function Movies() {
       )}
 
       {showQuickRate && (
-        <QuickRateModal candidates={rateCandidates} onRated={handleRated} onClose={() => setShowQuickRate(false)} />
+        <QuickRateModal
+          candidates={rateCandidates}
+          icon={Clapperboard}
+          getMeta={getMovieMetadata}
+          onRate={(id, n) => updateMovie(id, { rating: n })}
+          onRated={handleRated}
+          onClose={() => setShowQuickRate(false)}
+        />
       )}
     </div>
   );
