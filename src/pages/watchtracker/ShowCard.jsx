@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Tv } from 'lucide-react';
-import { getShowMetadata } from '../../lib/watchtracker';
+import { getShowMetadata, getWatchProvidersCached } from '../../lib/watchtracker';
 import { tmdbImageUrl, tmdbConfigured } from '../../lib/tmdb';
 import ProgressBar from './ProgressBar';
 import useInView from '../../hooks/useInView';
@@ -13,7 +13,10 @@ import useInView from '../../hooks/useInView';
 // for section placement — a show whose metadata wasn't cached yet when the
 // page loaded self-corrects into the right section as its tile scrolls
 // into view, instead of staying misclassified for the rest of the session.
-export default function ShowCard({ show, onMeta }) {
+// fetchProviders + onProviders do the same for streaming-provider data,
+// used only by the "Haven't started" section's by-service grouping — most
+// tiles skip this fetch entirely since nothing else needs it.
+export default function ShowCard({ show, onMeta, fetchProviders = false, onProviders }) {
   const [ref, inView] = useInView();
   const [meta, setMeta] = useState(null);
 
@@ -25,6 +28,11 @@ export default function ShowCard({ show, onMeta }) {
         setMeta(data);
         if (data) onMeta?.(show.tmdb_id, data);
       });
+      if (fetchProviders) {
+        getWatchProvidersCached(show.tmdb_id, 'tv').then(({ data }) => {
+          if (active) onProviders?.(show.tmdb_id, data);
+        });
+      }
     }
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

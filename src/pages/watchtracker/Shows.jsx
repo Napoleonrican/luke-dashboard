@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, ChevronDown, ChevronRight } from 'lucide-react';
-import { fetchShows, getShowsMetaCached } from '../../lib/watchtracker';
+import { fetchShows, getShowsMetaCached, getShowsProvidersCached } from '../../lib/watchtracker';
 import { tmdbStatus } from '../../lib/tmdb';
 import useScrollRestoration from '../../hooks/useScrollRestoration';
 import ShowCard from './ShowCard';
@@ -85,9 +85,31 @@ function sectionShows(shows, metaByTmdbId) {
   return { watchNext, haventWatched, notStarted, watchLater, caughtUp, finished };
 }
 
+// First flatrate offer wins (subscription over rent/buy, since that's the
+// "which service should I sign up for" question this grouping is for);
+// falls back to rent/buy if the show isn't on any subscription service.
+function primaryProvider(providers) {
+  const offer = providers?.flatrate?.[0] ?? providers?.rent?.[0] ?? providers?.buy?.[0];
+  return offer?.provider_name ?? null;
+}
+
+function groupByProvider(shows, providersByTmdbId) {
+  const groups = new Map(); // provider name (or null) -> shows[]
+  for (const s of shows) {
+    const name = primaryProvider(providersByTmdbId.get(s.tmdb_id));
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(s);
+  }
+  // Known providers first (by group size, most shows first), unknown last.
+  const known = [...groups.entries()].filter(([name]) => name).sort((a, b) => b[1].length - a[1].length);
+  const unknown = groups.get(null);
+  return unknown ? [...known, ['Not sure yet', unknown]] : known;
+}
+
 export default function Shows() {
   const [shows, setShows] = useState([]);
   const [metaByTmdbId, setMetaByTmdbId] = useState(new Map());
+  const [providersByTmdbId, setProvidersByTmdbId] = useState(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
@@ -108,6 +130,8 @@ export default function Shows() {
       const tmdbIds = [...new Set(list.map((s) => s.tmdb_id).filter(Boolean))];
       const { data: metaRows } = await getShowsMetaCached(tmdbIds);
       if (active) setMetaByTmdbId(new Map((metaRows ?? []).map((m) => [m.tmdb_id, m])));
+      const { data: providerRows } = await getShowsProvidersCached(tmdbIds);
+      if (active) setProvidersByTmdbId(new Map((providerRows ?? []).map((p) => [p.tmdb_id, p.watch_providers])));
       setLoading(false);
     });
     return () => { active = false; };
@@ -115,6 +139,10 @@ export default function Shows() {
 
   const handleMeta = (tmdbId, meta) => {
     setMetaByTmdbId((prev) => (prev.get(tmdbId) === meta ? prev : new Map(prev).set(tmdbId, meta)));
+  };
+
+  const handleProviders = (tmdbId, providers) => {
+    setProvidersByTmdbId((prev) => (prev.get(tmdbId) === providers ? prev : new Map(prev).set(tmdbId, providers)));
   };
 
   const matchesQuery = (s) => s.series_name.toLowerCase().includes(query.toLowerCase());
@@ -171,7 +199,7 @@ export default function Shows() {
         <div className="space-y-6">
           <Section title="Watch Next" shows={watchNext} onMeta={handleMeta} />
           <Section title="Haven't watched for a while" shows={haventWatched} onMeta={handleMeta} />
-          <Section title="Haven't started" shows={notStarted} onMeta={handleMeta} />
+          <NotStartedByProvider shows={notStarted} providersByTmdbId={providersByTmdbId} onMeta={handleMeta} onProviders={handleProviders} />
           <CollapsibleSection title="Watch Later" shows={watchLater} onMeta={handleMeta} />
           <CollapsibleSection title="Caught up" shows={caughtUp} onMeta={handleMeta} />
           <CollapsibleSection title="Finished" shows={finished} onMeta={handleMeta} />
@@ -189,6 +217,33 @@ export default function Shows() {
       {showAdd && (
         <AddTitleModal mediaType="tv" onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); reload(); }} />
       )}
+    </div>
+  );
+}
+
+// "Haven't started" grouped by primary streaming provider — the point being
+// "what should I subscribe to next" for a one-service-at-a-time viewer.
+// Provider data is fetched by each card itself (fetchProviders=true, only
+// here) and reported back so a not-yet-cached show's card self-corrects
+// into the right group as it scrolls into view, same as section placement.
+function NotStartedByProvider({ shows, providersByTmdbId, onMeta, onProviders }) {
+  if (shows.length === 0) return null;
+  const groups = groupByProvider(shows, providersByTmdbId);
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-600">Haven&rsquo;t started</h3>
+      <div className="space-y-4">
+        {groups.map(([name, groupShows]) => (
+          <div key={name}>
+            <h4 className="mb-2 text-xs font-medium text-zinc-500">{name} ({groupShows.length})</h4>
+            <div className={GRID}>
+              {groupShows.map((show) => (
+                <ShowCard key={show.id} show={show} onMeta={onMeta} fetchProviders onProviders={onProviders} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
