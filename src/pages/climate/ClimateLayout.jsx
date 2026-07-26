@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutGrid, LineChart, CalendarClock, Target, History, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutGrid, LineChart, CalendarClock, Target, History, Settings as SettingsIcon, GitCompare } from 'lucide-react';
 import TopNav from '../../components/TopNav';
 import { useClimateData } from './useClimateData';
 
@@ -9,6 +9,9 @@ const NAV_ITEMS = [
   { to: 'schedule', label: 'Schedule', icon: CalendarClock },
   { to: 'goals', label: 'Goals', icon: Target },
   { to: 'log', label: 'Agent Log', icon: History },
+  // AC v2 Phase 2 QA (temporary — remove once the controller cuts over and
+  // controller_shadow rows stop being produced; see V2-REDESIGN.md Phase 4).
+  { to: 'shadow', label: 'Shadow (v2)', icon: GitCompare },
   { to: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
