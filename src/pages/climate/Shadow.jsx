@@ -17,6 +17,21 @@ function minutesBetween(a, b) {
   return Math.abs(new Date(a) - new Date(b)) / 60000;
 }
 
+// Pull the setpoint out of a free-text `detail` line. Anchor to a number next
+// to a degree symbol or after "set"/"setpoint" so we don't grab an unrelated
+// leading number (a zone id, humidity reading, etc.) and mislabel the pair;
+// only fall back to the first number in the string if no anchored match exists.
+// Returns null when the string has no number at all.
+function setpointFrom(str) {
+  const s = str || '';
+  const deg = s.match(/(\d+(?:\.\d+)?)\s*°/); // e.g. "72°", "72 °F"
+  if (deg) return Number(deg[1]);
+  const set = s.match(/set(?:point)?(?:\s+to)?\s+(\d+(?:\.\d+)?)/i); // "setpoint 72", "set to 72.5"
+  if (set) return Number(set[1]);
+  const first = s.match(/\d+(?:\.\d+)?/); // fallback: first number anywhere
+  return first ? Number(first[0]) : null;
+}
+
 // Very rough agree/disagree signal from free-text `detail` — both sides log
 // human-readable strings, not structured fields, so this is pattern matching,
 // not a real diff. Good enough to flag things worth a closer look.
@@ -24,13 +39,12 @@ function classify(shadowDetail, liveDetail) {
   if (!liveDetail) return 'no-live';
   const s = (shadowDetail || '').toLowerCase();
   const l = (liveDetail || '').toLowerCase();
-  const numsFrom = (str) => (str.match(/\d+(\.\d+)?/g) || []).map(Number);
-  const sNums = numsFrom(s);
-  const lNums = numsFrom(l);
-  const sameSetpoint = sNums.length && lNums.length && sNums[0] === lNums[0];
+  const sSet = setpointFrom(s);
+  const lSet = setpointFrom(l);
+  const sameSetpoint = sSet !== null && lSet !== null && sSet === lSet;
   const sameMode = ['cool', 'eco', 'dry', 'off', 'turbo'].find((m) => s.includes(m) && l.includes(m));
   if (sameSetpoint && sameMode) return 'agree';
-  if (sameMode && !sNums.length && !lNums.length) return 'agree';
+  if (sameMode && sSet === null && lSet === null) return 'agree';
   return 'differ';
 }
 
