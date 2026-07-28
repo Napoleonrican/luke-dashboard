@@ -48,7 +48,9 @@ function timeAgo(iso) {
 }
 
 function Thread({ thread, messages, reload }) {
-  const [expanded, setExpanded] = useState(thread.status !== 'resolved');
+  // Every thread renders collapsed on load (#154) — Luke wanted the Inbox to
+  // behave like an actual inbox: a scannable list of headers you tap to open.
+  const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
 
@@ -292,8 +294,30 @@ export default function InboxTab({ threads, messages, reload }) {
   const [composing, setComposing]       = useState(false);
 
   const byThread = (id) => messages.filter(m => m.thread_id === id);
-  const open     = threads.filter(t => t.status !== 'resolved');
-  const resolved = threads.filter(t => t.status === 'resolved');
+
+  // Tier signal (#154). mc_threads.status is the hand-off state the app already
+  // tracks and flips on every turn: postReply() sets 'waiting_on_agent' the
+  // moment Luke replies, and the Sidekick sets it back to 'needs_you' when it
+  // needs him again. That IS the "unaddressed vs. you've-replied" split Luke
+  // asked for, so we key the two tiers off status directly rather than
+  // re-deriving it from message order (the cleaner signal the issue points to).
+  //   Tier 1 — needs Luke: anything not yet handed to the Sidekick.
+  //   Tier 2 — with Sidekick: Luke has replied, waiting on a worker.
+  const awaitingLuke = (t) => t.status !== 'waiting_on_agent';
+
+  // Within a tier: highest priority first (urgent → normal → low), then oldest
+  // first, so a long-waiting item outranks a fresh one at the same priority.
+  const severityRank = (s) => (s === 'urgent' ? 0 : s === 'low' ? 2 : 1);
+  const byPriorityThenAge = (a, b) => {
+    const d = severityRank(a.severity) - severityRank(b.severity);
+    if (d !== 0) return d;
+    return new Date(a.created_at || a.updated_at) - new Date(b.created_at || b.updated_at);
+  };
+
+  const open        = threads.filter(t => t.status !== 'resolved');
+  const needsYou    = open.filter(awaitingLuke).sort(byPriorityThenAge);          // Tier 1
+  const withSidekick = open.filter(t => !awaitingLuke(t)).sort(byPriorityThenAge); // Tier 2
+  const resolved    = threads.filter(t => t.status === 'resolved'); // stays excluded from the primary sort
 
   return (
     <div className="space-y-3">
@@ -319,7 +343,27 @@ export default function InboxTab({ threads, messages, reload }) {
           <p className="text-xs text-zinc-600 mt-0.5">Nothing needs your attention right now.</p>
         </div>
       ) : (
-        open.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)
+        <>
+          {/* Tier 1 — needs Luke */}
+          {needsYou.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
+
+          {/* Tier 2 — Luke has replied, waiting on a worker. Sinks below Tier 1;
+              a labeled divider only appears when both tiers have items. */}
+          {withSidekick.length > 0 && (
+            <>
+              {needsYou.length > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-px flex-1 bg-zinc-800" />
+                  <span className="text-[10px] uppercase tracking-wide text-zinc-600 flex-shrink-0">
+                    With Sidekick — you've replied
+                  </span>
+                  <div className="h-px flex-1 bg-zinc-800" />
+                </div>
+              )}
+              {withSidekick.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
+            </>
+          )}
+        </>
       )}
 
       {resolved.length > 0 && (
