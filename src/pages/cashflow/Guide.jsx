@@ -16,7 +16,7 @@ const SECTIONS = [
   { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-23' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
-  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-22' },
+  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-29' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
   { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-15' },
 ];
@@ -264,6 +264,9 @@ export default function Guide() {
         </Block>
         <Block title="Pending Withdrawal">
           <p>The <strong className="text-zinc-300">Pending</strong> checkbox marks a payment as triggered and about to clear; a pending row gets a <strong className="text-zinc-300">faded-yellow highlight</strong> across the whole line. This flag is shared with the Waterfall’s On Deck list — ticking Pending there (on a debt) sets it here too, and confirming an <em>advance payment</em> from On Deck clears it.</p>
+        </Block>
+        <Block title="Advancing a payment (editable next due date)">
+          <p>When you advance a debt from the Waterfall’s Coming Up / On Deck list, the confirm modal previews the <strong className="text-zinc-300">next due date</strong>. It defaults to the debt’s stored cadence (monthly, weekly, etc.), but the field is now <strong className="text-zinc-300">editable</strong> — so BNPL debts that bill <strong className="text-zinc-300">biweekly</strong> (e.g. Klarna) can be rolled to their real next date instead of assuming the stored cadence. Change it inline; a <em>Reset to … (stored cadence)</em> link appears if you want the computed date back. Whatever’s showing when you confirm is what gets saved as the debt’s Next Due.</p>
         </Block>
       </section>
 
