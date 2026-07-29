@@ -57,8 +57,12 @@ export default function MissionTab() {
           Sometimes the assistants hit a question only a person can answer — not a coding
           question, but a real judgment call (e.g. "should this feature work this way or that
           way?"). When that happens, it shows up under the <strong className="text-zinc-300">Backlog &amp; Decisions</strong> tab.
-          Answering it there sends your answer straight back to them, and they pick it up on
-          their next run.
+        </p>
+        <p>
+          Answer it there in your own words. A coordinating assistant reads what you wrote,
+          passes it along to the build team in their terms, and replies back to you in the
+          same thread — so you never have to touch anything technical. You can also start
+          your own thread there any time you have a question or something to raise.
         </p>
       </Card>
 

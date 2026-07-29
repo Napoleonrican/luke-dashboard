@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronDown, ChevronUp, Send, ExternalLink, AlertTriangle,
+  ChevronDown, ChevronUp, Send, AlertTriangle,
   ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,12 @@ const PRIORITY_OPTIONS = [
 ];
 
 const BLANK_COMPOSE = { title: '', details: '', priority: 'normal' };
+
+// Stable author value for everything written from this page. The Sidekick
+// routine matches on it to know a message came from the Gig Ops collaborator
+// (vs. 'luke' from his own Inbox, or 'sidekick' from itself), so keep this in
+// sync with the routine prompt if it ever changes.
+const COLLAB_AUTHOR = 'collab';
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -31,7 +37,7 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function Thread({ thread, messages, reload, authorLabel }) {
+function Thread({ thread, messages, reload }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
@@ -41,22 +47,24 @@ function Thread({ thread, messages, reload, authorLabel }) {
   const st  = STATUS[thread.status] || STATUS.needs_you;
   const Cat = cat.Icon;
 
-  async function postReply(markResolved = false) {
-    if (!reply.trim() || posting) return;
+  // Her reply lands unsynced, exactly like Luke's own replies do on his
+  // Inbox: the Sidekick routine picks up unsynced non-sidekick messages,
+  // interprets them, and speaks to the GitHub issue in the worker agents'
+  // terms. Nothing here posts to GitHub directly — the agent is the relay.
+  async function postReply() {
+    if (!reply.trim() || posting || !supabase) return;
     setPosting(true);
     setError('');
     try {
-      const res = await fetch('/api/gig-ops-reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: thread.id, replyText: reply.trim(), authorLabel, markResolved }),
+      const { error: msgErr } = await supabase.from('mc_messages').insert({
+        thread_id: thread.id, author: COLLAB_AUTHOR, body: reply.trim(), synced: false,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send.');
+      if (msgErr) throw new Error(msgErr.message);
+      await supabase.from('mc_threads').update({ status: 'waiting_on_agent' }).eq('id', thread.id);
       setReply('');
       reload();
     } catch (e) {
-      setError(e.message || 'Failed to send — try again.');
+      setError(e.message || 'Could not send — try again.');
     } finally {
       setPosting(false);
     }
@@ -110,7 +118,8 @@ function Thread({ thread, messages, reload, authorLabel }) {
                     }`}>
                       <Markdown>{m.body}</Markdown>
                       <div className="text-[9px] text-zinc-600 mt-1">
-                        {mine ? m.author : 'Sidekick'} · {timeAgo(m.created_at)}
+                        {mine ? 'You' : 'Sidekick'} · {timeAgo(m.created_at)}
+                        {mine && !m.synced && <span className="text-amber-500/70"> · sending…</span>}
                       </div>
                     </div>
                   </div>
@@ -124,38 +133,22 @@ function Thread({ thread, messages, reload, authorLabel }) {
               <textarea
                 value={reply}
                 onChange={e => setReply(e.target.value)}
-                placeholder="Type your answer — it posts straight to the GitHub issue…"
+                placeholder="Type your answer in your own words…"
                 rows={2}
                 className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
               />
               {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}
               <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[10px] text-zinc-600">
+                  Goes to the assistant, which passes it to the build team.
+                </span>
                 <button
-                  onClick={() => postReply(true)}
+                  onClick={postReply}
                   disabled={posting || !reply.trim()}
-                  className="text-[11px] text-zinc-600 hover:text-green-400 transition-colors flex items-center gap-1 disabled:opacity-40"
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
                 >
-                  <CheckCircle2 size={11} /> Answer &amp; mark resolved
+                  <Send size={10} /> {posting ? 'Sending…' : 'Send'}
                 </button>
-                <div className="flex items-center gap-2">
-                  {thread.github_url && (
-                    <a
-                      href={thread.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1"
-                    >
-                      <ExternalLink size={10} /> Detail
-                    </a>
-                  )}
-                  <button
-                    onClick={() => postReply(false)}
-                    disabled={posting || !reply.trim()}
-                    className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
-                  >
-                    <Send size={10} /> {posting ? 'Sending…' : 'Send'}
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -174,7 +167,7 @@ function BacklogPanel() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/gig-ops-reply?action=backlog');
+      const res = await fetch('/api/gig-ops-backlog');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load the backlog.');
       setMarkdown(data.markdown || '');
@@ -221,7 +214,7 @@ function BacklogPanel() {
 // so this can't "post directly" the way answering a flagged item does; it
 // lands as a waiting_on_agent thread and the Sidekick routine picks it up
 // on its next scheduled pass, exactly like Luke starting a thread does.
-function ComposeThreadModal({ onClose, reload, authorLabel }) {
+function ComposeThreadModal({ onClose, reload }) {
   const [form, setForm]     = useState(BLANK_COMPOSE);
   const [saving, setSaving] = useState(false);
 
@@ -245,7 +238,7 @@ function ComposeThreadModal({ onClose, reload, authorLabel }) {
     }).select().single();
     if (thread && form.details.trim()) {
       await supabase.from('mc_messages').insert({
-        thread_id: thread.id, author: authorLabel, body: form.details.trim(), synced: false,
+        thread_id: thread.id, author: COLLAB_AUTHOR, body: form.details.trim(), synced: false,
       });
     }
     setSaving(false);
@@ -297,14 +290,12 @@ function ComposeThreadModal({ onClose, reload, authorLabel }) {
   );
 }
 
-export default function DecisionsTab({ session }) {
+export default function DecisionsTab() {
   const [threads, setThreads]   = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading]   = useState(!!supabase);
   const [showResolved, setShowResolved] = useState(false);
   const [composing, setComposing] = useState(false);
-
-  const authorLabel = session?.user?.email || 'collaborator';
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
@@ -348,7 +339,7 @@ export default function DecisionsTab({ session }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {open.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} authorLabel={authorLabel} />)}
+            {open.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} />)}
           </div>
         )}
 
@@ -363,7 +354,7 @@ export default function DecisionsTab({ session }) {
             </button>
             {showResolved && (
               <div className="space-y-3">
-                {resolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} authorLabel={authorLabel} />)}
+                {resolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} />)}
               </div>
             )}
           </div>
@@ -373,7 +364,7 @@ export default function DecisionsTab({ session }) {
       <BacklogPanel />
 
       {composing && (
-        <ComposeThreadModal onClose={() => setComposing(false)} reload={load} authorLabel={authorLabel} />
+        <ComposeThreadModal onClose={() => setComposing(false)} reload={load} />
       )}
     </div>
   );
