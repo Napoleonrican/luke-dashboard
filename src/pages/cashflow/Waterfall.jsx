@@ -13,7 +13,7 @@ import {
   accountNameMatches,
 } from '../../lib/fin';
 import { fmt, fmtDec, fmtDate, monthlyOf, updatedColor, daysSince, daysUntil, expectedPayoffDate } from './format';
-import { AmountEdit } from './ModalField';
+import { AmountEdit, ModalEdit } from './ModalField';
 import EditCell from './EditCell';
 import { DaysBadge } from './cells';
 import { Td } from './tableparts';
@@ -489,9 +489,11 @@ export default function Waterfall() {
   const advanceFreqFor = (it) => (it.source_kind === 'bill' ? 'Monthly' : it.frequency);
   // Roll a source's due date forward one cycle and drop it from the deck. For
   // debts, `extra` carries the confirmed new balance / last date and clears the
-  // pending flag (the payment just posted); other kinds pass nothing.
+  // pending flag (the payment just posted); other kinds pass nothing. `extra.nextDue`
+  // lets a caller override the computed next-due date — used by the debt advance
+  // modal so biweekly BNPL (e.g. Klarna) can be set instead of the stored cadence.
   const applyAdvance = async (it, deckId, extra = {}) => {
-    const next = advanceDate(it.dueISO, advanceFreqFor(it));
+    const next = extra.nextDue || advanceDate(it.dueISO, advanceFreqFor(it));
     if (!next) return;
     const fields = { [DUE_COL_FOR[it.source_kind]]: next };
     if (HAS_UPDATED_ON[it.source_kind]) fields.updated_on = todayISO();
@@ -1298,8 +1300,8 @@ export default function Waterfall() {
           debt={advanceModal.debt}
           privacy={privacy}
           onCancel={() => setAdvanceModal(null)}
-          onConfirm={async ({ newBalance, lastDate }) => {
-            await applyAdvance(advanceModal.it, advanceModal.deckId, { newBalance, lastDate });
+          onConfirm={async ({ newBalance, lastDate, nextDue }) => {
+            await applyAdvance(advanceModal.it, advanceModal.deckId, { newBalance, lastDate, nextDue });
             setAdvanceModal(null);
           }}
         />
@@ -1653,12 +1655,17 @@ function AdvanceDebtModal({ it, deckId, debt, privacy, onCancel, onConfirm }) {
   const [balance, setBalance] = useState(suggested);
   const [lastDate, setLastDate] = useState(debt.last_date || '');
   const [saving, setSaving] = useState(false);
-  const nextDue = advanceDate(it.dueISO, it.source_kind === 'bill' ? 'Monthly' : it.frequency);
+  // Computed next due from the stored cadence — the default. Editable below so
+  // biweekly BNPL debts (e.g. Klarna) can be set to their real next date instead
+  // of assuming the stored monthly/weekly cadence.
+  const computedNextDue = advanceDate(it.dueISO, it.source_kind === 'bill' ? 'Monthly' : it.frequency);
+  const [nextDue, setNextDue] = useState(computedNextDue || '');
+  const nextDueEdited = nextDue !== computedNextDue;
   const projectedPayoff = expectedPayoffDate({ ...debt, balance, last_date: lastDate || null });
 
   const submit = async () => {
     setSaving(true);
-    await onConfirm({ newBalance: round2(balance), lastDate: lastDate || null });
+    await onConfirm({ newBalance: round2(balance), lastDate: lastDate || null, nextDue: nextDue || computedNextDue });
   };
 
   return (
@@ -1685,11 +1692,24 @@ function AdvanceDebtModal({ it, deckId, debt, privacy, onCancel, onConfirm }) {
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-zinc-400">Next due date</span>
-            <span className="text-sm tabular-nums text-zinc-300">
-              {fmtDate(it.dueISO)} → <span className="text-zinc-100">{fmtDate(nextDue)}</span>
+            <span className="text-xs text-zinc-400">Next due date
+              <span className="block text-[10px] text-zinc-600">
+                from {fmtDate(it.dueISO)} · edit for biweekly BNPL (e.g. Klarna)
+              </span>
             </span>
+            <div className="w-36 shrink-0">
+              <ModalEdit type="date" value={nextDue} onCommit={(v) => setNextDue(v || computedNextDue || '')} />
+            </div>
           </div>
+          {nextDueEdited && (
+            <button
+              type="button"
+              onClick={() => setNextDue(computedNextDue || '')}
+              className="-mt-1 block w-full text-right text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Reset to {fmtDate(computedNextDue)} (stored cadence)
+            </button>
+          )}
 
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-zinc-400">Expected payoff
