@@ -1,10 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronDown, ChevronUp, Send, ExternalLink, AlertTriangle,
-  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw,
+  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from '../mission-control/Markdown';
+
+const PRIORITY_OPTIONS = [
+  { value: 'urgent', label: '🔴 High' },
+  { value: 'normal', label: '🟡 Medium' },
+  { value: 'low',    label: '🟢 Low' },
+];
+
+const BLANK_COMPOSE = { title: '', details: '', priority: 'normal' };
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -207,11 +215,94 @@ function BacklogPanel() {
   );
 }
 
+// Lets her open her own thread, same as Luke's "New thread" on his own
+// Inbox (InboxTab.jsx) — just fixed to repo: 'gig-tracker' since that's the
+// only project this page ever touches. No linked GitHub issue exists yet,
+// so this can't "post directly" the way answering a flagged item does; it
+// lands as a waiting_on_agent thread and the Sidekick routine picks it up
+// on its next scheduled pass, exactly like Luke starting a thread does.
+function ComposeThreadModal({ onClose, reload, authorLabel }) {
+  const [form, setForm]     = useState(BLANK_COMPOSE);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    function handleKey(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  const canSave = form.title.trim() && !saving;
+
+  async function create() {
+    if (!canSave || !supabase) return;
+    setSaving(true);
+    const { data: thread } = await supabase.from('mc_threads').insert({
+      repo: 'gig-tracker',
+      title: form.title.trim(),
+      category: 'action',
+      severity: form.priority,
+      status: 'waiting_on_agent',
+    }).select().single();
+    if (thread && form.details.trim()) {
+      await supabase.from('mc_messages').insert({
+        thread_id: thread.id, author: authorLabel, body: form.details.trim(), synced: false,
+      });
+    }
+    setSaving(false);
+    onClose();
+    reload();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-md p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-zinc-200">New thread</h2>
+          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={14} /></button>
+        </div>
+        <div className="space-y-3">
+          <input
+            autoFocus value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            placeholder="What's this about?"
+            className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+          <textarea
+            value={form.details}
+            onChange={e => setForm(f => ({ ...f, details: e.target.value }))}
+            placeholder="Details — what would you like looked at or decided? (Markdown supported)"
+            rows={4}
+            className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
+          />
+          <select
+            value={form.priority}
+            onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+            className="w-full text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1.5 focus:outline-none"
+          >
+            {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5">Cancel</button>
+            <button
+              onClick={create}
+              disabled={!canSave}
+              className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-4 py-1.5 flex items-center gap-1.5 transition-colors"
+            >
+              <Check size={11} /> {saving ? 'Starting…' : 'Start thread'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DecisionsTab({ session }) {
   const [threads, setThreads]   = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading]   = useState(!!supabase);
   const [showResolved, setShowResolved] = useState(false);
+  const [composing, setComposing] = useState(false);
 
   const authorLabel = session?.user?.email || 'collaborator';
 
@@ -236,9 +327,18 @@ export default function DecisionsTab({ session }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-          Needs a decision {open.length > 0 && `(${open.length})`}
-        </h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+            Needs a decision {open.length > 0 && `(${open.length})`}
+          </h2>
+          <button
+            onClick={() => setComposing(true)}
+            disabled={!supabase}
+            className="flex items-center gap-1.5 text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded px-3 py-1.5 transition-colors flex-shrink-0"
+          >
+            <Plus size={13} /> New thread
+          </button>
+        </div>
         {loading ? (
           <p className="text-center py-10 text-zinc-600 text-sm">Loading…</p>
         ) : open.length === 0 ? (
@@ -271,6 +371,10 @@ export default function DecisionsTab({ session }) {
       </div>
 
       <BacklogPanel />
+
+      {composing && (
+        <ComposeThreadModal onClose={() => setComposing(false)} reload={load} authorLabel={authorLabel} />
+      )}
     </div>
   );
 }
