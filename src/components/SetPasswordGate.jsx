@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { KeyRound, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/useAuth';
@@ -21,9 +21,27 @@ export default function SetPasswordGate({ children }) {
   const [confirm, setConfirm]   = useState('');
   const [error, setError]       = useState('');
   const [saving, setSaving]     = useState(false);
+  const [recovery, setRecovery] = useState(false);
+  const [done, setDone]         = useState(false);
 
-  const needsPassword =
-    session && !isOwner && !session.user?.user_metadata?.password_set;
+  // Arriving from a "set my password" email is a recovery link. Supabase fires
+  // PASSWORD_RECOVERY once it consumes the URL, which is more reliable than
+  // reading the hash ourselves (the client strips it). Without this, someone who
+  // has already set a password once could follow a reset link, land signed in,
+  // and have no way to actually change it.
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+    });
+    if (typeof window !== 'undefined' && window.location.hash.includes('type=recovery')) {
+      setRecovery(true);
+    }
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const firstTime = session && !isOwner && !session.user?.user_metadata?.password_set;
+  const needsPassword = session && !done && (firstTime || recovery);
 
   if (!needsPassword) return children;
 
@@ -50,6 +68,10 @@ export default function SetPasswordGate({ children }) {
       setError(err.message || 'Could not save that password.');
       return;
     }
+    // For a first-time account the refreshed session carries password_set and
+    // this gate falls through on its own. On a recovery visit that flag is
+    // already true, so latch `done` to release the gate explicitly.
+    setDone(true);
   }
 
   return (

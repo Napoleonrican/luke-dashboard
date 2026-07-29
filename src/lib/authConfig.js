@@ -18,10 +18,9 @@ export const OWNER_AUTHOR = 'luke';
 export const COLLAB_AUTHOR = 'collab';
 export const AGENT_AUTHOR = 'sidekick';
 
-// Display names. TODO(Luke): set COLLAB_NAME to her actual first name — it's
-// what you'll see on her messages in your own Mission Control Inbox.
+// Display names — how each person is attributed on a message they didn't write.
 export const OWNER_NAME = 'Luke';
-export const COLLAB_NAME = 'Collaborator';
+export const COLLAB_NAME = 'Miranda';
 
 const AUTHOR_NAMES = {
   [OWNER_AUTHOR]:  OWNER_NAME,
@@ -43,7 +42,7 @@ export function isAgentAuthor(author) {
 }
 
 // Hostnames that should land on the Gig Ops page instead of Luke's Home hub,
-// so the collaborator's link needn't carry his name. Add a Vercel domain
-// alias (or a custom domain) pointing at this same project, then list it here
-// — see docs/GIG_OPS_SETUP.md §5.
-export const GIG_OPS_HOSTS = ['gig-ops.vercel.app'];
+// so Miranda's link needn't carry his name. These are Vercel domain aliases
+// pointing at this same project — see docs/GIG_OPS_SETUP.md §5. Add any
+// further alias (or a custom domain) to this list.
+export const GIG_OPS_HOSTS = ['gigtracker-ops.vercel.app'];

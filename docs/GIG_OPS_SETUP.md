@@ -1,7 +1,7 @@
 # Gig Ops (`/gig-ops`) — one-time setup
 
 Everything below is yours to do once. None of it lives in the app UI — that page
-belongs entirely to the collaborator.
+belongs entirely to Miranda.
 
 The page itself is at `/gig-ops`. It's direct-link only (no tile on the Home hub,
 not listed in `homeModules.js`), and it shows her two tabs: **Mission &
@@ -9,31 +9,49 @@ Background** and **Backlog & Decisions**.
 
 ---
 
-## 1. Invite her (she picks her own password)
+## 1. Create her account (she picks her own password)
 
-Use **Invite user**, not "Create new user" — an invite emails her a link, and she
-sets a password you never see or choose.
+### 1a. Allow her hostname to receive auth links — do this FIRST
 
 1. Go to [supabase.com](https://supabase.com) and sign in.
 2. Open the **Luke's Dashboard** project (the same one Cashflow and Mission
    Control already use).
-3. In the left sidebar, click **Authentication**.
-4. On the **Users** tab, click the arrow next to **Add user** and choose
-   **Send invitation** (sometimes shown as "Invite user").
-5. Enter her email address and confirm.
-6. Before she clicks the link, make sure the redirect is allowed:
-   **Authentication → URL Configuration → Redirect URLs** must include your
-   dashboard URL (e.g. `https://luke-dashboard-three.vercel.app/**`). Without
-   this, her invite link bounces.
+3. **Authentication → URL Configuration → Redirect URLs**, and add:
+   ```
+   https://gigtracker-ops.vercel.app/**
+   ```
+   Keep your own dashboard URL in the list too. Add any Vercel *preview* URL you
+   want to test on as well.
 
-She gets an email, clicks it, lands on the dashboard signed in, and the app
-immediately asks her to choose a password (`SetPasswordGate`). Once she saves it,
-that's her password from then on — nothing for you to hand over or know.
+**This step is not optional.** The app sends her password link pinned to whatever
+hostname she's using. If that host isn't allow-listed, Supabase refuses the
+redirect and falls back to the project's **Site URL** — your hostname — and she'd
+end up signed in on *your* URL instead of hers. Browser sessions are scoped per
+hostname, so that session would not carry over to `gigtracker-ops.vercel.app` and
+she'd be stuck at the sign-in screen with no way through.
+
+### 1b. Create the user
+
+1. **Authentication → Users → Add user → Create new user**.
+2. Enter her email and any throwaway password — **you can discard it, she'll never
+   use it.** Tick **Auto Confirm User** so there's no confirmation step.
+3. Click **Create user**.
+
+### 1c. Let her set her own password
+
+Send her just this: **https://gigtracker-ops.vercel.app**
+
+1. She clicks **"First time here, or forgot your password?"** under the sign-in box.
+2. She enters her email and gets a link.
+3. Opening it brings her back to *her* hostname, already signed in, and the app
+   asks her to choose a password.
+
+You never pick, see, or transmit her password — and this same flow is how she
+resets it later if she forgets, with no involvement from you.
 
 > **Note on email:** Supabase's built-in email sender is rate-limited (a handful
-> per hour) and meant for low volume. One invite is fine. If it doesn't arrive,
-> check the spam folder, or use **Authentication → Users → ⋯ → Send password
-> recovery** to re-send.
+> per hour) and meant for low volume — fine here. If nothing arrives, check spam,
+> then try again after a few minutes.
 
 > **If you'd rather skip passwords entirely:** the Gig Tracker app itself uses
 > magic-link sign-in (a fresh emailed link each time, nothing to remember). That
@@ -121,13 +139,15 @@ paid custom domain. Nothing here requires buying anything.
 ### Option A — a second free `.vercel.app` name (no cost)
 
 1. Vercel → the Luke's Dashboard project → **Settings** → **Domains**.
-2. **Add** a domain and type a name like `gig-ops.vercel.app`. It has to be
-   globally unique, so you may need a couple of tries
-   (`gig-ops-hq`, `gigtracker-ops`, …).
+2. **Add** a domain and type a name like `gigtracker-ops.vercel.app`. It has to
+   be globally unique, so you may need a couple of tries.
 3. Once it's added, edit `GIG_OPS_HOSTS` in `src/lib/authConfig.js` to match the
    name you actually claimed.
 
-With that in place, `gig-ops.vercel.app` on its own **renders** the Gig Ops page
+**Already done:** `gigtracker-ops.vercel.app` is claimed and configured in
+`GIG_OPS_HOSTS`, so this section is only here for adding another alias later.
+
+With that in place, `gigtracker-ops.vercel.app` on its own **renders** the Gig Ops page
 — it doesn't redirect, so her address bar stays at the bare hostname with no path
 at all. She never needs to remember `/gig-ops`, and your name never appears.
 (`/gig-ops` still works on every hostname, including this one.)

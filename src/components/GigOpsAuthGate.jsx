@@ -15,6 +15,7 @@ export default function GigOpsAuthGate({ children }) {
     <FinancialAuthGate
       title="Gig Tracker — Mission Control"
       subtitle="Sign in with your Gig Ops account"
+      allowPasswordSetup
     >
       <SetPasswordGate>{children}</SetPasswordGate>
     </FinancialAuthGate>

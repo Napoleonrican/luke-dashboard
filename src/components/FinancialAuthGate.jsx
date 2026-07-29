@@ -1,6 +1,83 @@
 import { useState } from 'react';
-import { ShieldCheck, Lock, AlertTriangle, ShieldOff } from 'lucide-react';
+import { ShieldCheck, Lock, AlertTriangle, ShieldOff, MailCheck } from 'lucide-react';
 import { useAuth } from '../lib/useAuth';
+import { supabase } from '../lib/supabase';
+
+// Self-service "email me a link so I can set a password" flow, shown only where
+// `allowPasswordSetup` is set (the Gig Ops gate). This exists because Supabase's
+// invite email redirects to the project's Site URL, which is Luke's hostname —
+// and sessions are scoped per origin, so an invite consumed there would NOT
+// carry over to Miranda's own hostname. Sending the link with
+// `redirectTo: window.location.origin` pins it to whatever host she's actually
+// on, so she sets her password and signs in without ever leaving her own URL.
+function PasswordSetup() {
+  const [open, setOpen]     = useState(false);
+  const [email, setEmail]   = useState('');
+  const [sent, setSent]     = useState(false);
+  const [error, setError]   = useState('');
+  const [sending, setSending] = useState(false);
+
+  async function send(e) {
+    e.preventDefault();
+    if (!email.trim() || !supabase) return;
+    setSending(true);
+    setError('');
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setSending(false);
+    if (err) { setError(err.message || 'Could not send the email.'); return; }
+    setSent(true);
+  }
+
+  if (sent) {
+    return (
+      <div className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-800/50 bg-emerald-950/30 p-3 text-xs text-emerald-300">
+        <MailCheck size={15} className="shrink-0 mt-0.5" />
+        <span>
+          Check your email for a link. Opening it brings you back here and lets you choose a
+          password.
+        </span>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 w-full text-center text-[11px] text-zinc-500 underline decoration-dotted transition-colors hover:text-zinc-300"
+      >
+        First time here, or forgot your password?
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={send} className="mt-4 flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+      <p className="text-[11px] leading-relaxed text-zinc-500">
+        Enter your email and we'll send a link to set your password.
+      </p>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => { setEmail(e.target.value); setError(''); }}
+        placeholder="Email"
+        autoComplete="username"
+        className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 outline-none transition-colors focus:border-cyan-500"
+      />
+      {error && <p className="text-[11px] text-red-400">{error}</p>}
+      <button
+        type="submit"
+        disabled={sending || !email.trim()}
+        className="rounded-lg bg-zinc-700 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-600 disabled:opacity-60"
+      >
+        {sending ? 'Sending…' : 'Send me a link'}
+      </button>
+    </form>
+  );
+}
 
 // Server-side auth gate for private modules. Validates a real Supabase session
 // before rendering anything — so gated data is never served to an
@@ -18,6 +95,7 @@ export default function FinancialAuthGate({
   title = 'Financial Access',
   subtitle = 'Secure sign-in required for financial data',
   requireOwner = false,
+  allowPasswordSetup = false,
 }) {
   const { session, loading, signIn, configured, isOwner } = useAuth();
   const [email, setEmail] = useState('');
@@ -119,6 +197,8 @@ export default function FinancialAuthGate({
             </button>
           </form>
         )}
+
+        {configured && allowPasswordSetup && <PasswordSetup />}
       </div>
     </div>
   );
