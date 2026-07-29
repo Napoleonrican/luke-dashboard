@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
+import { OWNER_EMAIL } from './authConfig';
 
 // Real (server-validated) auth state backed by Supabase Auth. Unlike the
 // hardcoded-password ProtectedRoute, the session here is verified by Supabase,
@@ -38,5 +39,12 @@ export function useAuth() {
     await supabase.auth.signOut();
   }, []);
 
-  return { session, loading, signIn, signOut, configured: !!supabase };
+  // Any authenticated session unlocks gates that only check `session`
+  // (e.g. Gig Ops); `isOwner` is the extra check for gates that must stay
+  // restricted to Luke specifically (Cashflow, Debt Calculator, Watch
+  // Tracker, the general Mission Control) even though the collaborator now
+  // has a real login of her own.
+  const isOwner = session?.user?.email === OWNER_EMAIL;
+
+  return { session, loading, signIn, signOut, configured: !!supabase, isOwner };
 }

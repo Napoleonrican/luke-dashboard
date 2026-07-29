@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import FinancialAuthGate from './components/FinancialAuthGate';
+import GigOpsAuthGate from './components/GigOpsAuthGate';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useRandomPalette } from './utils/useRandomPalette';
 
@@ -20,6 +21,7 @@ const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
 const Shadow = lazy(() => import('./pages/climate/Shadow'));
 const Settings = lazy(() => import('./pages/climate/Settings'));
 const MissionControl = lazy(() => import('./pages/MissionControl'));
+const GigOpsMissionControl = lazy(() => import('./pages/GigOpsMissionControl'));
 const LightingLayout = lazy(() => import('./pages/lighting/LightingLayout'));
 const Controls = lazy(() => import('./pages/lighting/Controls'));
 const Scenes = lazy(() => import('./pages/lighting/Scenes'));
@@ -52,10 +54,10 @@ export default function App() {
           <ProtectedRoute><TaskManager /></ProtectedRoute>
         } />
         <Route path="/debt-calculator" element={
-          <FinancialAuthGate><DebtCalculator /></FinancialAuthGate>
+          <FinancialAuthGate requireOwner><DebtCalculator /></FinancialAuthGate>
         } />
         <Route path="/debt-calculator/settings" element={
-          <FinancialAuthGate><DebtCalcSettings /></FinancialAuthGate>
+          <FinancialAuthGate requireOwner><DebtCalcSettings /></FinancialAuthGate>
         } />
         <Route path="/versa-repair" element={
           <ProtectedRoute><VersaRepair /></ProtectedRoute>
@@ -84,7 +86,7 @@ export default function App() {
         {/* Old standalone page merged into the Climate shell; keep the URL working. */}
         <Route path="/thermometers" element={<Navigate to="/climate" replace />} />
         <Route path="/cashflow" element={
-          <FinancialAuthGate><CashflowLayout /></FinancialAuthGate>
+          <FinancialAuthGate requireOwner><CashflowLayout /></FinancialAuthGate>
         }>
           <Route index element={<Navigate to="waterfall" replace />} />
           <Route path="waterfall" element={<Waterfall />} />
@@ -101,7 +103,7 @@ export default function App() {
           <Route path="inputs" element={<Navigate to="../waterfall" replace />} />
         </Route>
         <Route path="/watch-tracker" element={
-          <FinancialAuthGate title="Watch Tracker" subtitle="Secure sign-in required"><WatchTrackerLayout /></FinancialAuthGate>
+          <FinancialAuthGate requireOwner title="Watch Tracker" subtitle="Secure sign-in required"><WatchTrackerLayout /></FinancialAuthGate>
         }>
           <Route index element={<Navigate to="shows" replace />} />
           <Route path="shows" element={<Shows />} />
@@ -113,13 +115,18 @@ export default function App() {
           <Route path="stats" element={<WtStats />} />
         </Route>
         <Route path="/mission-control" element={
-          <FinancialAuthGate title="Mission Control" subtitle="Secure sign-in required">
+          <FinancialAuthGate requireOwner title="Mission Control" subtitle="Secure sign-in required">
             <MissionControl />
           </FinancialAuthGate>
         } />
         {/* Mission Control replaced the standalone Backlog + Issues pages; keep old URLs working. */}
         <Route path="/ai-backlog" element={<Navigate to="/mission-control" replace />} />
         <Route path="/github-issues" element={<Navigate to="/mission-control" replace />} />
+        {/* Gig Ops — a scoped Mission Control for the Gig Tracker collaborator.
+            Direct-link only: not in homeModules.js, no tile on the Home hub. */}
+        <Route path="/gig-ops" element={
+          <GigOpsAuthGate><GigOpsMissionControl /></GigOpsAuthGate>
+        } />
       </Routes>
       </Suspense>
     </div>
