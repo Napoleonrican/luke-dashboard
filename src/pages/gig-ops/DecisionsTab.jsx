@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronDown, ChevronUp, Send, AlertTriangle,
+  ChevronDown, ChevronUp, Send, AlertTriangle, ExternalLink, SlidersHorizontal,
   ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -295,6 +295,47 @@ function ComposeThreadModal({ onClose, reload }) {
   );
 }
 
+// The tier/pricing line is the single biggest unresolved decision on the
+// project — it blocks backlog items 3.7, 3.8 and 6.4 on its own. Pricing Studio
+// (/pricing-studio) already exists as a shareable, login-free tool for exactly
+// this, so point her at it rather than reinventing it. Opens in a new tab so
+// she doesn't lose her place here.
+function PricingStudioCard() {
+  return (
+    <div className="rounded-xl border border-violet-800/50 bg-violet-950/20 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <SlidersHorizontal size={15} className="text-violet-400" />
+        <h3 className="text-sm font-semibold text-zinc-200">Help decide what's free and what's paid</h3>
+      </div>
+      <div className="text-xs text-zinc-400 leading-relaxed space-y-2">
+        <p>
+          This is the biggest open question on the project, and more work is waiting on it than
+          on anything else. There's a tool built for it — every real feature of the app is a
+          card, and you sort each one into the tier you think it belongs in.
+        </p>
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>Open <strong className="text-zinc-300">Pricing Studio</strong> below.</li>
+          <li>Put your name at the top so Luke knows whose plan it is.</li>
+          <li>Tap each feature into <strong className="text-zinc-300">Free</strong>, <strong className="text-zinc-300">Side Hustler</strong>, or <strong className="text-zinc-300">Full-Timer</strong>, and set what the paid tiers should cost.</li>
+          <li>Hit <strong className="text-zinc-300">Copy my share link</strong> and text it to Luke.</li>
+        </ol>
+        <p className="text-zinc-500">
+          No login, nothing to install, and your whole plan travels inside the link — so you can
+          do it on your phone and it's saved just by keeping the link.
+        </p>
+      </div>
+      <a
+        href="/pricing-studio"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-violet-500"
+      >
+        Open Pricing Studio <ExternalLink size={11} />
+      </a>
+    </div>
+  );
+}
+
 export default function DecisionsTab() {
   const [threads, setThreads]   = useState([]);
   const [messages, setMessages] = useState([]);
@@ -322,6 +363,8 @@ export default function DecisionsTab() {
 
   return (
     <div className="space-y-5">
+      <PricingStudioCard />
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
