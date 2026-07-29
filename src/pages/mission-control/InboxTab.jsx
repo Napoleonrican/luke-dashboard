@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from './Markdown';
+import { authorLabel, isAgentAuthor, OWNER_AUTHOR } from '../../lib/authConfig';
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -124,19 +125,31 @@ function Thread({ thread, messages, reload }) {
           {messages.length > 0 && (
             <div className="space-y-2.5">
               {messages.map(m => {
-                const mine = m.author === 'luke';
+                // Three authors can appear here: 'luke', 'collab' (the Gig Ops
+                // collaborator), and 'sidekick'. Own messages sit right; the
+                // agent and the other person sit left, each named — so her
+                // words are never attributed to the Sidekick.
+                const mine    = m.author === OWNER_AUTHOR;
+                const isAgent = isAgentAuthor(m.author);
                 return (
                   <div key={m.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
-                    <div className={`flex-shrink-0 mt-0.5 ${mine ? 'text-emerald-400' : 'text-cyan-400'}`}>
-                      {mine ? <User size={13} /> : <Bot size={13} />}
+                    <div className={`flex-shrink-0 mt-0.5 ${
+                      mine ? 'text-emerald-400' : isAgent ? 'text-cyan-400' : 'text-violet-400'
+                    }`}>
+                      {isAgent ? <Bot size={13} /> : <User size={13} />}
                     </div>
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                       mine ? 'bg-emerald-900/25 text-emerald-50/90' : 'bg-zinc-800 text-zinc-300'
                     }`}>
                       <Markdown>{m.body}</Markdown>
                       <div className="text-[9px] text-zinc-600 mt-1">
-                        {mine ? 'You' : 'Sidekick'} · {timeAgo(m.created_at)}
-                        {mine && !m.synced && <span className="text-amber-500/70"> · sending…</span>}
+                        {authorLabel(m.author, OWNER_AUTHOR)} · {timeAgo(m.created_at)}
+                        {mine && !m.synced && (
+                          <span
+                            className="text-amber-500/70"
+                            title="Saved. The Sidekick relays it on its next scheduled run — nothing for you to do."
+                          > · waiting for Sidekick</span>
+                        )}
                       </div>
                     </div>
                   </div>

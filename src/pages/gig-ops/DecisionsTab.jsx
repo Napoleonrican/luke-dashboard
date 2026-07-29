@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from '../mission-control/Markdown';
+import { authorLabel, isAgentAuthor, COLLAB_AUTHOR } from '../../lib/authConfig';
 
 const PRIORITY_OPTIONS = [
   { value: 'urgent', label: '🔴 High' },
@@ -13,12 +14,6 @@ const PRIORITY_OPTIONS = [
 ];
 
 const BLANK_COMPOSE = { title: '', details: '', priority: 'normal' };
-
-// Stable author value for everything written from this page. The Sidekick
-// routine matches on it to know a message came from the Gig Ops collaborator
-// (vs. 'luke' from his own Inbox, or 'sidekick' from itself), so keep this in
-// sync with the routine prompt if it ever changes.
-const COLLAB_AUTHOR = 'collab';
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -107,19 +102,29 @@ function Thread({ thread, messages, reload }) {
           {messages.length > 0 && (
             <div className="space-y-2.5">
               {messages.map(m => {
-                const mine = m.author !== 'sidekick';
+                // Her own messages sit right; the assistant and Luke sit left,
+                // each named — so she can tell who said what.
+                const mine    = m.author === COLLAB_AUTHOR;
+                const isAgent = isAgentAuthor(m.author);
                 return (
                   <div key={m.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
-                    <div className={`flex-shrink-0 mt-0.5 ${mine ? 'text-emerald-400' : 'text-cyan-400'}`}>
-                      {mine ? <User size={13} /> : <Bot size={13} />}
+                    <div className={`flex-shrink-0 mt-0.5 ${
+                      mine ? 'text-emerald-400' : isAgent ? 'text-cyan-400' : 'text-violet-400'
+                    }`}>
+                      {isAgent ? <Bot size={13} /> : <User size={13} />}
                     </div>
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                       mine ? 'bg-emerald-900/25 text-emerald-50/90' : 'bg-zinc-800 text-zinc-300'
                     }`}>
                       <Markdown>{m.body}</Markdown>
                       <div className="text-[9px] text-zinc-600 mt-1">
-                        {mine ? 'You' : 'Sidekick'} · {timeAgo(m.created_at)}
-                        {mine && !m.synced && <span className="text-amber-500/70"> · sending…</span>}
+                        {authorLabel(m.author, COLLAB_AUTHOR)} · {timeAgo(m.created_at)}
+                        {mine && !m.synced && (
+                          <span
+                            className="text-amber-500/70"
+                            title="Saved. The assistant reads it on its next check — nothing more for you to do."
+                          > · with the assistant</span>
+                        )}
                       </div>
                     </div>
                   </div>

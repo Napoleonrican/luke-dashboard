@@ -107,6 +107,41 @@ The `'collab'` value is defined as `COLLAB_AUTHOR` in
 
 ---
 
+## 5. (Optional) Give her a URL without your name in it
+
+Today the link is `luke-dashboard-three.vercel.app/gig-ops`. Two ways to change
+what she sees — both point at this *same* project and deployment, so there's
+nothing to maintain twice:
+
+### Option A — a second free `.vercel.app` name (no cost)
+
+1. Vercel → the Luke's Dashboard project → **Settings** → **Domains**.
+2. **Add** a domain and type a name like `gig-ops.vercel.app`. It has to be
+   globally unique, so you may need a couple of tries
+   (`gig-ops-hq`, `gigtracker-ops`, …).
+3. Once it's added, edit `GIG_OPS_HOSTS` in `src/lib/authConfig.js` to match the
+   name you actually claimed.
+
+With that in place, `gig-ops.vercel.app` on its own lands directly on the Gig Ops
+page — she doesn't need to remember `/gig-ops`, and your name never appears.
+
+> **Why the host list is in the app rather than a `vercel.json` rewrite:** this is
+> a single-page app. A server rewrite would serve `index.html` without changing
+> the path React Router reads, so `/` would still render the Home hub. The check
+> in `App.jsx` redirects on the client, which actually works.
+
+### Option B — a real custom domain (~$10–15/year)
+
+Same flow, but in step 2 add a domain you own (e.g. `gigops.app`). Vercel walks
+you through the DNS records. Then add that hostname to `GIG_OPS_HOSTS` too.
+
+**Note:** either way, the rest of the dashboard is still reachable on the new
+hostname (`/cashflow`, etc.) — it's the same app. Those routes are gated to your
+account, so she'd hit a sign-in wall rather than your data, but it isn't a
+separate deployment and shouldn't be treated as one.
+
+---
+
 ## Recurring: approving a pending database change
 
 Not specific to Gig Ops, but it comes up (e.g. the Gig Tracker RLS migration in

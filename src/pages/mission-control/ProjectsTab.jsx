@@ -137,7 +137,12 @@ function Project({ project, messages, reload, muted = false }) {
                       {m.body}
                       <div className="text-[9px] text-zinc-600 mt-1">
                         {mine ? 'You' : 'Sidekick'} · {ago(m.created_at)}
-                        {mine && !m.synced && <span className="text-amber-500/70"> · sending…</span>}
+                        {mine && !m.synced && (
+                          <span
+                            className="text-amber-500/70"
+                            title="Saved. The Sidekick picks it up on its next scheduled run — nothing for you to do."
+                          > · waiting for Sidekick</span>
+                        )}
                       </div>
                     </div>
                   </div>

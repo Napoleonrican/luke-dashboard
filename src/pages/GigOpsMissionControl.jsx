@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Compass, ListTodo } from 'lucide-react';
+import { Compass, ListTodo, ExternalLink } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import MissionTab from './gig-ops/MissionTab';
 import DecisionsTab from './gig-ops/DecisionsTab';
+import { GIG_TRACKER_URL } from './gig-ops/constants';
 
 // Gig Ops Mission Control — a scoped, non-technical-friendly command center
 // for the Gig Tracker project, reached at /gig-ops (direct link only, no
@@ -23,7 +24,22 @@ export default function GigOpsMissionControl() {
 
   return (
     <div className="min-h-screen text-white">
-      <TopNav title="Gig Tracker — Mission Control" />
+      {/* "Open the app" lives in the nav so it's reachable from either tab,
+          not buried in Mission & Background prose. */}
+      <TopNav
+        title="Gig Tracker — Mission Control"
+        hideBack
+        right={
+          <a
+            href={GIG_TRACKER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-500"
+          >
+            Open app <ExternalLink size={11} />
+          </a>
+        }
+      />
       <div className="max-w-3xl mx-auto px-4 py-8">
 
         <div className="mb-6">

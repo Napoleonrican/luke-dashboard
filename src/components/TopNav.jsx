@@ -5,10 +5,14 @@ import { ArrowLeft } from 'lucide-react';
 // stacking a second one below — the title sits centered, and `subtitle`
 // becomes a native hover tooltip rather than always-visible text. Omit both
 // for the plain "Back to Hub … Luke's Dashboard" bar every other page uses.
-export default function TopNav({ title, subtitle, right }) {
+//
+// `hideBack` drops the "Back to Hub" link, for a page that isn't reached from
+// the Home hub and whose visitor has nothing to go back to (see /gig-ops).
+export default function TopNav({ title, subtitle, right, hideBack = false }) {
   if (title) {
     return (
       <nav className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 py-4 border-b border-zinc-800/60">
+        {hideBack ? <span /> : (
         <Link
           to="/"
           className="justify-self-start inline-flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors text-sm"
@@ -16,6 +20,7 @@ export default function TopNav({ title, subtitle, right }) {
           <ArrowLeft size={14} />
           Back to Hub
         </Link>
+        )}
         <span
           className="justify-self-center text-sm font-semibold text-zinc-200 tracking-wide text-center cursor-default"
           title={subtitle}
