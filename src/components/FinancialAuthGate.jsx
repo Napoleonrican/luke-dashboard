@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Lock, AlertTriangle, ShieldOff } from 'lucide-react';
 import { useAuth } from '../lib/useAuth';
 
 // Server-side auth gate for private modules. Validates a real Supabase session
@@ -8,12 +8,18 @@ import { useAuth } from '../lib/useAuth';
 // with RLS on the underlying tables (see supabase/migrations) for defense in
 // depth. Copy defaults to the financial framing; pass `title` / `subtitle` to
 // reuse it for other private modules (e.g. Mission Control).
+//
+// `requireOwner`: the collaborator now has her own real Supabase Auth login
+// (for Gig Ops), so a valid session alone no longer implies "this is Luke."
+// Every module that must stay Luke-only sets this — it checks identity, not
+// just presence, of a session.
 export default function FinancialAuthGate({
   children,
   title = 'Financial Access',
   subtitle = 'Secure sign-in required for financial data',
+  requireOwner = false,
 }) {
-  const { session, loading, signIn, configured } = useAuth();
+  const { session, loading, signIn, configured, isOwner } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,6 +29,24 @@ export default function FinancialAuthGate({
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-600 text-sm">
         Checking session…
+      </div>
+    );
+  }
+
+  if (session && requireOwner && !isOwner) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-8 shadow-xl shadow-black/40 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="rounded-xl bg-red-900/30 p-3 text-red-400">
+              <ShieldOff size={22} strokeWidth={1.75} />
+            </div>
+          </div>
+          <h2 className="text-base font-semibold text-zinc-100">Not available on this account</h2>
+          <p className="mt-2 text-xs text-zinc-500">
+            This area is restricted. Signed in as {session.user?.email}.
+          </p>
+        </div>
       </div>
     );
   }
