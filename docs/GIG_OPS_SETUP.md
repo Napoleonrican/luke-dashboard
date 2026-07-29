@@ -111,7 +111,12 @@ The `'collab'` value is defined as `COLLAB_AUTHOR` in
 
 Today the link is `luke-dashboard-three.vercel.app/gig-ops`. Two ways to change
 what she sees — both point at this *same* project and deployment, so there's
-nothing to maintain twice:
+nothing to maintain twice.
+
+**The landing behaviour is identical either way.** Making the bare hostname show
+her page is done by the app (`GIG_OPS_HOSTS` in `src/lib/authConfig.js`), not by
+Vercel — so it works exactly the same on a free `*.vercel.app` alias as on a
+paid custom domain. Nothing here requires buying anything.
 
 ### Option A — a second free `.vercel.app` name (no cost)
 
@@ -122,13 +127,15 @@ nothing to maintain twice:
 3. Once it's added, edit `GIG_OPS_HOSTS` in `src/lib/authConfig.js` to match the
    name you actually claimed.
 
-With that in place, `gig-ops.vercel.app` on its own lands directly on the Gig Ops
-page — she doesn't need to remember `/gig-ops`, and your name never appears.
+With that in place, `gig-ops.vercel.app` on its own **renders** the Gig Ops page
+— it doesn't redirect, so her address bar stays at the bare hostname with no path
+at all. She never needs to remember `/gig-ops`, and your name never appears.
+(`/gig-ops` still works on every hostname, including this one.)
 
 > **Why the host list is in the app rather than a `vercel.json` rewrite:** this is
 > a single-page app. A server rewrite would serve `index.html` without changing
 > the path React Router reads, so `/` would still render the Home hub. The check
-> in `App.jsx` redirects on the client, which actually works.
+> in `App.jsx` runs on the client, which actually works.
 
 ### Option B — a real custom domain (~$10–15/year)
 

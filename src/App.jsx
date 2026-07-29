@@ -8,9 +8,16 @@ import { GIG_OPS_HOSTS } from './lib/authConfig';
 
 // A domain alias pointing at this same project can serve the Gig Ops page as
 // its landing page, so the collaborator's link doesn't have to carry Luke's
-// name. Done client-side rather than as a vercel.json rewrite: this is an SPA,
-// so a server rewrite would serve index.html without changing the path the
-// router reads, and "/" would still render Home. See docs/GIG_OPS_SETUP.md §5.
+// name. Works the same on a free *.vercel.app alias or a paid custom domain —
+// nothing here depends on which, because the app does this, not Vercel.
+//
+// Done client-side rather than as a vercel.json rewrite: this is an SPA, so a
+// server rewrite would serve index.html without changing the path the router
+// reads, and "/" would still render Home. See docs/GIG_OPS_SETUP.md §5.
+//
+// Rendered at "/" rather than redirected to "/gig-ops" so the bare hostname
+// stays bare in her address bar — there's no in-page routing to break, since
+// the tabs are component state. /gig-ops still works on every hostname.
 const isGigOpsHost = () =>
   typeof window !== 'undefined' &&
   GIG_OPS_HOSTS.includes(window.location.hostname);
@@ -59,7 +66,11 @@ export default function App() {
     <div style={{ background, backgroundAttachment: 'fixed', minHeight: '100vh' }}>
       <Suspense fallback={null}>
       <Routes>
-        <Route path="/" element={isGigOpsHost() ? <Navigate to="/gig-ops" replace /> : <Home />} />
+        <Route path="/" element={
+          isGigOpsHost()
+            ? <GigOpsAuthGate><GigOpsMissionControl /></GigOpsAuthGate>
+            : <Home />
+        } />
         <Route path="/task-manager" element={
           <ProtectedRoute><TaskManager /></ProtectedRoute>
         } />
