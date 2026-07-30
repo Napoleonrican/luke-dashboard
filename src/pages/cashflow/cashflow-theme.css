@@ -64,13 +64,8 @@
 .cf-light input,
 .cf-light select { color: #0f172a; }
 
-/* Work-in-progress banner (WipNotice): the amber-300 text reads fine on the
-   dark shell but washes out on the white card bg, so darken it under light. */
-.cf-light .cf-wip { color: #92400e; border-color: rgba(245, 158, 11, 0.5); }
-.cf-light .cf-wip svg { color: #b45309; }
-
-/* Balance freshness banner — same amber-on-white contrast issue as WipNotice,
-   different exact utility set. */
+/* Balance freshness banner — amber text reads fine on the dark shell but
+   washes out on the white card bg, so darken it under light. */
 .cf-light .bg-amber-950\/20 { background-color: #fffbeb; }
 .cf-light .border-amber-700\/40 { border-color: rgba(180, 83, 9, 0.4); }
 .cf-light .border-amber-600 { border-color: #d97706; }

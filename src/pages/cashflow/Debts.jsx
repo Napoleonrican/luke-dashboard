@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { Plus, Trash2, Columns3, Maximize2, X, ArrowUpRight } from 'lucide-react';
+import { Plus, Trash2, Columns3, Maximize2, X, ArrowUpRight, Filter } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import { fetchDebts, upsertDebt, deleteRow, getPref, setPref } from '../../lib/fin';
 import {
@@ -78,6 +78,26 @@ const STICKY_HEAD_2 = 'sticky left-[128px] z-20 bg-zinc-900';
 const STICKY_1_PENDING = 'sticky left-0 z-10 bg-[#2b2410] group-hover:bg-[#342c14]';
 const STICKY_2_PENDING = 'sticky left-[128px] z-10 bg-[#2b2410] group-hover:bg-[#342c14]';
 
+// A labelled group of checkboxes inside the filter popover.
+function FilterGroup({ label, children }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">{label}</p>
+      <div className="space-y-1 max-h-40 overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function FilterCheck({ label, checked, onChange, dotColor }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer hover:text-white transition-colors">
+      <input type="checkbox" checked={checked} onChange={onChange} className="h-3.5 w-3.5 accent-emerald-500 cursor-pointer shrink-0" />
+      {dotColor && <span className="h-2 w-2 rounded-full shrink-0" style={{ background: dotColor }} />}
+      <span className="truncate">{label}</span>
+    </label>
+  );
+}
+
 // A heat-colored, editable numeric/date cell (APR, Pmts Remaining, Payoff).
 function ColorCell({ value, type, colorFn, display, onSave, privacy }) {
   const inner = (
@@ -101,6 +121,10 @@ export default function Debts() {
   const [showAll, setShowAll] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [sort, setSort] = useState(null);
+  // Filters are transient (not persisted) — a lens you reach for while working,
+  // not a saved view. Empty arrays mean "no filter on this field".
+  const [filters, setFilters] = useState({ lenders: [], creditTypes: [], pendingOnly: false });
+  const [filterOpen, setFilterOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -117,7 +141,24 @@ export default function Debts() {
   const reload = () => { setLoading(true); setError(null); setReloadKey((k) => k + 1); };
 
   const toggleSort = makeToggleSort(setSort, (next) => setPref(SORT_PREF_KEY, next));
-  const sortedDebts = sortRows(debts, sort, SORT_ACCESSORS);
+
+  // Distinct lenders actually present, so the filter only offers real choices.
+  const lenderOptions = [...new Set(debts.map((d) => d.lender).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const activeFilterCount = filters.lenders.length + filters.creditTypes.length + (filters.pendingOnly ? 1 : 0);
+  const filteredDebts = debts.filter((d) => (
+    (filters.lenders.length === 0 || filters.lenders.includes(d.lender))
+    && (filters.creditTypes.length === 0 || filters.creditTypes.includes(d.credit_type))
+    && (!filters.pendingOnly || d.pending_withdrawal)
+  ));
+  const sortedDebts = sortRows(filteredDebts, sort, SORT_ACCESSORS);
+
+  // Toggle one value inside a multi-select filter array.
+  const toggleFilterValue = (key, value) => setFilters((f) => ({
+    ...f,
+    [key]: f[key].includes(value) ? f[key].filter((v) => v !== value) : [...f[key], value],
+  }));
+  const clearFilters = () => setFilters({ lenders: [], creditTypes: [], pendingOnly: false });
 
   const update = async (id, field, value) => {
     const prev = debts.find((d) => d.id === id);
@@ -152,8 +193,9 @@ export default function Debts() {
     if (error) { setDebts(snapshot); notifyError('Couldn’t delete that debt — restored. Please retry.'); }
   };
 
-  const totalBal  = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
-  const totalMins = debts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
+  // Totals follow the filter, so a lender view shows that lender's exposure.
+  const totalBal  = filteredDebts.reduce((s, d) => s + (d.balance ?? 0), 0);
+  const totalMins = filteredDebts.reduce((s, d) => s + (d.normal_payment ?? 0), 0);
   const colSpan = showAll ? 23 : 16;
 
   return (
@@ -168,13 +210,61 @@ export default function Debts() {
             </Link>
           </h2>
           <p className="text-xs text-zinc-500 mt-0.5">
-            {debts.length} debts ·{' '}
+            {activeFilterCount > 0 ? `${filteredDebts.length} of ${debts.length} debts` : `${debts.length} debts`} ·{' '}
             <Redacted on={privacy}><span className="text-zinc-400 tabular-nums">{fmt(totalBal)} balance</span></Redacted>
             {' · '}
             <Redacted on={privacy}><span className="text-zinc-400 tabular-nums">{fmtDec(totalMins)}/mo mins</span></Redacted>
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Filter — narrow the list by lender, credit type, or pending state.
+              Applies to the table, the card list, and the header totals. */}
+          <div className="relative">
+            <button
+              onClick={() => setFilterOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                activeFilterCount > 0
+                  ? 'bg-emerald-900/30 border-emerald-600 text-emerald-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Filter size={15} /> Filter
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 rounded-full bg-emerald-800/60 px-1.5 text-[11px] tabular-nums">{activeFilterCount}</span>
+              )}
+            </button>
+            {filterOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl p-3 space-y-3">
+                  <FilterGroup label="Lender">
+                    {lenderOptions.length === 0 ? (
+                      <p className="text-[11px] text-zinc-600">No lenders recorded yet.</p>
+                    ) : lenderOptions.map((l) => (
+                      <FilterCheck key={l} label={l} checked={filters.lenders.includes(l)} onChange={() => toggleFilterValue('lenders', l)} />
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup label="Credit Type">
+                    {CREDIT_TYPES.map((c) => (
+                      <FilterCheck key={c} label={c} dotColor={typeColor(c)} checked={filters.creditTypes.includes(c)} onChange={() => toggleFilterValue('creditTypes', c)} />
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup label="Status">
+                    <FilterCheck
+                      label="Pending withdrawal only"
+                      checked={filters.pendingOnly}
+                      onChange={() => setFilters((f) => ({ ...f, pendingOnly: !f.pendingOnly }))}
+                    />
+                  </FilterGroup>
+                  {activeFilterCount > 0 && (
+                    <button onClick={clearFilters} className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors">
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           {/* Column toggle only affects the table, which is hidden on phones —
               so it's desktop-only, matching where the card view takes over. */}
           <button
@@ -230,6 +320,8 @@ export default function Debts() {
               <LoadErrorRow colSpan={colSpan} onRetry={reload} />
             ) : debts.length === 0 ? (
               <StateRow colSpan={colSpan}>No debts yet — add one or run the seed.</StateRow>
+            ) : sortedDebts.length === 0 ? (
+              <StateRow colSpan={colSpan}>No debts match the current filter.</StateRow>
             ) : sortedDebts.map((d) => {
               const pr = paymentsRemaining(d);
               const prC = paymentsRemainingColor(pr);
@@ -312,6 +404,8 @@ export default function Debts() {
           <CardLoadError onRetry={reload} />
         ) : debts.length === 0 ? (
           <CardState>No debts yet — add one or run the seed.</CardState>
+        ) : sortedDebts.length === 0 ? (
+          <CardState>No debts match the current filter.</CardState>
         ) : sortedDebts.map((d) => {
           const pr = paymentsRemaining(d);
           const prC = paymentsRemainingColor(pr);

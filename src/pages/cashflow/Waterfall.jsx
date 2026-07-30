@@ -23,7 +23,6 @@ import {
   advanceDate, TABLE_FOR, DUE_COL_FOR, todayISO,
 } from './runway';
 import { monthlyDigital, monthlyConsumable } from './subsAgg';
-import WipNotice from './WipNotice';
 import {
   DEFAULT_INPUTS, applyOverrides, allocate, byAccount, TIER_META, TIER_ORDER,
   fuelWeeklyDynamic, grocWeeklyDynamic,
@@ -65,10 +64,16 @@ const TYPE_COLOR = {
 const typeColor = (t) => TYPE_COLOR[t] || '#94a3b8';
 const MANUAL_TYPES = ['Bill', 'Debt/Loan', 'One-Time', 'Digital Sub.'];
 
+// The Uber Pro backup balance owed lives in Current Balances as a liability row
+// (matching the workbook, where it's cell D12 in the Current Balances block) —
+// NOT in Plan Inputs. It's strictly "what I owe back to the backup balance": it
+// never counts as cash on hand and can never be banked into the pool. Its
+// balance feeds `inputs.uberBackupOwed`, so Step 0a (Uber Pro backup repayment)
+// and Step 6's Uber-surplus credit read it exactly as they did before.
+const UBER_BACKUP_OWED_NAME = 'Uber Pro Backup Owed';
+const isOwedAccount = (a) => accountNameMatches(a, UBER_BACKUP_OWED_NAME);
+
 const INPUT_FIELDS = [
-  { group: 'What you currently owe', fields: [
-    { key: 'uberBackupOwed', label: 'Uber Pro — backup balance owed' },
-  ] },
   { group: 'Targets (from your Inputs sheet)', fields: [
     { key: 'operatingBufferStage1', label: 'Operating buffer target' },
     { key: 'debtBuffer', label: 'Debt/loan account buffer' },
@@ -243,7 +248,9 @@ export default function Waterfall() {
     setInputsUpdated(nextUpdated); if (synced) setPref(INPUTS_UPDATED_PREF, nextUpdated);
   };
 
-  const cashOnHand = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  // Liability rows (what's owed back, not money you hold) never count as cash.
+  const cashAccounts = accounts.filter((a) => !isOwedAccount(a));
+  const cashOnHand = cashAccounts.reduce((s, a) => s + (a.balance ?? 0), 0);
   const available = (includePaycheck ? paycheck : 0) + sideGig + cashOnHand;
 
   // ── Runway: what's coming up ────────────────────────────────────────────────
@@ -292,7 +299,12 @@ export default function Waterfall() {
   const earninOwed = earninTxns.reduce(
     (s, t) => s + (t.kind === 'advance' ? (t.amount ?? 0) : -(t.amount ?? 0)), 0,
   );
-  const liveInputs = { ...inputs, earninOwed };
+  // Uber Pro backup owed moved out of Plan Inputs and into Current Balances as
+  // a liability row, so it's read live from that account. Falls back to the old
+  // stored Plan Inputs figure until the row exists, so nothing breaks mid-move.
+  const uberOwedAccount = accounts.find(isOwedAccount);
+  const uberBackupOwed = uberOwedAccount ? (uberOwedAccount.balance ?? 0) : inputs.uberBackupOwed;
+  const liveInputs = { ...inputs, earninOwed, uberBackupOwed };
 
   // When the "include Earnin" toggle is on, treat the live Earnin-owed balance
   // as an upcoming obligation inside the Short Term Needs window — it isn't a
@@ -321,7 +333,8 @@ export default function Waterfall() {
   // landed inside Bill Pay's balance, so Bill Pay is auto-banked (its balance,
   // paycheck included, is the pool). `balanceFor` (real) still backs Current
   // Balances and anything that should show what's actually in the bank.
-  const bankedSet = new Set(bankedIds.filter((id) => accounts.some((a) => a.id === id)));
+  // Liability rows can never be banked — there's no cash there to pour.
+  const bankedSet = new Set(bankedIds.filter((id) => cashAccounts.some((a) => a.id === id)));
   if (!includePaycheck && billPayId) bankedSet.add(billPayId);
   const isBanked = (name) => {
     const a = accounts.find((x) => accountNameMatches(x, name));
@@ -358,6 +371,17 @@ export default function Waterfall() {
     });
     if (data?.[0]) setAccounts((prev) => [...prev, data[0]]);
   };
+  // One-click creation of the Uber Pro backup-owed liability row, seeded from
+  // whatever the old Plan Inputs field held so the plan doesn't change the
+  // moment you move it down here.
+  const addUberOwedAccount = async () => {
+    if (uberOwedAccount) return;
+    const { data } = await upsertAccount({
+      name: UBER_BACKUP_OWED_NAME, slug: 'uber-pro-backup-owed',
+      balance: inputs.uberBackupOwed ?? 0, sort_order: accounts.length,
+    });
+    if (data?.[0]) setAccounts((prev) => [...prev, data[0]]);
+  };
   const removeAccount = async (id) => {
     setAccounts((prev) => prev.filter((a) => a.id !== id));
     setPending((prev) => prev.filter((p) => p.account_id !== id));   // cascade mirrors the DB FK
@@ -390,12 +414,12 @@ export default function Waterfall() {
   const totalNetPending = pending.reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
   const accountName = (id) => accounts.find((a) => a.id === id)?.name || '—';
 
-  // Cash the plan can actually draw on = balances of the accounts you've banked
-  // into the pool (Bill Pay auto-banks in "Already in Bill Pay" mode). Mirrors
-  // what "To Distribute" pools, so the Short Term Needs cards reason about the
-  // same money — not savings you've earmarked and left un-banked. Its pending
-  // projection likewise counts only transfers landing in banked accounts.
-  const availableCash = bankedTotal;
+  // Cash the plan can actually draw on — the same money "To Distribute" pools:
+  // the banked account balances (Bill Pay auto-banks in "Already in Bill Pay"
+  // mode) PLUS the incoming paycheck (only in "Planning ahead", where it hasn't
+  // landed yet) and side-gig earnings. Un-banked savings you've earmarked stay
+  // out. Its pending projection counts only transfers into banked accounts.
+  const availableCash = pool;
   const availableNetPending = pending
     .filter((p) => bankedSet.has(p.account_id))
     .reduce((s, p) => s + (p.direction === 'out' ? -1 : 1) * (p.amount ?? 0), 0);
@@ -574,11 +598,6 @@ export default function Waterfall() {
 
   return (
     <div className="space-y-6">
-      <WipNotice>
-        Needs compute from your accounts, 7-day bill/debt totals &amp; the Plan Inputs panel (in the settings menu) —
-        double-check the inputs match your real targets before you move money.
-      </WipNotice>
-
       {/* ── Money this week — income + balances, collapsible ── */}
       <GroupHeader
         icon={Wallet} iconColor="#34d399" title="Money this week"
@@ -713,13 +732,22 @@ export default function Waterfall() {
                 {acctMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setAcctMenuOpen(false)} />
-                    <div className="absolute right-0 mt-1 z-20 w-40 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1">
+                    <div className="absolute right-0 mt-1 z-20 w-48 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1">
                       <button
                         onClick={() => { addAccount(); setAcctMenuOpen(false); setBalancesOpen(true); }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
                       >
                         <Plus size={14} className="text-emerald-400" /> Add account
                       </button>
+                      {!uberOwedAccount && (
+                        <button
+                          onClick={() => { addUberOwedAccount(); setAcctMenuOpen(false); setBalancesOpen(true); }}
+                          title={`Adds the "${UBER_BACKUP_OWED_NAME}" liability row, seeded from your current Plan Inputs figure`}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+                        >
+                          <Plus size={14} className="text-amber-400" /> Add Uber Pro owed
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -752,16 +780,33 @@ export default function Waterfall() {
                   const c = updatedColor(a.updated_at);
                   const banked = bankedSet.has(a.id);
                   const autoBanked = !includePaycheck && a.id === billPayId;
+                  // A liability row: what's owed back, not cash you hold.
+                  const owed = isOwedAccount(a);
                   return (
-                  <tr key={a.id} className={`border-b border-zinc-800/60 last:border-0 group ${banked ? 'bg-cyan-950/20' : 'hover:bg-zinc-800/30'}`}>
+                  <tr key={a.id} className={`border-b border-zinc-800/60 last:border-0 group ${
+                    owed ? 'bg-amber-950/20' : banked ? 'bg-cyan-950/20' : 'hover:bg-zinc-800/30'
+                  }`}>
                     <td className="px-4 py-2">
-                      <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                      <span className="flex items-center gap-2">
+                        <EditCell value={a.name} onSave={(v) => updateAccount(a.id, 'name', v)} className="text-zinc-200 font-medium" />
+                        {owed && (
+                          <span
+                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-amber-900/40 text-amber-400"
+                            title="Owed back — not cash on hand and never pooled. Feeds the Uber Pro backup repayment step."
+                          >
+                            owed
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <Redacted on={privacy}>
-                        <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className="text-zinc-200" />
+                        <AmountEdit value={a.balance} onCommit={(v) => updateAccount(a.id, 'balance', v)} className={owed ? 'text-amber-300' : 'text-zinc-200'} />
                       </Redacted>
-                      {banked && (a.balance ?? 0) > 0.005 && (
+                      {owed && (
+                        <span className="block text-[11px] text-amber-400/70 mt-0.5">owed back</span>
+                      )}
+                      {!owed && banked && (a.balance ?? 0) > 0.005 && (
                         <span className="block text-[11px] text-cyan-400/80 mt-0.5">→ in pool</span>
                       )}
                       {Math.abs(net) > 0.005 && (
@@ -773,16 +818,20 @@ export default function Waterfall() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={banked}
-                        disabled={autoBanked}
-                        onChange={() => toggleBanked(a.id)}
-                        title={autoBanked
-                          ? 'Auto-banked — in “Already in Bill Pay” mode the paycheck already sits here'
-                          : banked ? 'Banked — swept into the pool, planned from $0' : 'Bank this balance into the pool'}
-                        className="h-4 w-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-                      />
+                      {owed ? (
+                        <span className="text-[11px] text-zinc-600" title="A liability — there's no cash here to pour into the pool">—</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={banked}
+                          disabled={autoBanked}
+                          onChange={() => toggleBanked(a.id)}
+                          title={autoBanked
+                            ? 'Auto-banked — in “Already in Bill Pay” mode the paycheck already sits here'
+                            : banked ? 'Banked — swept into the pool, planned from $0' : 'Bank this balance into the pool'}
+                          className="h-4 w-4 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-2 text-right">
                       <span className="inline-flex items-center justify-end gap-1.5 text-[11px] text-zinc-500">
@@ -814,6 +863,13 @@ export default function Waterfall() {
                     <tr className="text-zinc-400">
                       <td className="px-4 pb-2.5 text-xs">Projected once pending clears</td>
                       <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmtDec(cashOnHand + totalNetPending)}</span></Redacted></td>
+                      <td colSpan={3} />
+                    </tr>
+                  )}
+                  {uberOwedAccount && (uberOwedAccount.balance ?? 0) > 0.005 && (
+                    <tr className="text-zinc-400">
+                      <td className="px-4 pb-2.5 text-xs">Owed back (not counted above)</td>
+                      <td className="px-4 pb-2.5 text-right"><Redacted on={privacy}><span className="tabular-nums text-amber-400/80">{fmtDec(uberOwedAccount.balance ?? 0)}</span></Redacted></td>
                       <td colSpan={3} />
                     </tr>
                   )}
@@ -881,7 +937,8 @@ export default function Waterfall() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Available now — banked cash (the pool basis), projected once pending clears */}
+        {/* Available now — the pool: banked balances + paycheck (planning ahead)
+            + side-gig, projected once pending clears */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <p className="text-xs text-zinc-500 mb-1">Available now</p>
           <Redacted on={privacy}><span className="text-xl font-bold tabular-nums text-emerald-400">{fmt(availableCash)}</span></Redacted>
@@ -890,11 +947,13 @@ export default function Waterfall() {
               → <Redacted on={privacy}><span className="tabular-nums text-zinc-300">{fmt(availableCash + availableNetPending)}</span></Redacted> with pending
             </p>
           )}
-          {cashOnHand - availableCash > 0.005 && (
-            <p className="mt-1.5 text-[11px] text-zinc-600">
-              banked only · <Redacted on={privacy}><span className="tabular-nums">{fmt(cashOnHand)}</span></Redacted> cash on hand
-            </p>
-          )}
+          <p className="mt-1.5 text-[11px] text-zinc-600">
+            {[
+              bankedTotal > 0.005 && 'banked',
+              includePaycheck && paycheck > 0.005 && 'paycheck',
+              sideGig > 0.005 && 'side-gig',
+            ].filter(Boolean).join(' + ') || 'nothing banked yet'}
+          </p>
         </div>
 
         {/* Coming up — window total, with the bill/debt split as sub-lines */}
@@ -1383,6 +1442,17 @@ export default function Waterfall() {
                     <span className="flex items-center gap-1.5 shrink-0">
                       <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(earninOwed)}</span></Redacted>
                       <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                    <span className="text-xs text-zinc-400" title={`Edit this on Current Balances — the "${UBER_BACKUP_OWED_NAME}" row. Feeds Step 0a and Step 6's Uber surplus credit.`}>
+                      Uber Pro — backup balance owed
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <Redacted on={privacy}><span className="tabular-nums text-zinc-300 text-sm">{fmtDec(uberBackupOwed)}</span></Redacted>
+                      <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">
+                        {uberOwedAccount ? 'balances' : 'legacy'}
+                      </span>
                     </span>
                   </div>
                 </div>

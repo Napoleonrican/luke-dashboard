@@ -13,12 +13,12 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-23' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-30' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
-  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-29' },
+  { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-30' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
-  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-15' },
+  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-30' },
 ];
 
 // Every waterfall step, in pour order, in plain English. Mirrors DEFAULT_STEPS
@@ -176,7 +176,7 @@ export default function Guide() {
         <Block title="5. Short Term Needs">
           <p>Four cards answer “can I cover what’s coming?” for a window you pick (<strong className="text-zinc-300">7 / 14 / 30 days</strong>, or <strong className="text-zinc-300">Until Paycheck</strong> — which stops the day <em>before</em> payday, since anything due that day belongs to the next period):</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li><strong className="text-zinc-300">Available now</strong> — the cash you&rsquo;ve <strong className="text-zinc-300">banked</strong> into the pool (the same accounts feeding &ldquo;To Distribute&rdquo;; Bill Pay auto-banks in &ldquo;Already in Bill Pay&rdquo; mode), with the projected total once pending transfers into those accounts clear. Un-banked savings you&rsquo;ve earmarked aren&rsquo;t counted; a caption shows your full cash on hand when it differs. <em>Cash after</em> uses this same figure so the cards reconcile.</li>
+            <li><strong className="text-zinc-300">Available now</strong> — the same money &ldquo;To Distribute&rdquo; pools: your <strong className="text-zinc-300">banked</strong> account balances (Bill Pay auto-banks in &ldquo;Already in Bill Pay&rdquo; mode) <em>plus</em> the incoming paycheck when you&rsquo;re <strong className="text-zinc-300">Planning ahead</strong>, plus side-gig earnings. A caption lists which of those are in play, and the projected total once pending transfers into banked accounts clear. Un-banked savings you&rsquo;ve earmarked aren&rsquo;t counted. <em>Cash after</em> uses this same figure so the cards reconcile.</li>
             <li><strong className="text-zinc-300">Coming up</strong> — everything due in the window, split into Bills and Debts.</li>
             <li><strong className="text-zinc-300">On Deck</strong> — what you’ve staged to pay, by type.</li>
             <li><strong className="text-zinc-300">Cash after</strong> — cash minus what’s due in the window (green surplus / red shortfall), plus <em>Covers On Deck?</em> and <em>Covers Pending?</em> lines.</li>
@@ -195,10 +195,11 @@ export default function Guide() {
 
         <Block title="7. Current Balances & pending transfers">
           <p>Edit any balance inline; a freshness dot + “Xd ago” shows how stale it is. The <strong className="text-zinc-300">gear</strong> adds an account; <strong className="text-zinc-300">Transfers</strong> opens the pending-transfers modal (money in flight that hasn’t landed — it shows as a projected balance but doesn’t change the pour). Once a day, a <strong className="text-zinc-300">“Still accurate?”</strong> prompt asks you to confirm or update stale balances before you plan.</p>
+          <p><strong className="text-zinc-300">Uber Pro Backup Owed</strong> lives here too, tagged <strong className="text-amber-400">owed</strong> — it’s strictly <em>what you owe back</em> to the backup balance, so it never counts toward Total cash on hand and can never be banked into the pool (its Bank cell shows “—”). Editing it here drives Step 0a (Uber Pro backup repayment) and Step 6’s Uber-surplus credit, exactly as the old Plan Inputs field did. If you don’t have the row yet, the gear menu offers <strong className="text-zinc-300">Add Uber Pro owed</strong>, seeded from your old Plan Inputs figure.</p>
         </Block>
 
         <Block title="8. Plan Inputs, freshness & the payday reminder">
-          <p><strong className="text-zinc-300">Plan Inputs</strong> (in the ⋯ menu) holds the targets and “what you owe” figures behind the live Needs. Two are computed automatically (Total fixed bills, live from Bills; Earnin owed, live from the Earnin tab); the rest are manual targets you set. Each field shows its own last-updated date. On <strong className="text-zinc-300">payday</strong>, a reminder nudges you to confirm those inputs still match reality — <em>Looks good</em> stamps them all fresh, <em>Review now</em> opens the modal.</p>
+          <p><strong className="text-zinc-300">Plan Inputs</strong> (in the ⋯ menu) holds the targets behind the live Needs. Three figures are computed rather than typed — Total fixed bills (live from Bills), Earnin owed (live from the Earnin tab), and Uber Pro backup owed (from its Current Balances row) — and show read-only at the bottom; the rest are manual targets you set. Each field shows its own last-updated date. On <strong className="text-zinc-300">payday</strong>, a reminder nudges you to confirm those inputs still match reality — <em>Looks good</em> stamps them all fresh, <em>Review now</em> opens the modal.</p>
         </Block>
 
         <Block title="9. Privacy">
@@ -265,6 +266,9 @@ export default function Guide() {
         <Block title="Pending Withdrawal">
           <p>The <strong className="text-zinc-300">Pending</strong> checkbox marks a payment as triggered and about to clear; a pending row gets a <strong className="text-zinc-300">faded-yellow highlight</strong> across the whole line. This flag is shared with the Waterfall’s On Deck list — ticking Pending there (on a debt) sets it here too, and confirming an <em>advance payment</em> from On Deck clears it.</p>
         </Block>
+        <Block title="Filtering">
+          <p>The <strong className="text-zinc-300">Filter</strong> button narrows the list by <strong className="text-zinc-300">Lender</strong> (the options are the lenders you’ve actually recorded), <strong className="text-zinc-300">Credit Type</strong>, or <strong className="text-zinc-300">Pending withdrawal only</strong>. Tick as many as you like — within a group the choices are OR’d, across groups they’re AND’ed. The badge on the button counts active filters, and the header line switches to “X of Y debts” with the balance and minimums totals recalculated for just the filtered set — so filtering to one lender shows that lender’s exposure. Filters apply to the table and the phone card list alike, and reset when you leave the tab.</p>
+        </Block>
         <Block title="Advancing a payment (editable next due date)">
           <p>When you advance a debt from the Waterfall’s Coming Up / On Deck list, the confirm modal previews the <strong className="text-zinc-300">next due date</strong>. It defaults to the debt’s stored cadence (monthly, weekly, etc.), but the field is now <strong className="text-zinc-300">editable</strong> — so BNPL debts that bill <strong className="text-zinc-300">biweekly</strong> (e.g. Klarna) can be rolled to their real next date instead of assuming the stored cadence. Change it inline; a <em>Reset to … (stored cadence)</em> link appears if you want the computed date back. Whatever’s showing when you confirm is what gets saved as the debt’s Next Due.</p>
         </Block>
@@ -297,7 +301,7 @@ export default function Guide() {
           Current Balances as a pending transfer.
         </p>
         <Block title="Advance vs. Repay">
-          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Clicking <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now — instead of starting at $0. “Currently owed” is simply advances minus repayments, running.</p>
+          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now. “Currently owed” is simply advances minus repayments, running.</p>
         </Block>
         <Block title="The Pending checkbox → Current Balances">
           <p>Check <strong className="text-zinc-300">Pending</strong> on a row before the money’s actually landed or cleared. It creates a real pending transfer on Bill Pay Checking — an advance posts as money <em>in</em>, a repay posts as money <em>out</em> — which is the same table Current Balances reads for its projected-balance lines. Editing the amount or date afterward keeps the linked transfer in sync; uncheck it (or delete the row) once the real transaction posts, and the transfer goes with it.</p>
