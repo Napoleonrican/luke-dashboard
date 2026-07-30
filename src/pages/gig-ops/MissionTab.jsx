@@ -1,4 +1,5 @@
-import { Rocket, Bot, SearchCheck, Sparkles, ExternalLink } from 'lucide-react';
+import { Rocket, Bot, SearchCheck, Sparkles, ExternalLink, Wrench } from 'lucide-react';
+import { GIG_TRACKER_URL } from './constants';
 
 function Card({ icon: Icon, title, accent, children }) {
   return (
@@ -27,13 +28,17 @@ export default function MissionTab() {
           paid tiers.
         </p>
         <a
-          href="https://gig-tracker-lemon.vercel.app/"
+          href={GIG_TRACKER_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
         >
           Open the live app <ExternalLink size={11} />
         </a>
+        <p className="text-zinc-500">
+          The <strong className="text-zinc-300">Open app</strong> button at the top right of this
+          page gets you there any time.
+        </p>
       </Card>
 
       <Card icon={Bot} title="Who's building it" accent="text-violet-400">
@@ -57,8 +62,33 @@ export default function MissionTab() {
           Sometimes the assistants hit a question only a person can answer — not a coding
           question, but a real judgment call (e.g. "should this feature work this way or that
           way?"). When that happens, it shows up under the <strong className="text-zinc-300">Backlog &amp; Decisions</strong> tab.
-          Answering it there sends your answer straight back to them, and they pick it up on
-          their next run.
+        </p>
+        <p>
+          Answer it there in your own words. A coordinating assistant reads what you wrote,
+          passes it along to the build team in their terms, and replies back to you in the
+          same thread — so you never have to touch anything technical. You can also start
+          your own thread there any time you have a question or something to raise.
+        </p>
+      </Card>
+
+      <Card icon={Wrench} title="Seeing the paid features (hidden switch)" accent="text-amber-400">
+        <p>
+          The app will eventually have three levels — <strong className="text-zinc-300">Free</strong>,
+          {' '}<strong className="text-zinc-300">Side Hustler</strong>, and
+          {' '}<strong className="text-zinc-300">Full-Timer</strong> — and some features are locked
+          unless you're on a paid one. There's a hidden switch so you can look at any of them
+          without paying:
+        </p>
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>Open the app and tap the <strong className="text-zinc-300">gear icon</strong> (top right).</li>
+          <li>Tap the word <strong className="text-zinc-300">"Settings"</strong> at the top of that panel <strong className="text-zinc-300">five times quickly</strong> — within about a second.</li>
+          <li>A <strong className="text-zinc-300">🔧 Developer (Preview)</strong> section appears at the bottom.</li>
+          <li>Under <strong className="text-zinc-300">Tier preview</strong>, pick the level you want to look at.</li>
+        </ol>
+        <p>
+          It only affects the phone or browser you're using, and it isn't a real subscription —
+          it's purely so you can see and judge the locked features. It stays on until you turn
+          it off, so you don't have to redo the taps every time.
         </p>
       </Card>
 

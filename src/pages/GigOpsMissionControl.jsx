@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Compass, ListTodo, Wrench } from 'lucide-react';
+import { Compass, ListTodo, ExternalLink } from 'lucide-react';
 import TopNav from '../components/TopNav';
-import { useAuth } from '../lib/useAuth';
 import MissionTab from './gig-ops/MissionTab';
 import DecisionsTab from './gig-ops/DecisionsTab';
-import SetupGuideTab from './gig-ops/SetupGuideTab';
+import { GIG_TRACKER_URL } from './gig-ops/constants';
 
 // Gig Ops Mission Control — a scoped, non-technical-friendly command center
 // for the Gig Tracker project, reached at /gig-ops (direct link only, no
@@ -12,19 +11,35 @@ import SetupGuideTab from './gig-ops/SetupGuideTab';
 // the general /mission-control page, but filtered to repo = 'gig-tracker'
 // (enforced by RLS, see supabase/migrations/047_gig_ops_scope.sql) and
 // reachable by the collaborator's own separate Supabase Auth login.
+//
+// Everything here is hers — the owner-only setup walkthrough lives in
+// docs/GIG_OPS_SETUP.md, deliberately not in this UI.
 export default function GigOpsMissionControl() {
-  const { session, isOwner } = useAuth();
   const [activeTab, setActiveTab] = useState('mission');
 
   const tabs = [
     { key: 'mission',   label: 'Mission & Background', Icon: Compass,  accent: 'text-cyan-300 border-cyan-500' },
     { key: 'decisions', label: 'Backlog & Decisions',   Icon: ListTodo, accent: 'text-amber-300 border-amber-500' },
-    ...(isOwner ? [{ key: 'setup', label: 'Setup Guide', Icon: Wrench, accent: 'text-violet-300 border-violet-500' }] : []),
   ];
 
   return (
     <div className="min-h-screen text-white">
-      <TopNav title="Gig Tracker — Mission Control" />
+      {/* "Open the app" lives in the nav so it's reachable from either tab,
+          not buried in Mission & Background prose. */}
+      <TopNav
+        title="Gig Tracker — Mission Control"
+        hideBack
+        right={
+          <a
+            href={GIG_TRACKER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-500"
+          >
+            Open app <ExternalLink size={11} />
+          </a>
+        }
+      />
       <div className="max-w-3xl mx-auto px-4 py-8">
 
         <div className="mb-6">
@@ -48,13 +63,7 @@ export default function GigOpsMissionControl() {
           ))}
         </div>
 
-        {activeTab === 'decisions' ? (
-          <DecisionsTab session={session} />
-        ) : activeTab === 'setup' && isOwner ? (
-          <SetupGuideTab />
-        ) : (
-          <MissionTab />
-        )}
+        {activeTab === 'decisions' ? <DecisionsTab /> : <MissionTab />}
 
       </div>
     </div>

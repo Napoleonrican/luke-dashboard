@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronDown, ChevronUp, Send, ExternalLink, AlertTriangle,
+  ChevronDown, ChevronUp, Send, AlertTriangle, ExternalLink, SlidersHorizontal,
   ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from '../mission-control/Markdown';
+import { authorLabel, isAgentAuthor, COLLAB_AUTHOR } from '../../lib/authConfig';
 
 const PRIORITY_OPTIONS = [
   { value: 'urgent', label: '🔴 High' },
@@ -31,7 +32,7 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function Thread({ thread, messages, reload, authorLabel }) {
+function Thread({ thread, messages, reload }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
@@ -41,22 +42,24 @@ function Thread({ thread, messages, reload, authorLabel }) {
   const st  = STATUS[thread.status] || STATUS.needs_you;
   const Cat = cat.Icon;
 
-  async function postReply(markResolved = false) {
-    if (!reply.trim() || posting) return;
+  // Her reply lands unsynced, exactly like Luke's own replies do on his
+  // Inbox: the Sidekick routine picks up unsynced non-sidekick messages,
+  // interprets them, and speaks to the GitHub issue in the worker agents'
+  // terms. Nothing here posts to GitHub directly — the agent is the relay.
+  async function postReply() {
+    if (!reply.trim() || posting || !supabase) return;
     setPosting(true);
     setError('');
     try {
-      const res = await fetch('/api/gig-ops-reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: thread.id, replyText: reply.trim(), authorLabel, markResolved }),
+      const { error: msgErr } = await supabase.from('mc_messages').insert({
+        thread_id: thread.id, author: COLLAB_AUTHOR, body: reply.trim(), synced: false,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send.');
+      if (msgErr) throw new Error(msgErr.message);
+      await supabase.from('mc_threads').update({ status: 'waiting_on_agent' }).eq('id', thread.id);
       setReply('');
       reload();
     } catch (e) {
-      setError(e.message || 'Failed to send — try again.');
+      setError(e.message || 'Could not send — try again.');
     } finally {
       setPosting(false);
     }
@@ -99,18 +102,29 @@ function Thread({ thread, messages, reload, authorLabel }) {
           {messages.length > 0 && (
             <div className="space-y-2.5">
               {messages.map(m => {
-                const mine = m.author !== 'sidekick';
+                // Her own messages sit right; the assistant and Luke sit left,
+                // each named — so she can tell who said what.
+                const mine    = m.author === COLLAB_AUTHOR;
+                const isAgent = isAgentAuthor(m.author);
                 return (
                   <div key={m.id} className={`flex gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
-                    <div className={`flex-shrink-0 mt-0.5 ${mine ? 'text-emerald-400' : 'text-cyan-400'}`}>
-                      {mine ? <User size={13} /> : <Bot size={13} />}
+                    <div className={`flex-shrink-0 mt-0.5 ${
+                      mine ? 'text-emerald-400' : isAgent ? 'text-cyan-400' : 'text-violet-400'
+                    }`}>
+                      {isAgent ? <Bot size={13} /> : <User size={13} />}
                     </div>
                     <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                       mine ? 'bg-emerald-900/25 text-emerald-50/90' : 'bg-zinc-800 text-zinc-300'
                     }`}>
                       <Markdown>{m.body}</Markdown>
                       <div className="text-[9px] text-zinc-600 mt-1">
-                        {mine ? m.author : 'Sidekick'} · {timeAgo(m.created_at)}
+                        {authorLabel(m.author, COLLAB_AUTHOR)} · {timeAgo(m.created_at)}
+                        {mine && !m.synced && (
+                          <span
+                            className="text-amber-500/70"
+                            title="Saved. The assistant reads it on its next check — nothing more for you to do."
+                          > · with the assistant</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -124,38 +138,22 @@ function Thread({ thread, messages, reload, authorLabel }) {
               <textarea
                 value={reply}
                 onChange={e => setReply(e.target.value)}
-                placeholder="Type your answer — it posts straight to the GitHub issue…"
+                placeholder="Type your answer in your own words…"
                 rows={2}
                 className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
               />
               {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}
               <div className="flex items-center justify-between mt-1.5">
+                <span className="text-[10px] text-zinc-600">
+                  Goes to the assistant, which passes it to the build team.
+                </span>
                 <button
-                  onClick={() => postReply(true)}
+                  onClick={postReply}
                   disabled={posting || !reply.trim()}
-                  className="text-[11px] text-zinc-600 hover:text-green-400 transition-colors flex items-center gap-1 disabled:opacity-40"
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
                 >
-                  <CheckCircle2 size={11} /> Answer &amp; mark resolved
+                  <Send size={10} /> {posting ? 'Sending…' : 'Send'}
                 </button>
-                <div className="flex items-center gap-2">
-                  {thread.github_url && (
-                    <a
-                      href={thread.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1"
-                    >
-                      <ExternalLink size={10} /> Detail
-                    </a>
-                  )}
-                  <button
-                    onClick={() => postReply(false)}
-                    disabled={posting || !reply.trim()}
-                    className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
-                  >
-                    <Send size={10} /> {posting ? 'Sending…' : 'Send'}
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -174,7 +172,7 @@ function BacklogPanel() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/gig-ops-reply?action=backlog');
+      const res = await fetch('/api/gig-ops-backlog');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load the backlog.');
       setMarkdown(data.markdown || '');
@@ -221,7 +219,7 @@ function BacklogPanel() {
 // so this can't "post directly" the way answering a flagged item does; it
 // lands as a waiting_on_agent thread and the Sidekick routine picks it up
 // on its next scheduled pass, exactly like Luke starting a thread does.
-function ComposeThreadModal({ onClose, reload, authorLabel }) {
+function ComposeThreadModal({ onClose, reload }) {
   const [form, setForm]     = useState(BLANK_COMPOSE);
   const [saving, setSaving] = useState(false);
 
@@ -245,7 +243,7 @@ function ComposeThreadModal({ onClose, reload, authorLabel }) {
     }).select().single();
     if (thread && form.details.trim()) {
       await supabase.from('mc_messages').insert({
-        thread_id: thread.id, author: authorLabel, body: form.details.trim(), synced: false,
+        thread_id: thread.id, author: COLLAB_AUTHOR, body: form.details.trim(), synced: false,
       });
     }
     setSaving(false);
@@ -297,14 +295,53 @@ function ComposeThreadModal({ onClose, reload, authorLabel }) {
   );
 }
 
-export default function DecisionsTab({ session }) {
+// The tier/pricing line is the single biggest unresolved decision on the
+// project — it blocks backlog items 3.7, 3.8 and 6.4 on its own. Pricing Studio
+// (/pricing-studio) already exists as a shareable, login-free tool for exactly
+// this, so point her at it rather than reinventing it. Opens in a new tab so
+// she doesn't lose her place here.
+function PricingStudioCard() {
+  return (
+    <div className="rounded-xl border border-violet-800/50 bg-violet-950/20 p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <SlidersHorizontal size={15} className="text-violet-400" />
+        <h3 className="text-sm font-semibold text-zinc-200">Help decide what's free and what's paid</h3>
+      </div>
+      <div className="text-xs text-zinc-400 leading-relaxed space-y-2">
+        <p>
+          This is the biggest open question on the project, and more work is waiting on it than
+          on anything else. There's a tool built for it — every real feature of the app is a
+          card, and you sort each one into the tier you think it belongs in.
+        </p>
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>Open <strong className="text-zinc-300">Pricing Studio</strong> below.</li>
+          <li>Put your name at the top so Luke knows whose plan it is.</li>
+          <li>Tap each feature into <strong className="text-zinc-300">Free</strong>, <strong className="text-zinc-300">Side Hustler</strong>, or <strong className="text-zinc-300">Full-Timer</strong>, and set what the paid tiers should cost.</li>
+          <li>Hit <strong className="text-zinc-300">Copy my share link</strong> and text it to Luke.</li>
+        </ol>
+        <p className="text-zinc-500">
+          No login, nothing to install, and your whole plan travels inside the link — so you can
+          do it on your phone and it's saved just by keeping the link.
+        </p>
+      </div>
+      <a
+        href="/pricing-studio"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-violet-500"
+      >
+        Open Pricing Studio <ExternalLink size={11} />
+      </a>
+    </div>
+  );
+}
+
+export default function DecisionsTab() {
   const [threads, setThreads]   = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading]   = useState(!!supabase);
   const [showResolved, setShowResolved] = useState(false);
   const [composing, setComposing] = useState(false);
-
-  const authorLabel = session?.user?.email || 'collaborator';
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
@@ -326,6 +363,8 @@ export default function DecisionsTab({ session }) {
 
   return (
     <div className="space-y-5">
+      <PricingStudioCard />
+
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
@@ -348,7 +387,7 @@ export default function DecisionsTab({ session }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {open.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} authorLabel={authorLabel} />)}
+            {open.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} />)}
           </div>
         )}
 
@@ -363,7 +402,7 @@ export default function DecisionsTab({ session }) {
             </button>
             {showResolved && (
               <div className="space-y-3">
-                {resolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} authorLabel={authorLabel} />)}
+                {resolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={load} />)}
               </div>
             )}
           </div>
@@ -373,7 +412,7 @@ export default function DecisionsTab({ session }) {
       <BacklogPanel />
 
       {composing && (
-        <ComposeThreadModal onClose={() => setComposing(false)} reload={load} authorLabel={authorLabel} />
+        <ComposeThreadModal onClose={() => setComposing(false)} reload={load} />
       )}
     </div>
   );
