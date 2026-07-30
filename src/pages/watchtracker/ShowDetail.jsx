@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronRight, Tv, Link2, Check, MoreVertical, Clock, Trash2, Sparkles } from 'lucide-react';
 import {
@@ -213,6 +213,13 @@ export default function ShowDetail() {
           </div>
           {totalEpisodes > 0 && <ProgressBar value={watchedCount} total={totalEpisodes} className="mt-1.5 max-w-xs" />}
 
+          <OnDeckStrip
+            tmdbId={show.tmdb_id}
+            seasonsMeta={meta?.raw_json?.seasons}
+            watchedSet={watchedSet}
+            onToggle={markWatched}
+          />
+
           <div className="mt-3">
             <StarRating value={show.rating} onChange={(v) => updateShow(show.id, { rating: v }).then(reloadShow)} size={22} showLabel />
           </div>
@@ -369,7 +376,7 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onTog
                     <span className="text-zinc-500">E{n}</span>
                     <span className="truncate">{desc?.name || `Episode ${n}`}</span>
                   </div>
-                  {desc?.overview && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{desc.overview}</p>}
+                  {desc?.overview && <EpisodeOverview text={desc.overview} />}
                   <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-zinc-600">
                     {desc?.air_date && <span>Aired {fmtDate(desc.air_date)}</span>}
                     {watched && epRow?.last_watched_at && <span>Watched {fmtDate(epRow.last_watched_at)}</span>}
@@ -389,6 +396,155 @@ function SeasonBlock({ tmdbId, season, episodeCount, watchedSet, episodes, onTog
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Episode overview that starts clamped to two lines but can be expanded to
+// read the full synopsis. The toggle only appears for text long enough that
+// clamping actually hides something — short overviews render plainly.
+function EpisodeOverview({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  const clampable = text.length > 140;
+
+  if (!clampable) return <p className="mt-0.5 text-xs text-zinc-500">{text}</p>;
+
+  return (
+    <div className="mt-0.5">
+      <p className={`text-xs text-zinc-500 ${expanded ? '' : 'line-clamp-2'}`}>{text}</p>
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="mt-0.5 text-[11px] font-medium text-zinc-400 hover:text-zinc-200"
+      >
+        {expanded ? 'Show less' : 'Show more'}
+      </button>
+    </div>
+  );
+}
+
+// On-deck strip — a horizontally-scrollable row of episode tiles for the
+// show you're watching, defaulting the scroll to the next unwatched episode
+// ("on deck") with already-watched episodes reachable to its left. Each tile
+// shows the episode still with the title overlaid and a tappable bubble to
+// mark it watched. Only a bounded window around on-deck is rendered/fetched
+// so a long-running show doesn't trigger hundreds of TMDB lookups on load.
+const ONDECK_WATCHED_BEFORE = 6;
+const ONDECK_UPCOMING_AFTER = 12;
+
+function OnDeckStrip({ tmdbId, seasonsMeta, watchedSet, onToggle }) {
+  const [metaMap, setMetaMap] = useState({}); // "s:e" -> episode metadata row
+  const scrollRef = useRef(null);
+  const deckRef = useRef(null);
+
+  // Every aired episode in airing order (specials/season 0 excluded).
+  const ordered = useMemo(() => {
+    const list = [];
+    for (const sm of [...(seasonsMeta ?? [])].sort((a, b) => a.season_number - b.season_number)) {
+      if (sm.season_number < 1) continue;
+      for (let n = 1; n <= (sm.episode_count || 0); n++) {
+        list.push({ season: sm.season_number, episode: n, key: `${sm.season_number}:${n}` });
+      }
+    }
+    return list;
+  }, [seasonsMeta]);
+
+  const onDeckIndex = useMemo(
+    () => ordered.findIndex((e) => !watchedSet.has(e.key)),
+    [ordered, watchedSet],
+  );
+
+  // Bounded slice around on-deck; when everything's watched, show the tail.
+  const visible = useMemo(() => {
+    if (!ordered.length) return [];
+    if (onDeckIndex === -1) return ordered.slice(Math.max(0, ordered.length - (ONDECK_WATCHED_BEFORE + 1)));
+    return ordered.slice(
+      Math.max(0, onDeckIndex - ONDECK_WATCHED_BEFORE),
+      Math.min(ordered.length, onDeckIndex + ONDECK_UPCOMING_AFTER),
+    );
+  }, [ordered, onDeckIndex]);
+
+  const windowKey = visible.map((e) => e.key).join(',');
+
+  useEffect(() => {
+    if (!tmdbId || !visible.length) return;
+    const need = visible.filter((e) => !(e.key in metaMap));
+    if (!need.length) return;
+    let active = true;
+    (async () => {
+      const results = await Promise.all(
+        need.map((e) => getEpisodeMetadata(tmdbId, e.season, e.episode).then(({ data }) => [e.key, data])),
+      );
+      if (!active) return;
+      setMetaMap((prev) => {
+        const next = { ...prev };
+        for (const [k, d] of results) if (d) next[k] = d;
+        return next;
+      });
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tmdbId, windowKey]);
+
+  // Park the on-deck tile at the left edge (watched episodes sit off-screen to
+  // its left). Tiles are fixed-width, so layout is stable before images load.
+  useEffect(() => {
+    const el = deckRef.current;
+    const container = scrollRef.current;
+    if (el && container) container.scrollLeft = Math.max(0, el.offsetLeft - 8);
+  }, [onDeckIndex, windowKey]);
+
+  if (!ordered.length) return null;
+
+  const allWatched = onDeckIndex === -1;
+
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+        {allWatched ? 'Recently watched' : 'On deck'}
+      </div>
+      <div ref={scrollRef} className="relative -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {visible.map((e) => {
+          const watched = watchedSet.has(e.key);
+          const isOnDeck = !allWatched && e.key === ordered[onDeckIndex].key;
+          const m = metaMap[e.key];
+          return (
+            <div key={e.key} ref={isOnDeck ? deckRef : null} className="w-32 shrink-0">
+              <div
+                className={`relative aspect-video w-full overflow-hidden rounded-lg bg-zinc-800 ${
+                  isOnDeck ? 'ring-2 ring-emerald-500' : ''
+                }`}
+              >
+                {m?.still_path
+                  ? <img src={tmdbImageUrl(m.still_path, 'w300')} alt="" className={`h-full w-full object-cover ${watched ? 'opacity-40' : ''}`} />
+                  : <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">S{e.season} · E{e.episode}</div>}
+
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-1.5 pb-1 pt-4">
+                  <div className="text-[9px] font-medium uppercase tracking-wide text-zinc-300">S{e.season} · E{e.episode}</div>
+                  <div className="line-clamp-2 text-[11px] font-semibold leading-tight text-white">{m?.name || `Episode ${e.episode}`}</div>
+                </div>
+
+                {isOnDeck && (
+                  <span className="absolute left-1 top-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                    On deck
+                  </span>
+                )}
+
+                <button
+                  onClick={() => onToggle(e.season, e.episode, !watched)}
+                  title={watched ? 'Mark unwatched' : 'Mark watched'}
+                  className={`absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors ${
+                    watched
+                      ? 'border-emerald-500 bg-emerald-500 text-white'
+                      : 'border-white/70 bg-black/40 text-transparent hover:border-white hover:text-white/60'
+                  }`}
+                >
+                  <Check size={14} strokeWidth={3} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
