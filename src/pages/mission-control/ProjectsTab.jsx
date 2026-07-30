@@ -140,7 +140,7 @@ function Project({ project, messages, reload, muted = false }) {
                         {mine && !m.synced && (
                           <span
                             className="text-amber-500/70"
-                            title="Saved. The Sidekick picks it up on its next scheduled run — nothing for you to do."
+                            title="Saved. The Sidekick runs about every 4 hours and picks it up then — nothing for you to do."
                           > · waiting for Sidekick</span>
                         )}
                       </div>

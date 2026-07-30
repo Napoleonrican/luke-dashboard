@@ -69,6 +69,11 @@ export default function MissionTab() {
           same thread — so you never have to touch anything technical. You can also start
           your own thread there any time you have a question or something to raise.
         </p>
+        <p className="text-zinc-500">
+          That assistant checks in about <strong className="text-zinc-300">five times a day, roughly
+          every 4 hours</strong>, with one longer stretch overnight — it isn't watching live, so a
+          reply can take a little while to show up. That's normal, not a sign anything's stuck.
+        </p>
         <p>
           The <strong className="text-zinc-300">Full Backlog</strong> tab shows the whole to-do
           list, and has a <strong className="text-zinc-300">Suggest an item</strong> button if you

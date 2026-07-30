@@ -169,6 +169,22 @@ separate deployment and shouldn't be treated as one.
 
 ---
 
+## 6. If you ever change the Sidekick's schedule
+
+The cadence (currently `0 9-23/4,1 * * *` — five runs a day, roughly every 4
+hours, with one longer stretch overnight) is described in plain language in a
+few places, so people know a reply isn't instant without needing to read cron:
+
+- `src/pages/gig-ops/MissionTab.jsx` — "When you'll see something here" card
+- The pending-reply tooltip in `src/pages/gig-ops/DecisionsTab.jsx`
+- The matching tooltips in `src/pages/mission-control/InboxTab.jsx` and
+  `ProjectsTab.jsx`
+
+None of these read the schedule live — if you change it, update the wording by
+hand in those four spots.
+
+---
+
 ## Recurring: approving a pending database change
 
 Not specific to Gig Ops, but it comes up (e.g. the Gig Tracker RLS migration in
