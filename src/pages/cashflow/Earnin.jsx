@@ -11,7 +11,6 @@ import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
 import { notifyError } from './toast';
-import WipNotice from './WipNotice';
 
 const KINDS = ['advance', 'repay'];
 const KIND_LABEL = { advance: 'Advance', repay: 'Repay' };
@@ -33,6 +32,8 @@ export default function Earnin() {
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [billPayAccountId, setBillPayAccountId] = useState(null);
+  // Draft for the add-entry modal: { kind, txn_date, amount, pending, notes }.
+  const [addDraft, setAddDraft] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -123,15 +124,48 @@ export default function Earnin() {
     }
   };
 
-  const add = async (kind) => {
+  // Adding goes through a modal so every field on the row (amount, date,
+  // pending, notes) is filled in up front, instead of landing a $0 row you then
+  // have to edit cell by cell.
+  const openAdd = (kind) => setAddDraft({
+    kind,
+    txn_date: todayISO(),
     // Repay defaults to the full running balance — you're paying back what
     // Earnin's owed as of right now, not starting from zero.
-    const amount = kind === 'repay' ? Math.max(0, currentOwed) : 0;
+    amount: kind === 'repay' ? Math.max(0, currentOwed) : 0,
+    pending: false,
+    notes: '',
+  });
+
+  const saveAdd = async (draft) => {
     const { data, error } = await upsertEarninTransaction({
-      txn_date: todayISO(), kind, amount,
+      txn_date: draft.txn_date, kind: draft.kind, amount: draft.amount, notes: draft.notes || null,
     });
     if (error || !data?.[0]) { notifyError('Couldn’t add that entry. Please retry.'); return; }
-    setRows((prev) => [data[0], ...prev]);
+    let row = data[0];
+    // Marking pending in the modal creates the same linked transfer the row's
+    // Pending checkbox would — the entry still saves if that part fails.
+    if (draft.pending) {
+      if (!billPayAccountId) {
+        notifyError(`Entry saved, but no "${BILL_PAY_NAME}" account exists to mark it pending.`);
+      } else {
+        const { data: pt, error: ptErr } = await upsertPendingTransfer({
+          account_id: billPayAccountId,
+          direction: DIRECTION_FOR_KIND[draft.kind],
+          amount: draft.amount,
+          expected_date: draft.txn_date,
+          label: `Earnin ${KIND_LABEL[draft.kind]}`,
+        });
+        if (ptErr || !pt?.[0]) {
+          notifyError('Entry saved, but couldn’t mark it pending. Tick Pending on the row to retry.');
+        } else {
+          await upsertEarninTransaction({ id: row.id, pending_transfer_id: pt[0].id });
+          row = { ...row, pending_transfer_id: pt[0].id };
+        }
+      }
+    }
+    setRows((prev) => [row, ...prev]);
+    setAddDraft(null);
   };
 
   const remove = async (id) => {
@@ -145,11 +179,6 @@ export default function Earnin() {
 
   return (
     <div className="space-y-6">
-      <WipNotice>
-        Manual transaction log for now — until a Monarch export can backfill history. The running
-        balance feeds the Waterfall&rsquo;s Plan Inputs live, and Pending rows show up on Current Balances.
-      </WipNotice>
-
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Currently owed" value={fmt(currentOwed)} privacy={privacy} tone="text-amber-400" icon={Wallet} />
         <Stat label="Total advanced" value={fmt(totalAdvanced)} privacy={privacy} tone="text-orange-400" icon={ArrowDownCircle} />
@@ -164,10 +193,10 @@ export default function Earnin() {
             <p className="text-xs text-zinc-500 mt-0.5">Newest first — running balance reads top to bottom.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => add('advance')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-700/60 bg-amber-900/20 text-xs font-medium text-amber-400 hover:bg-amber-900/40 transition-colors">
+            <button onClick={() => openAdd('advance')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-700/60 bg-amber-900/20 text-xs font-medium text-amber-400 hover:bg-amber-900/40 transition-colors">
               <Plus size={14} /> Advance
             </button>
-            <button onClick={() => add('repay')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+            <button onClick={() => openAdd('repay')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
               <Plus size={14} /> Repay
             </button>
           </div>
@@ -240,6 +269,103 @@ export default function Earnin() {
         &ldquo;Currently owed&rdquo; here is derived from this log (advances add, repayments subtract) and feeds the
         Waterfall&rsquo;s Plan Inputs &ldquo;Earnin — payback owed&rdquo; figure live — no manual copying needed.
       </p>
+
+      {addDraft && (
+        <AddEntryModal
+          draft={addDraft}
+          privacy={privacy}
+          onChange={setAddDraft}
+          onCancel={() => setAddDraft(null)}
+          onSave={saveAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+// Add-entry dialog for a new advance/repayment — captures every field the row
+// carries (type, date, amount, pending, notes) so a new entry lands complete
+// rather than as a $0 placeholder you edit cell by cell.
+function AddEntryModal({ draft, privacy, onChange, onCancel, onSave }) {
+  const [saving, setSaving] = useState(false);
+  const set = (field) => (v) => onChange({ ...draft, [field]: v });
+  const submit = async () => { setSaving(true); await onSave(draft); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 shadow-2xl p-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: KIND_COLOR[draft.kind] }} />
+          <h3 className="text-sm font-semibold text-zinc-100">New Earnin {KIND_LABEL[draft.kind]}</h3>
+        </div>
+
+        <div className="space-y-3">
+          <ModalRow label="Type">
+            <select
+              value={draft.kind}
+              onChange={(e) => set('kind')(e.target.value)}
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:border-amber-600 focus:outline-none"
+            >
+              {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            </select>
+          </ModalRow>
+
+          <ModalRow label="Amount">
+            <Redacted on={privacy}>
+              <AmountEdit value={draft.amount} onCommit={(v) => set('amount')(v ?? 0)} className="text-zinc-100 font-medium" />
+            </Redacted>
+          </ModalRow>
+
+          <ModalRow label="Date">
+            <input
+              type="date" value={draft.txn_date || ''} onChange={(e) => set('txn_date')(e.target.value)}
+              className="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 tabular-nums focus:border-amber-600 focus:outline-none"
+            />
+          </ModalRow>
+
+          <ModalRow
+            label="Pending"
+            hint={`Adds a pending ${DIRECTION_FOR_KIND[draft.kind] === 'in' ? 'inflow to' : 'outflow from'} ${BILL_PAY_NAME}`}
+          >
+            <input
+              type="checkbox" checked={!!draft.pending} onChange={(e) => set('pending')(e.target.checked)}
+              className="h-4 w-4 accent-cyan-500 cursor-pointer"
+            />
+          </ModalRow>
+
+          <div>
+            <p className="text-xs text-zinc-400 mb-1">Notes</p>
+            <input
+              type="text" value={draft.notes || ''} onChange={(e) => set('notes')(e.target.value)}
+              placeholder="Optional"
+              className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-amber-600 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onCancel} disabled={saving}
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={saving}
+            className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3.5 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors disabled:opacity-50">
+            {saving ? 'Saving…' : `Add ${KIND_LABEL[draft.kind]}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalRow({ label, hint, children }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-zinc-400">
+        {label}
+        {hint && <span className="block text-[10px] text-zinc-600">{hint}</span>}
+      </span>
+      {children}
     </div>
   );
 }

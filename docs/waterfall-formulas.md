@@ -28,7 +28,7 @@ needs; this doc records the *formulas* so each need can be derived instead.
 | D9 | Operating Checking |
 | D10 | Debt/Loan Checking |
 | D11 | Uber Pro Card |
-| D12 | Uber Pro Backup Owed |
+| D12 | Uber Pro Backup Owed — a **liability** row in the dashboard's Current Balances (tagged "owed"): excluded from Total cash on hand, never bankable, and the live source for `inputs.uberBackupOwed` |
 | D13 | Vehicle Maintenance Savings |
 | D14 | Primary Savings (Emergency Fund) |
 
@@ -112,6 +112,12 @@ Fix the `account` field on those two steps when wiring live.
 | Outstanding CX-5 (B25) | 1613 |
 | Outstanding Versa (B26) | 2678 |
 | Emergency Fund Goal (B27) | 3000 |
+
+> Engine note: `uberBackupOwed` (workbook Inputs!B22) is no longer a Plan Inputs
+> field in the dashboard. It moved to the Current Balances table as the
+> "Uber Pro Backup Owed" liability row (the workbook's own D12 home), read live
+> into `inputs.uberBackupOwed`, so steps 0a and 6 are unchanged. The stored
+> Plan Inputs value survives as a fallback until that row exists.
 
 ## Notable for planned features
 
