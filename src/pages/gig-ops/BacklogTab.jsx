@@ -22,12 +22,16 @@ const TIER_OPTIONS = [
 
 const BLANK = { title: '', why: '', value: '⭐⭐', tier: 'All', where: '' };
 
-// Her suggestion becomes an mc_threads row the Sidekick picks up, titled with a
-// "[Backlog idea]" marker so the routine knows to file it as a gig-tracker
-// `enhancement` issue rather than answer it as a question. From there it flows
-// through the existing Monday proposal-editorial pass, where Luke promotes or
-// declines it — so she can propose freely without anything auto-entering the
-// build queue. See docs/sidekick-gig-ops-patch.md.
+// Her item becomes an mc_threads row the Sidekick picks up, titled with a
+// "[Backlog item]" marker so the routine adds it to the backlog as real work
+// rather than answering it as a question.
+//
+// Luke's explicit call (2026-07-30): Miranda has the SAME authority he does for
+// adding backlog items — these are not proposals awaiting his promotion, and
+// they don't go through the weekly enhancement-triage pass. Her authority is
+// still bounded elsewhere (pricing/tier calls, credentials, migration merges
+// remain his) — this parity is specifically about putting work on the list.
+// See docs/sidekick-gig-ops-patch.md.
 function SuggestModal({ onClose, onSaved }) {
   const [form, setForm]     = useState(BLANK);
   const [saving, setSaving] = useState(false);
@@ -46,27 +50,29 @@ function SuggestModal({ onClose, onSaved }) {
     setSaving(true);
     setError('');
     const body = [
-      `**Backlog suggestion from Miranda**`,
+      `**Backlog item added by Miranda**`,
       ``,
-      `**What she'd like to see:** ${form.title.trim()}`,
+      `**What to build:** ${form.title.trim()}`,
       ``,
       `**Why it matters / what problem it solves:**`,
       form.why.trim(),
       ``,
-      `**How big a deal she thinks it is:** ${form.value}`,
-      `**Who she thinks it's for:** ${form.tier === 'Unsure' ? 'Not sure — Luke to decide' : form.tier}`,
+      `**Value:** ${form.value}`,
+      `**Tier:** ${form.tier === 'Unsure' ? "Not specified — use your best judgement" : form.tier}`,
       form.where.trim() ? `**Where in the app:** ${form.where.trim()}` : null,
       ``,
-      `_Suggested via the Gig Ops page. Not approved — for Luke's review._`,
+      `_Added via the Gig Ops page. Miranda has the same authority as Luke for`,
+      `adding backlog items — treat this as a real item, not a proposal awaiting`,
+      `approval._`,
     ].filter((l) => l !== null).join('\n');
 
     try {
       const { data: thread, error: tErr } = await supabase.from('mc_threads').insert({
         repo: 'gig-tracker',
-        title: `[Backlog idea] ${form.title.trim()}`,
+        title: `[Backlog item] ${form.title.trim()}`,
         summary: form.why.trim().slice(0, 400),
-        category: 'fyi',
-        severity: 'low',
+        category: 'action',
+        severity: 'normal',
         status: 'waiting_on_agent',
       }).select().single();
       if (tErr) throw new Error(tErr.message);
@@ -92,18 +98,18 @@ function SuggestModal({ onClose, onSaved }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-sm font-semibold text-zinc-200">Suggest something for the backlog</h2>
+          <h2 className="text-sm font-semibold text-zinc-200">Add an item to the backlog</h2>
           <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={14} /></button>
         </div>
         <p className="text-[11px] text-zinc-500 mb-4">
           Describe it however makes sense to you — the assistant writes it up properly and adds it
-          to the list for Luke to look at.
+          to the list. Your items carry the same weight as Luke's; nobody has to approve them.
         </p>
 
         <div className="space-y-3">
           <div>
             <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-              What would you like to see? <span className="text-red-400">*</span>
+              What should the app do? <span className="text-red-400">*</span>
             </label>
             <input
               autoFocus value={form.title}
@@ -175,7 +181,7 @@ function SuggestModal({ onClose, onSaved }) {
               disabled={!canSave}
               className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded px-4 py-1.5 flex items-center gap-1.5 transition-colors"
             >
-              <Check size={11} /> {saving ? 'Sending…' : 'Send suggestion'}
+              <Check size={11} /> {saving ? 'Adding…' : 'Add to backlog'}
             </button>
           </div>
         </div>
@@ -213,14 +219,15 @@ export default function BacklogTab() {
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-zinc-500 leading-relaxed">
           The project's full to-do list, live from the file the assistants actually work from.
-          Rows marked 🧑 or 👥 need a person's call; ✅ means it's already built.
+          Rows marked 🧑 or 👥 need a person's call; ✅ means it's already built. You can add to
+          this list yourself — the same as Luke can.
         </p>
         <button
           onClick={() => setSuggesting(true)}
           disabled={!supabase}
           className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded px-3 py-1.5 transition-colors flex-shrink-0"
         >
-          <Lightbulb size={13} /> Suggest an item
+          <Lightbulb size={13} /> Add an item
         </button>
       </div>
 
@@ -228,8 +235,8 @@ export default function BacklogTab() {
         <div className="flex items-start gap-2 rounded-lg border border-emerald-800/50 bg-emerald-950/30 px-3 py-2.5 text-xs text-emerald-300">
           <Check size={14} className="shrink-0 mt-0.5" />
           <span>
-            Sent. The assistant will write it up and add it to the list — you'll get a reply on the
-            Decisions &amp; Inbox tab.
+            Added. The assistant will write it up properly and put it on the list — you'll get a
+            reply on the Decisions &amp; Inbox tab confirming where it landed.
           </span>
         </div>
       )}
