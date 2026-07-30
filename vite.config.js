@@ -16,6 +16,14 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL ?? ''),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY ?? ''),
+      // Captured at build time so the Gig Ops header can show "last updated" —
+      // there's no user-facing changelog, so the deploy date is the closest
+      // honest signal of "when did this last change." VERCEL_GIT_COMMIT_SHA is
+      // only present if "Automatically expose System Environment Variables" is
+      // on for the project (Vercel → Settings → Environment Variables); falls
+      // back to '' harmlessly if not, and the date still shows either way.
+      'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
+      'import.meta.env.VITE_BUILD_SHA': JSON.stringify((env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7)),
     },
     test: {
       environment: 'jsdom',

@@ -122,7 +122,7 @@ function Thread({ thread, messages, reload }) {
                         {mine && !m.synced && (
                           <span
                             className="text-amber-500/70"
-                            title="Saved. The assistant reads it on its next check — nothing more for you to do."
+                            title="Saved. The assistant checks in about every 4 hours, so this can take a little while — nothing more for you to do."
                           > · with the assistant</span>
                         )}
                       </div>

@@ -6,6 +6,21 @@ import DecisionsTab from './gig-ops/DecisionsTab';
 import BacklogTab from './gig-ops/BacklogTab';
 import { GIG_TRACKER_URL } from './gig-ops/constants';
 
+// Captured at build time (vite.config.js) — the closest honest "when did this
+// last change" signal, since there's no user-facing changelog. Formatted
+// plainly; the commit short-SHA rides along only as a hover tooltip, useful to
+// Luke for confirming a deploy landed, meaningless (and hidden) to Miranda.
+function lastBuiltLabel() {
+  const iso = import.meta.env.VITE_BUILD_TIME;
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    text: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+    title: import.meta.env.VITE_BUILD_SHA ? `Build ${import.meta.env.VITE_BUILD_SHA}` : undefined,
+  };
+}
+
 // Gig Ops Mission Control — a scoped, non-technical-friendly command center
 // for the Gig Tracker project, reached at /gig-ops (direct link only, no
 // Home-hub tile). Same "digested Sidekick layer over GitHub issues" idea as
@@ -17,6 +32,7 @@ import { GIG_TRACKER_URL } from './gig-ops/constants';
 // docs/GIG_OPS_SETUP.md, deliberately not in this UI.
 export default function GigOpsMissionControl() {
   const [activeTab, setActiveTab] = useState('mission');
+  const lastBuilt = lastBuiltLabel();
 
   const tabs = [
     { key: 'mission',   label: 'Mission & Background', Icon: Compass,  accent: 'text-cyan-300 border-cyan-500' },
@@ -32,14 +48,21 @@ export default function GigOpsMissionControl() {
         title="Gig Tracker — Mission Control"
         hideBack
         right={
-          <a
-            href={GIG_TRACKER_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-500"
-          >
-            Open app <ExternalLink size={11} />
-          </a>
+          <div className="flex flex-col items-end gap-1">
+            <a
+              href={GIG_TRACKER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-cyan-500"
+            >
+              Open app <ExternalLink size={11} />
+            </a>
+            {lastBuilt && (
+              <span className="text-[10px] text-zinc-600" title={lastBuilt.title}>
+                Last updated {lastBuilt.text}
+              </span>
+            )}
+          </div>
         }
       />
       <div className="max-w-3xl mx-auto px-4 py-8">

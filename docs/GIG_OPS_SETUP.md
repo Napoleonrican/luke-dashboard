@@ -169,6 +169,36 @@ separate deployment and shouldn't be treated as one.
 
 ---
 
+## 6. (Optional) Show the build's commit hash on hover
+
+The Gig Ops header already shows "Last updated <date>" — that needs nothing
+from you, it's captured automatically at build time. Hovering it also shows a
+short commit hash, purely for your own use in confirming a specific deploy
+landed; Miranda never sees it (it's a tooltip, not visible text).
+
+That hash only appears if Vercel is passing git info into the build. To turn
+that on: **Vercel → the project → Settings → Environment Variables →
+"Automatically expose System Environment Variables"** — toggle it on and
+redeploy. Skip this and the date still shows fine; you just won't get the hash.
+
+---
+
+## 7. If you ever change the Sidekick's schedule
+
+The cadence (currently `0 9-23/4,1 * * *` — five runs a day, roughly every 4
+hours, with one longer stretch overnight) is described in plain language in a
+few places, so people know a reply isn't instant without needing to read cron:
+
+- `src/pages/gig-ops/MissionTab.jsx` — "When you'll see something here" card
+- The pending-reply tooltip in `src/pages/gig-ops/DecisionsTab.jsx`
+- The matching tooltips in `src/pages/mission-control/InboxTab.jsx` and
+  `ProjectsTab.jsx`
+
+None of these read the schedule live — if you change it, update the wording by
+hand in those four spots.
+
+---
+
 ## Recurring: approving a pending database change
 
 Not specific to Gig Ops, but it comes up (e.g. the Gig Tracker RLS migration in

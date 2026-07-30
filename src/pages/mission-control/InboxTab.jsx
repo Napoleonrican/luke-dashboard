@@ -147,7 +147,7 @@ function Thread({ thread, messages, reload }) {
                         {mine && !m.synced && (
                           <span
                             className="text-amber-500/70"
-                            title="Saved. The Sidekick relays it on its next scheduled run — nothing for you to do."
+                            title="Saved. The Sidekick runs about every 4 hours and relays it then — nothing for you to do."
                           > · waiting for Sidekick</span>
                         )}
                       </div>

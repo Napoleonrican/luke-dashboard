@@ -27,7 +27,7 @@ export default function TopNav({ title, subtitle, right, hideBack = false }) {
         >
           {title}
         </span>
-        <span className="justify-self-end">{right}</span>
+        <div className="justify-self-end">{right}</div>
       </nav>
     );
   }
