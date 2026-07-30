@@ -35,6 +35,12 @@ export default function QuickRateModal({ candidates, icon: FallbackIcon, getMeta
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.tmdb_id]);
 
+  // Reset the star picker to unselected whenever a new title is presented —
+  // otherwise the value hovered/tapped on the previous title stays visually
+  // filled on the next one (most noticeable on touch, where a tap fires the
+  // hover and there's no pointer-move to clear it).
+  useEffect(() => { setHoverStar(null); }, [current?.id]);
+
   const currentMeta = meta?.tmdbId === current?.tmdb_id ? meta.data : null;
 
   const remaining = useMemo(
