@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Compass, ListTodo, ExternalLink } from 'lucide-react';
+import { Compass, Inbox, ListTodo, ExternalLink } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import MissionTab from './gig-ops/MissionTab';
 import DecisionsTab from './gig-ops/DecisionsTab';
+import BacklogTab from './gig-ops/BacklogTab';
 import { GIG_TRACKER_URL } from './gig-ops/constants';
 
 // Gig Ops Mission Control — a scoped, non-technical-friendly command center
@@ -19,7 +20,8 @@ export default function GigOpsMissionControl() {
 
   const tabs = [
     { key: 'mission',   label: 'Mission & Background', Icon: Compass,  accent: 'text-cyan-300 border-cyan-500' },
-    { key: 'decisions', label: 'Backlog & Decisions',   Icon: ListTodo, accent: 'text-amber-300 border-amber-500' },
+    { key: 'decisions', label: 'Decisions & Inbox',    Icon: Inbox,    accent: 'text-amber-300 border-amber-500' },
+    { key: 'backlog',   label: 'Full Backlog',         Icon: ListTodo, accent: 'text-emerald-300 border-emerald-500' },
   ];
 
   return (
@@ -63,7 +65,9 @@ export default function GigOpsMissionControl() {
           ))}
         </div>
 
-        {activeTab === 'decisions' ? <DecisionsTab /> : <MissionTab />}
+        {activeTab === 'decisions' ? <DecisionsTab />
+          : activeTab === 'backlog' ? <BacklogTab />
+          : <MissionTab />}
 
       </div>
     </div>

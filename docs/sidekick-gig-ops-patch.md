@@ -102,9 +102,28 @@ Handle them like Luke's, with three differences:
 `repo='gig-tracker'`, `status='waiting_on_agent'`, and **no `github_issue`** (nothing exists
 yet). For those: decide whether it's a real work item (file a GitHub issue in
 `Napoleonrican/gig-tracker` with the appropriate label, then PATCH the thread's
-`github_issue` / `github_url` so the loop is linked), a backlog idea (`ai_backlog_tasks`
-row), or just a question (answer it directly and resolve). Either way, reply to her and set
-her message `synced=true`.
+`github_issue` / `github_url` so the loop is linked), or just a question (answer it directly
+and resolve). Either way, reply to her and set her message `synced=true`.
+
+**Backlog suggestions — threads titled `[Backlog idea] …`.** The Gig Ops page has a
+"Suggest an item" form, and what it produces is titled with that exact `[Backlog idea]`
+prefix. Its first message is pre-structured (what she wants, why it matters, her sense of
+value, who she thinks it's for, optionally where in the app). Handle these as **proposals,
+never as approved work**:
+
+1. **File it as a GitHub issue** in `Napoleonrican/gig-tracker`, labelled **`enhancement`**
+   (add `ux-fieldtest` only if it's genuinely an experience observation). Rewrite her plain
+   language into the backlog's own vocabulary — a clear title, the problem it solves, and a
+   Value/Lift/Tier guess using BACKLOG.md's scales — and state plainly that it came from
+   Miranda and is **awaiting Luke's call**. Then PATCH the thread's `github_issue` /
+   `github_url` so she can follow it.
+2. **Do NOT add a row to `BACKLOG.md`, and do NOT label it `cc-review`.** Only Luke promotes
+   a proposal into real work; the Builder must not pick this up on its own. The existing
+   Monday proposal editorial pass (Step 3.6) will surface it to him with your
+   promote/decline recommendation, and his answer there is what moves it.
+3. **Reply to her** in plain language: that it's written up, where it sits, and that Luke
+   reviews new ideas in a weekly pass — so silence for a few days is normal and not a
+   rejection. Set her message `synced=true` and the thread `status='waiting_on_agent'`.
 
 **Never leave a `collab` reply sitting unsynced either** — same rule as Luke's. If you
 can't act, still reply explaining why and what's needed.

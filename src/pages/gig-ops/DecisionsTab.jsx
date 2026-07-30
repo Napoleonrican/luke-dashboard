@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ChevronDown, ChevronUp, Send, AlertTriangle, ExternalLink, SlidersHorizontal,
-  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, RefreshCw, Plus, X, Check,
+  ChevronDown, ChevronUp, Send, ExternalLink, SlidersHorizontal,
+  ShieldAlert, CircleDot, AlertTriangle, CheckCircle2, Clock, Bot, User, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from '../mission-control/Markdown';
@@ -163,62 +163,11 @@ function Thread({ thread, messages, reload }) {
   );
 }
 
-function BacklogPanel() {
-  const [markdown, setMarkdown] = useState('');
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/gig-ops-backlog');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not load the backlog.');
-      setMarkdown(data.markdown || '');
-    } catch (e) {
-      setError(e.message || 'Could not load the backlog.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-        <div>
-          <h3 className="text-sm font-semibold text-zinc-200">Full backlog</h3>
-          <p className="text-[11px] text-zinc-600 mt-0.5">
-            Live from the project's BACKLOG.md — 🧑 and 👥 rows are items that need a human call.
-          </p>
-        </div>
-        <button onClick={load} disabled={loading} className="text-zinc-600 hover:text-zinc-300 transition-colors disabled:opacity-50">
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-        </button>
-      </div>
-      <div className="px-4 py-3 max-h-[32rem] overflow-y-auto">
-        {loading ? (
-          <p className="text-xs text-zinc-600 text-center py-8">Loading…</p>
-        ) : error ? (
-          <div className="flex items-start gap-2 text-xs text-amber-300">
-            <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" /> {error}
-          </div>
-        ) : (
-          <Markdown className="text-xs text-zinc-400">{markdown}</Markdown>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Lets her open her own thread, same as Luke's "New thread" on his own
-// Inbox (InboxTab.jsx) — just fixed to repo: 'gig-tracker' since that's the
-// only project this page ever touches. No linked GitHub issue exists yet,
-// so this can't "post directly" the way answering a flagged item does; it
-// lands as a waiting_on_agent thread and the Sidekick routine picks it up
-// on its next scheduled pass, exactly like Luke starting a thread does.
+// Lets her open her own thread, same as Luke's "New thread" on his own Inbox
+// (InboxTab.jsx) — just fixed to repo: 'gig-tracker' since that's the only
+// project this page ever touches. A fresh thread has no linked GitHub issue
+// yet, so the Sidekick decides on its next run whether to file one, and
+// replies to her either way.
 function ComposeThreadModal({ onClose, reload }) {
   const [form, setForm]     = useState(BLANK_COMPOSE);
   const [saving, setSaving] = useState(false);
@@ -268,7 +217,7 @@ function ComposeThreadModal({ onClose, reload }) {
           <textarea
             value={form.details}
             onChange={e => setForm(f => ({ ...f, details: e.target.value }))}
-            placeholder="Details — what would you like looked at or decided? (Markdown supported)"
+            placeholder="Details — what would you like looked at or decided?"
             rows={4}
             className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
           />
@@ -408,8 +357,6 @@ export default function DecisionsTab() {
           </div>
         )}
       </div>
-
-      <BacklogPanel />
 
       {composing && (
         <ComposeThreadModal onClose={() => setComposing(false)} reload={load} />
