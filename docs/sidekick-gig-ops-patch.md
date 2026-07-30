@@ -82,8 +82,11 @@ Handle them like Luke's, with three differences:
    *"Input from Miranda (Gig Ops), relayed via Mission Control: …"*. Translate her
    plain language into the workers' terms the same way you do for Luke.
 
-2. **She informs; Luke decides the big ones.** She has full authority on clarifications,
-   UX/product opinions, spec detail, priority opinions, and answering questions of fact.
+2. **She informs; Luke decides the big ones — with one carve-out.** She has full authority
+   on clarifications, UX/product opinions, spec detail, priority opinions, and answering
+   questions of fact. **She also has Luke's full authority to add items to the backlog** —
+   see the `[Backlog item]` rules below; that is settled and needs no approval from him.
+
    She does **not** have authority to authorize: money/pricing/tier decisions, anything
    needing Luke's credentials or accounts, schema/RLS/migration merges, or any row the
    BACKLOG.md "Open Decisions" table or a 🧑/👥 owner marker assigns to Luke. For those,
@@ -102,9 +105,47 @@ Handle them like Luke's, with three differences:
 `repo='gig-tracker'`, `status='waiting_on_agent'`, and **no `github_issue`** (nothing exists
 yet). For those: decide whether it's a real work item (file a GitHub issue in
 `Napoleonrican/gig-tracker` with the appropriate label, then PATCH the thread's
-`github_issue` / `github_url` so the loop is linked), a backlog idea (`ai_backlog_tasks`
-row), or just a question (answer it directly and resolve). Either way, reply to her and set
-her message `synced=true`.
+`github_issue` / `github_url` so the loop is linked), or just a question (answer it directly
+and resolve). Either way, reply to her and set her message `synced=true`.
+
+**Backlog items — threads titled `[Backlog item] …`.** The Gig Ops page has an "Add an
+item" form, and what it produces is titled with that exact `[Backlog item]` prefix. Its
+first message is pre-structured (what to build, why it matters, Value, Tier, optionally
+where in the app).
+
+**Miranda has the same authority Luke does for adding backlog items** (his explicit
+instruction, 2026-07-30). These are **real items, not proposals**. Do not park them in the
+`enhancement` triage queue, do not route them through the Monday proposal pass, and do not
+wait for Luke to approve them:
+
+1. **Add the item to `BACKLOG.md` the same way you would one of Luke's.** Give it the next
+   number in the phase that fits, fill the Value / Lift / Tier / Owner columns using the
+   file's own scales — take her Value and Tier as given, and estimate **Lift** yourself,
+   since that's an engineering judgement she isn't being asked to make. Owner is `🤖` unless
+   the item genuinely needs a human, and Status is `⏳`. If it doesn't fit an existing phase,
+   put it under **Future Notes** and say so in your reply. You don't edit files directly, so
+   do this by filing the item for the Builder as in step 2 and stating explicitly that the
+   `BACKLOG.md` row is part of the task.
+2. **File it as a GitHub issue** in `Napoleonrican/gig-tracker` labelled **`cc-review`** —
+   the label the Builder actually acts on — not `enhancement`. Rewrite her plain language
+   into the backlog's vocabulary with a clear title, the problem it solves, a done-when
+   criterion, and the `BACKLOG.md` row to add. Note that it came from Miranda via Gig Ops
+   and that it is **authorised work, not a proposal**. Then PATCH the thread's
+   `github_issue` / `github_url` so she can follow it.
+3. **Reply to her** in plain language: that it's on the list, roughly where it sits in the
+   order, and that the Builder works down the list so it may be a little while before it's
+   built. Set her message `synced=true` and the thread `status='waiting_on_agent'`.
+
+Luke re-ranks the backlog whenever he likes (the file's own header says so), so a
+placement of yours that he disagrees with is a re-ordering, not a mistake — never hold an
+item back waiting to check placement with him.
+
+**Scope of this parity — read carefully.** It covers *putting work on the list*. It does
+**not** widen her authority anywhere else: the limits in point 2 above still hold in full
+for pricing/tier decisions, anything needing Luke's credentials or accounts, and
+schema/RLS/migration merges. An item of hers that *depends* on one of those still gets
+added to the backlog, but it's blocked on Luke exactly as the equivalent item of his would
+be — say so in your reply rather than silently unblocking it.
 
 **Never leave a `collab` reply sitting unsynced either** — same rule as Luke's. If you
 can't act, still reply explaining why and what's needed.

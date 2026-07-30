@@ -11,9 +11,14 @@
 // Sidekick routine.
 //
 // Supported: ATX headings (#..######), unordered lists (-, *, +), ordered
-// lists (1. 2. …), blockquotes (>), paragraphs, blank-line spacing, and the
-// inline spans bold (**/__), italic (*/_), inline code (`), and links
+// lists (1. 2. …), blockquotes (>), GFM pipe tables, thematic breaks
+// (---/***/___), paragraphs, blank-line spacing, and the inline spans bold
+// (**/__), italic (*/_), strikethrough (~~), inline code (`), and links
 // [text](url). Anything unrecognized is passed through as plain text.
+//
+// Tables, breaks and strikethrough were added for the Gig Ops "Full backlog"
+// view, which renders gig-tracker's BACKLOG.md verbatim — that file is mostly
+// pipe tables, so without them it read as raw `| 5.7 | … |` rows.
 
 // ---- inline parsing -------------------------------------------------------
 
@@ -25,6 +30,7 @@
 // intraword `_` vs `*`.
 const INLINE_RULES = [
   { type: 'strong', re: /\*\*([^*]+)\*\*|(?<![A-Za-z0-9])__([^_]+)__(?![A-Za-z0-9])/ },
+  { type: 'del',    re: /~~([^~]+)~~/ },
   { type: 'em',     re: /\*([^*\n]+)\*|(?<![A-Za-z0-9])_([^_\n]+)_(?![A-Za-z0-9])/ },
   { type: 'code',   re: /`([^`]+)`/ },
   { type: 'link',   re: /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/ },
@@ -64,6 +70,8 @@ function parseInline(text, keyPrefix = 'i') {
     } else if (rule.type === 'em') {
       const inner = m[1] ?? m[2];
       out.push(<em key={key} className="italic">{parseInline(inner, key)}</em>);
+    } else if (rule.type === 'del') {
+      out.push(<del key={key} className="line-through opacity-60">{parseInline(m[1], key)}</del>);
     } else if (rule.type === 'code') {
       out.push(
         <code key={key} className="px-1 py-0.5 rounded bg-black/30 text-[0.9em] font-mono text-inherit">{m[1]}</code>
@@ -104,12 +112,90 @@ function renderBlocks(src) {
 
   const isBullet = (l) => /^\s*[-*+]\s+/.test(l);
   const isOrdered = (l) => /^\s*\d+[.)]\s+/.test(l);
+  // A thematic break, not a bullet: three-or-more -, * or _ alone on the line.
+  const isBreak = (l) => /^\s*([-*_])(\s*\1){2,}\s*$/.test(l);
+  // A table row is a line containing a pipe that isn't the start of a list.
+  const isTableRow = (l) => /\|/.test(l) && !isBullet(l) && !isOrdered(l);
+  // The separator under a table's header: | --- | :--: | ---: |
+  const isTableSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+
+  // Split a pipe row into cells, dropping the leading/trailing empty cells
+  // produced by the conventional outer pipes.
+  const splitRow = (line) => {
+    let s = line.trim();
+    if (s.startsWith('|')) s = s.slice(1);
+    if (s.endsWith('|')) s = s.slice(0, -1);
+    return s.split('|').map((c) => c.trim());
+  };
+
+  const alignOf = (spec) => {
+    const s = spec.trim();
+    if (s.startsWith(':') && s.endsWith(':')) return 'center';
+    if (s.endsWith(':')) return 'right';
+    return 'left';
+  };
 
   while (i < lines.length) {
     const line = lines[i];
 
     // Blank line → skip (spacing comes from block margins).
     if (!line.trim()) { i++; continue; }
+
+    // Thematic break. Checked before lists so a `---` divider isn't parsed as
+    // a bullet, and before tables so it isn't mistaken for a separator row.
+    if (isBreak(line)) {
+      blocks.push(<hr key={`hr-${i}`} className="my-3 border-0 border-t border-current/20" />);
+      i++;
+      continue;
+    }
+
+    // GFM pipe table: a header row followed by a separator row. Without both,
+    // fall through so a stray pipe in prose stays prose.
+    if (isTableRow(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const header = splitRow(line);
+      const aligns = splitRow(lines[i + 1]).map(alignOf);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].trim() && isTableRow(lines[i]) && !isBreak(lines[i])) {
+        rows.push(splitRow(lines[i]));
+        i++;
+      }
+      const alignClass = (n) =>
+        aligns[n] === 'right' ? 'text-right' : aligns[n] === 'center' ? 'text-center' : 'text-left';
+      blocks.push(
+        // Wide tables scroll inside their own container rather than pushing the
+        // page sideways — BACKLOG.md has 8-column tables.
+        <div key={`tw-${i}`} className="my-2 overflow-x-auto">
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="border-b border-current/25">
+                {header.map((cell, n) => (
+                  <th
+                    key={`th-${n}`}
+                    scope="col"
+                    className={`px-2 py-1.5 font-semibold whitespace-nowrap ${alignClass(n)}`}
+                  >
+                    {parseInline(cell, `th${i}${n}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={`tr-${r}`} className="border-b border-current/10 last:border-0">
+                  {row.map((cell, n) => (
+                    <td key={`td-${r}-${n}`} className={`px-2 py-1.5 align-top ${alignClass(n)}`}>
+                      {parseInline(cell, `td${i}${r}${n}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
 
     // Heading
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
@@ -124,16 +210,19 @@ function renderBlocks(src) {
       continue;
     }
 
-    // Blockquote (consume consecutive > lines)
+    // Blockquote (consume consecutive > lines). The quoted content is parsed as
+    // markdown in its own right rather than flattened to one inline string —
+    // BACKLOG.md's "Item N spec" blocks are blockquotes wrapping bullet lists,
+    // and joining them with spaces ran the bullets together into a wall.
     if (/^\s*>\s?/.test(line)) {
       const quote = [];
-      while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
         quote.push(lines[i].replace(/^\s*>\s?/, ''));
         i++;
       }
       blocks.push(
-        <blockquote key={`q-${i}`} className="border-l-2 border-current/30 pl-2.5 my-1.5 opacity-80">
-          {parseInline(quote.join(' '), `q${i}`)}
+        <blockquote key={`q-${i}`} className="border-l-2 border-current/30 pl-2.5 my-2 opacity-80">
+          {renderBlocks(quote.join('\n'))}
         </blockquote>
       );
       continue;
@@ -172,7 +261,9 @@ function renderBlocks(src) {
       !/^(#{1,6})\s+/.test(lines[i]) &&
       !isBullet(lines[i]) &&
       !isOrdered(lines[i]) &&
-      !/^\s*>\s?/.test(lines[i])
+      !/^\s*>\s?/.test(lines[i]) &&
+      !isBreak(lines[i]) &&
+      !(isTableRow(lines[i]) && i + 1 < lines.length && isTableSep(lines[i + 1]))
     ) {
       para.push(lines[i]);
       i++;
