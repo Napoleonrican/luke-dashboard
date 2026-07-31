@@ -4,9 +4,10 @@ import { Plus, Trash2, Wallet, CalendarDays, CalendarRange, TrendingDown } from 
 import { Redacted } from './CashflowLayout';
 import {
   fetchEarninTransactions, upsertEarninTransaction, deleteRow,
-  fetchAccounts, upsertPendingTransfer, accountNameMatches,
+  fetchAccounts, upsertPendingTransfer, accountNameMatches, getPref, setPref,
 } from '../../lib/fin';
-import { fmt, fmtDec, fmtDate, todayISO, daysSince } from './format';
+import { fmt, fmtDec, fmtDate, todayISO } from './format';
+import { usageStats, RELIANCE_WINDOW_DAYS, USAGE_WINDOWS } from './earninStats';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
@@ -19,6 +20,7 @@ const KIND_COLOR = { advance: '#f59e0b', repay: '#10b981' };
 // same account-by-name convention the Waterfall uses (balanceFor('Bill Pay Checking')).
 const BILL_PAY_NAME = 'Bill Pay Checking';
 const DIRECTION_FOR_KIND = { advance: 'in', repay: 'out' };
+const WINDOW_PREF = 'earnin_usage_window';
 
 // A log of Earnin advances/repayments — feeds the Waterfall's allocation
 // engine live (its Plan Inputs "payback owed" figure is this log's running
@@ -34,6 +36,9 @@ export default function Earnin() {
   const [billPayAccountId, setBillPayAccountId] = useState(null);
   // Draft for the add-entry modal: { kind, txn_date, amount, pending, notes }.
   const [addDraft, setAddDraft] = useState(null);
+  // Which window the average cards display. Purely a lens — see the note by the
+  // stats below. null = all recorded history.
+  const [usageWindow, setUsageWindow] = useState(RELIANCE_WINDOW_DAYS);
 
   useEffect(() => {
     let active = true;
@@ -48,8 +53,16 @@ export default function Earnin() {
       const bp = (data || []).find((a) => accountNameMatches(a, BILL_PAY_NAME));
       setBillPayAccountId(bp?.id ?? null);
     });
+    getPref(WINDOW_PREF).then(({ data }) => {
+      if (!active) return;
+      // `null` is a valid stored value (All time), so check membership rather
+      // than truthiness.
+      if (USAGE_WINDOWS.some((w) => w.days === data)) setUsageWindow(data);
+    });
     return () => { active = false; };
   }, [reloadKey]);
+
+  const selectWindow = (days) => { setUsageWindow(days); setPref(WINDOW_PREF, days); };
 
   const reload = () => { setLoading(true); setError(null); setReloadKey((k) => k + 1); };
 
@@ -69,31 +82,17 @@ export default function Earnin() {
   const currentOwed = withBalance[0]?.balanceAfter ?? 0;
 
   // ── Reliance averages ──────────────────────────────────────────────────────
-  // The point of this tab is driving Earnin usage DOWN, so the headline numbers
-  // are rates, not lifetime totals. Averages divide by the whole elapsed span
-  // (first advance → today), not just the weeks a draw happened — a quiet
-  // fortnight should pull the average down, otherwise it only ever reports what
-  // a borrowing week costs and never whether you're borrowing less often.
-  const advances = rows.filter((r) => r.kind === 'advance');
-  const totalAdvanced = advances.reduce((s, r) => s + (r.amount ?? 0), 0);
-
-  const firstAdvanceISO = advances.reduce(
-    (min, r) => (r.txn_date && (!min || r.txn_date < min) ? r.txn_date : min), null,
-  );
-  // Inclusive of today, so a single same-day advance reads as 1 day, not 0.
-  const spanDays = firstAdvanceISO ? Math.max(1, (daysSince(firstAdvanceISO) ?? 0) + 1) : 0;
-  const avgPerWeek = spanDays ? totalAdvanced / (spanDays / 7) : 0;
-  const avgPerMonth = avgPerWeek * (52 / 12);
-
-  // Trailing 30 days vs the 30 before it — is reliance climbing or easing?
-  const advancedWithin = (fromDaysAgo, toDaysAgo) => advances.reduce((s, r) => {
-    const ago = daysSince(r.txn_date);
-    return ago != null && ago >= toDaysAgo && ago < fromDaysAgo ? s + (r.amount ?? 0) : s;
-  }, 0);
-  const last30 = advancedWithin(30, 0);
-  const prior30 = advancedWithin(60, 30);
-  const hasPrior = spanDays > 30;
-  const delta30 = last30 - prior30;
+  // Rates, not lifetime totals — the point of this tab is driving usage DOWN.
+  // Averages divide by the whole selected window, not just the weeks a draw
+  // happened, so a quiet fortnight pulls them down; otherwise they'd only ever
+  // report what a borrowing week costs, never whether you're borrowing less.
+  //
+  // The window here is a viewing lens. Downstream consumers (the Debt Payoff
+  // Calculator) always read the fixed 90-day figure via relianceWeekly(), so
+  // changing this selector never moves anyone's targets.
+  const stats = usageStats(rows, usageWindow);
+  const reliance = usageStats(rows, RELIANCE_WINDOW_DAYS);
+  const windowLabel = USAGE_WINDOWS.find((w) => w.days === usageWindow)?.label ?? '90 days';
 
   const update = async (id, field, value) => {
     const row = rows.find((r) => r.id === id);
@@ -204,29 +203,69 @@ export default function Earnin() {
 
   return (
     <div className="space-y-6">
+      {/* Window selector — a lens over the three usage cards. It never moves the
+          figure the Debt Calculator reads (that's pinned to 90 days). */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-zinc-500">
+          Usage over{' '}
+          <span className="text-zinc-300">{usageWindow == null ? 'all recorded history' : `the last ${usageWindow} days`}</span>
+          {stats.spanDays > 0 && usageWindow != null && stats.spanDays < usageWindow && (
+            <span className="text-zinc-600"> — only {stats.spanDays}d logged so far</span>
+          )}
+        </p>
+        <div className="inline-flex rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
+          {USAGE_WINDOWS.map((w) => (
+            <button
+              key={w.label}
+              onClick={() => selectWindow(w.days)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                usageWindow === w.days ? 'bg-amber-900/40 text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Currently owed" value={fmt(currentOwed)} privacy={privacy} tone="text-amber-400" icon={Wallet} />
         <Stat
-          label="Avg / week" value={fmt(avgPerWeek)} privacy={privacy} tone="text-orange-400" icon={CalendarDays}
-          hint={spanDays ? `Advances ÷ ${spanDays >= 14 ? `${Math.round(spanDays / 7)} weeks` : `${spanDays}d`} tracked` : 'No advances logged yet'}
-          title="Total advanced divided by the whole span since your first advance — quiet weeks count too, so this reflects how often you draw, not just how much a borrowing week costs."
+          label="Avg / week" value={fmt(stats.perWeek)} privacy={privacy} tone="text-orange-400" icon={CalendarDays}
+          hint={stats.spanDays
+            ? `Advances ÷ ${stats.spanDays >= 14 ? `${Math.round(stats.spanDays / 7)} weeks` : `${stats.spanDays}d`}`
+            : 'No advances logged yet'}
+          title="Total advanced over the selected window, divided by that window's whole length — quiet weeks count too, so this reflects how often you draw, not just what a borrowing week costs."
         />
         <Stat
-          label="Avg / month" value={fmt(avgPerMonth)} privacy={privacy} tone="text-orange-400" icon={CalendarRange}
+          label="Avg / month" value={fmt(stats.perMonth)} privacy={privacy} tone="text-orange-400" icon={CalendarRange}
           hint="Weekly average × 52/12"
           title="The weekly average scaled to a month — comparable to a monthly bill."
         />
         <Stat
-          label="Last 30 days" value={fmt(last30)} privacy={privacy} tone="text-zinc-100" icon={TrendingDown}
-          hint={hasPrior
-            ? (Math.abs(delta30) < 0.005
-              ? 'Flat vs prior 30d'
-              : `${delta30 < 0 ? '↓' : '↑'} ${fmt(Math.abs(delta30))} vs prior 30d`)
-            : 'Not enough history to compare'}
-          hintTone={hasPrior && Math.abs(delta30) >= 0.005 ? (delta30 < 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
-          title="Advances drawn in the trailing 30 days, compared with the 30 days before that. Down is progress."
+          label={usageWindow == null ? 'Total drawn' : `Last ${usageWindow} days`}
+          value={fmt(stats.total)} privacy={privacy} tone="text-zinc-100" icon={TrendingDown}
+          hint={usageWindow == null
+            ? 'All recorded advances'
+            : stats.hasPrev
+              ? (Math.abs(stats.delta) < 0.005
+                ? `Flat vs prior ${usageWindow}d`
+                : `${stats.delta < 0 ? '↓' : '↑'} ${fmt(Math.abs(stats.delta))} vs prior ${usageWindow}d`)
+              : 'Not enough history to compare'}
+          hintTone={stats.hasPrev && Math.abs(stats.delta) >= 0.005 ? (stats.delta < 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
+          title="Advances drawn in this window, compared with the equivalent window before it. Down is progress."
         />
       </div>
+
+      {/* Make the disconnect explicit when the lens isn't the canonical window,
+          so a $560/wk reading at 30d isn't mistaken for what drives the plan. */}
+      {usageWindow !== RELIANCE_WINDOW_DAYS && reliance.perWeek > 0.005 && (
+        <p className="text-xs text-zinc-600">
+          Showing <span className="text-zinc-400">{windowLabel}</span>. The Debt Payoff Calculator always uses the
+          trailing {RELIANCE_WINDOW_DAYS}-day figure —{' '}
+          <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmt(reliance.perWeek)}/wk</span></Redacted>.
+        </p>
+      )}
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800">

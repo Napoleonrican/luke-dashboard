@@ -304,10 +304,16 @@ export default function Guide() {
           <p>Since the goal is driving Earnin usage <em>down</em>, the headline numbers are rates rather than running totals:</p>
           <ul className="list-disc pl-5 space-y-1">
             <li><strong className="text-zinc-300">Currently owed</strong> — advances minus repayments, running. This is the figure the Waterfall reads.</li>
-            <li><strong className="text-zinc-300">Avg / week</strong> — total advanced ÷ the <em>whole</em> span since your first advance. Weeks where you didn’t borrow are counted, so this measures how much you lean on Earnin overall — not what a borrowing week costs. A quiet fortnight pulls it down, which is the point.</li>
+            <li><strong className="text-zinc-300">Avg / week</strong> — advanced over the selected window ÷ that window’s <em>whole</em> length. Weeks where you didn’t borrow are counted, so this measures how much you lean on Earnin overall — not what a borrowing week costs. A quiet fortnight pulls it down, which is the point.</li>
             <li><strong className="text-zinc-300">Avg / month</strong> — the weekly average × 52/12, so it’s comparable to a monthly bill.</li>
-            <li><strong className="text-zinc-300">Last 30 days</strong> — advances in the trailing 30 days, with the change vs. the 30 days before it. Green ↓ means reliance is easing; red ↑ means it’s climbing.</li>
+            <li><strong className="text-zinc-300">Last N days</strong> — advances in the window, with the change vs. the equivalent window before it. Green ↓ means reliance is easing; red ↑ means it’s climbing.</li>
           </ul>
+          <p>The synthetic opening-balance row from the import is excluded from all of these — it stands in for pre-export draws, so counting it would inflate the totals and stretch the tracked span back past your first real advance.</p>
+        </Block>
+        <Block title="The window selector — and why 90 days runs the plan">
+          <p><strong className="text-zinc-300">30 / 90 / 180 days / All time</strong> changes what the three usage cards measure. Your choice is remembered.</p>
+          <p>It matters because usage hasn’t been steady: roughly <strong className="text-zinc-300">$20–35/wk</strong> through 2022–2024, <strong className="text-zinc-300">$148/wk</strong> across 2025, and <strong className="text-zinc-300">$297/wk</strong> so far in 2026. An all-time average lands near <strong className="text-zinc-300">$91/wk</strong> — roughly a fifth of where things actually sit now, which would badly understate how much gig income it takes to retire the habit.</p>
+          <p>So the selector is a <em>lens</em>, not a setting. Anything that makes a decision off real usage — chiefly the <strong className="text-zinc-300">Debt Payoff Calculator’s</strong> reliance gauge — always reads the fixed <strong className="text-zinc-300">trailing 90 days</strong>, no matter which window you’re viewing. 90 days is about 6.5 pay cycles: recent enough to track where usage is, long enough that one heavy fortnight or a vacation doesn’t swing it. When you’re viewing anything else, a line under the cards spells out the 90-day figure so the two are never confused.</p>
         </Block>
         <Block title="Advance vs. Repay">
           <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now.</p>
@@ -322,6 +328,7 @@ export default function Guide() {
         </Block>
         <Block title="Feeds the Waterfall live">
           <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly.</p>
+          <p>The <strong className="text-zinc-300">Debt Payoff Calculator</strong> reads this log too: its “Weekly Earnin draw” is now the live trailing-90-day average rather than a number typed in once and left to rot. It shows read-only there with a <span className="text-amber-400">live</span> badge.</p>
         </Block>
       </section>
     </div>
