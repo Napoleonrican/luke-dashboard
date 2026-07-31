@@ -4,11 +4,14 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 // onSort(key) handler to make it clickable (asc → desc → off). Omit sortKey for
 // a plain header (e.g. an actions column).
 export function Th({ children, className = '', sortKey, sort, onSort, align = 'left' }) {
-  if (!sortKey) return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${className}`}>{children}</th>;
+  // `align` has to apply to plain headers too, or a right-aligned column's
+  // heading sits left of its right-aligned numbers.
+  const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : '';
+  if (!sortKey) return <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${alignClass} ${className}`}>{children}</th>;
   const active = sort?.key === sortKey;
   const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
   return (
-    <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${align === 'right' ? 'text-right' : ''} ${className}`}>
+    <th className={`px-3 py-2.5 font-medium whitespace-nowrap ${alignClass} ${className}`}>
       <button
         onClick={() => onSort(sortKey)}
         className={`group inline-flex items-center gap-1 transition-colors hover:text-zinc-200 ${active ? 'text-emerald-400' : ''} ${align === 'right' ? 'flex-row-reverse' : ''}`}

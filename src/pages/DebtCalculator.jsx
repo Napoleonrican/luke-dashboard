@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, Settings, ExternalLink, Copy, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { fetchDebts } from '../lib/fin';
+import { fetchDebts, fetchEarninTransactions } from '../lib/fin';
+import { relianceWeekly, balanceSummary, RELIANCE_WINDOW_DAYS } from './cashflow/earninStats';
 import { buildSnapshotMarkdown } from '../lib/claudeExport';
 import {
   LineChart, Line, AreaChart, Area,
@@ -146,9 +147,15 @@ export default function DebtCalculator() {
   // ── Live debts (single source of truth: fin_debts), grouped by lender ───────
   const [debts, setDebts] = useState([]);
   const [debtsLoading, setDebtsLoading] = useState(true);
+  // Earnin log, so the reliance gauge reads real usage instead of a number
+  // typed in months ago and left to rot.
+  const [earninTxns, setEarninTxns] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
+    fetchEarninTransactions().then(({ data }) => {
+      if (!cancelled) setEarninTxns(data || []);
+    });
     fetchDebts().then(({ data }) => {
       if (cancelled) return;
       const groups = {};
@@ -270,7 +277,16 @@ export default function DebtCalculator() {
   //    the break-even deficit. Hitting break-even plugs that hole and lets the
   //    buffer rebuild, and the Earnin draw fades on its own. We show it only so
   //    you can watch it trend down; we deliberately don't stack it on the goal.
-  const earninRatio = breakEvenWeekly > 0 ? earninWeekly / breakEvenWeekly : 0;
+  //
+  //    The figure is LIVE from the Cashflow → Earnin log: the trailing 90-day
+  //    average draw. It's deliberately fixed at 90 days regardless of the window
+  //    the Earnin tab is displaying, so browsing that selector never moves the
+  //    targets here. The hand-entered debt_settings value survives only as a
+  //    fallback for when the log is empty.
+  const liveEarninWeekly = useMemo(() => relianceWeekly(earninTxns), [earninTxns]);
+  const hasLiveEarnin = earninTxns.length > 0;
+  const earninWeeklyEffective = hasLiveEarnin ? liveEarninWeekly : earninWeekly;
+  const earninRatio = breakEvenWeekly > 0 ? earninWeeklyEffective / breakEvenWeekly : 0;
 
   // ── Simulation ──────────────────────────────────────────────────────────────
   const { months, payoffMonths, totalInterest } = useMemo(
@@ -348,6 +364,7 @@ export default function DebtCalculator() {
         payoffMonth: d.id in payoffMonths ? payoffMonths[d.id] : null,
       })),
       strategyComparison,
+      earnin: hasLiveEarnin ? balanceSummary(earninTxns) : null,
     });
 
     if (navigator.clipboard?.writeText) {
@@ -413,7 +430,7 @@ export default function DebtCalculator() {
             open={showInputs} setOpen={setShowInputs}
             takeHome={takeHome} setTakeHome={setTakeHome}
             billsVariable={billsVariable} setBillsVariable={setBillsVariable}
-            earninWeekly={earninWeekly} setEarninWeekly={setEarninWeekly}
+            earninWeekly={earninWeeklyEffective} setEarninWeekly={setEarninWeekly} hasLiveEarnin={hasLiveEarnin}
             totalDebtMins={totalDebtMins} monthlyOutflow={monthlyOutflow}
             monthlyDeficit={monthlyDeficit} breakEvenWeekly={breakEvenWeekly}
             privacyMode={privacyMode} inputCls={inputCls}
@@ -460,7 +477,7 @@ export default function DebtCalculator() {
                 <span>${WEEKLY_SLIDER_MAX}</span>
               </div>
               <div className="text-center text-xs mb-3 text-zinc-600">
-                Break-even is the target — <Redacted on={privacyMode}><span className="text-pink-400">~{fmt(earninWeekly)}/wk Earnin</span></Redacted> is the reliance it retires as your buffer rebuilds
+                Break-even is the target — <Redacted on={privacyMode}><span className="text-pink-400">~{fmt(earninWeeklyEffective)}/wk Earnin</span></Redacted> is the reliance it retires as your buffer rebuilds
               </div>
 
               <div className={`rounded-lg p-3 mb-4 ${isDeficit ? 'bg-red-950/50 border border-red-800/60' : 'bg-emerald-950/50 border border-emerald-800/60'}`}>
@@ -477,7 +494,7 @@ export default function DebtCalculator() {
                 )}
                 <p className="text-xs mt-1.5 pt-1.5 border-t text-pink-300/80 border-zinc-700/60">
                   <Redacted on={privacyMode}>
-                    Earnin reliance: ~{fmt(earninWeekly)}/wk ({earninRatio >= 1 ? `${earninRatio.toFixed(1)}×` : 'under'} break-even). It's mostly repaid churn, not net income to replace — plug break-even and it fades.
+                    Earnin reliance: ~{fmt(earninWeeklyEffective)}/wk ({earninRatio >= 1 ? `${earninRatio.toFixed(1)}×` : 'under'} break-even). It's mostly repaid churn, not net income to replace — plug break-even and it fades.
                   </Redacted>
                 </p>
               </div>
@@ -589,7 +606,7 @@ export default function DebtCalculator() {
 }
 
 // ─── My Numbers (compact collapsible) ─────────────────────────────────────────
-function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, earninWeekly, setEarninWeekly, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, privacyMode, inputCls }) {
+function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBillsVariable, earninWeekly, setEarninWeekly, hasLiveEarnin, totalDebtMins, monthlyOutflow, monthlyDeficit, breakEvenWeekly, privacyMode, inputCls }) {
   const shortfall = monthlyDeficit > 0 ? `DoorDash must cover ${fmt(monthlyDeficit)}/mo` : `Surplus ${fmt(Math.abs(monthlyOutflow - takeHome))}/mo ✓`;
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-xl self-start">
@@ -617,14 +634,38 @@ function MyNumbers({ open, setOpen, takeHome, setTakeHome, billsVariable, setBil
                 <input type="number" value={billsVariable} onChange={(e) => setBillsVariable(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
               </div>
             </label>
-            <label className="block sm:col-span-2">
+            {/* Live from the Earnin log once it has entries — no longer a number
+                you type and forget. Falls back to the stored value if empty. */}
+            <div className="block sm:col-span-2">
               <span className="text-xs text-zinc-400 mb-1 block">Weekly Earnin draw (reliance gauge)</span>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
-                <input type="number" value={earninWeekly} onChange={(e) => setEarninWeekly(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
-              </div>
-              <span className="text-xs text-zinc-500 mt-1 block">Recent avg from your Earnin report — the reliance you want DoorDash to replace.</span>
-            </label>
+              {hasLiveEarnin ? (
+                <>
+                  <div className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800/60 px-3 py-2">
+                    <Redacted on={privacyMode}>
+                      <span className="text-sm font-semibold text-pink-400 tabular-nums">{fmt(earninWeekly)}/wk</span>
+                    </Redacted>
+                    <span className="rounded bg-amber-900/30 px-1 text-[9px] uppercase tracking-wide text-amber-400">live</span>
+                  </div>
+                  <span className="text-xs text-zinc-500 mt-1 block">
+                    Trailing {RELIANCE_WINDOW_DAYS}-day average from your{' '}
+                    <Link to="/cashflow/earnin" className="text-emerald-400 hover:text-emerald-300">Earnin log</Link>
+                    {' '}— the reliance you want DoorDash to replace. Changing the window on that tab doesn&rsquo;t move this.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">$</span>
+                    <input type="number" value={earninWeekly} onChange={(e) => setEarninWeekly(parseFloat(e.target.value) || 0)} onFocus={(e) => e.target.select()} className={`${inputCls()} pl-7 pr-3`} />
+                  </div>
+                  <span className="text-xs text-zinc-500 mt-1 block">
+                    Manual for now — log advances on the{' '}
+                    <Link to="/cashflow/earnin" className="text-emerald-400 hover:text-emerald-300">Earnin tab</Link>
+                    {' '}and this becomes live.
+                  </span>
+                </>
+              )}
+            </div>
           </div>
           <div className="bg-zinc-800 rounded-xl p-3 text-xs space-y-1.5">
             <Row label="Debt minimums (live)" value={`${fmt(totalDebtMins)}/mo`} privacyMode={privacyMode} />

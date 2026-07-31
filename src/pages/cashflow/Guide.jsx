@@ -18,7 +18,7 @@ const SECTIONS = [
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-30' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
-  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-30' },
+  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-31' },
 ];
 
 // Every waterfall step, in pour order, in plain English. Mirrors DEFAULT_STEPS
@@ -296,18 +296,44 @@ export default function Guide() {
       <section id="earnin" className="space-y-4 scroll-mt-6">
         <SectionHeader s={meta('earnin')} />
         <p className="text-sm text-zinc-400 leading-relaxed">
-          A transaction log for Earnin advances and repayments — until a Monarch export can backfill
-          full history. Its running balance feeds the Waterfall live, and it can post directly to
-          Current Balances as a pending transfer.
+          A transaction log for Earnin advances and repayments, backfilled from Monarch and carrying
+          the reliance averages that show whether usage is trending down. Its running balance feeds
+          the Waterfall live, and it can post directly to Current Balances as a pending transfer.
         </p>
+        <Block title="The four cards — reliance, not lifetime totals">
+          <p>Since the goal is driving Earnin usage <em>down</em>, the headline numbers are rates rather than running totals:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong className="text-zinc-300">Currently owed</strong> — advances minus repayments, running. This is the figure the Waterfall reads.</li>
+            <li><strong className="text-zinc-300">Avg / week</strong> — advanced over the selected window ÷ that window’s <em>whole</em> length. Weeks where you didn’t borrow are counted, so this measures how much you lean on Earnin overall — not what a borrowing week costs. A quiet fortnight pulls it down, which is the point.</li>
+            <li><strong className="text-zinc-300">Avg / month</strong> — the weekly average × 52/12, so it’s comparable to a monthly bill.</li>
+            <li><strong className="text-zinc-300">Last N days</strong> — advances in the window, with the change vs. the equivalent window before it. Green ↓ means reliance is easing; red ↑ means it’s climbing.</li>
+          </ul>
+          <p>The synthetic opening-balance row from the import is excluded from all of these — it stands in for pre-export draws, so counting it would inflate the totals and stretch the tracked span back past your first real advance.</p>
+        </Block>
+        <Block title="Draw volume is not an income gap">
+          <p>The weekly average is the biggest number on this tab, and it’s easy to read it as “I’m short this much every week.” You aren’t. Each advance is clawed back from the next paycheck, so the same money recycles inside the pay cycle — the volume is mostly <em>churn</em>.</p>
+          <p>The honest measure of how deep you are is the <strong className="text-zinc-300">average carried balance</strong>: what’s outstanding averaged across the whole window. It’s used instead of a point-in-time balance because that depends entirely on where you happen to be in the pay cycle — sampled mid-cycle it’s a full stack of draws, sampled the day after payday it’s near zero. On the current data that float sits around <strong className="text-zinc-300">$500</strong> and has hovered there for years, rather than compounding.</p>
+          <p>Which is why the Debt Payoff Calculator shows reliance as <em>context</em> and doesn’t stack it onto the break-even target: doing so would treat recycled money as missing income and overstate the goal by roughly an order of magnitude. Hit break-even and the float retires itself as your buffer rebuilds.</p>
+        </Block>
+        <Block title="The window selector — and why 90 days runs the plan">
+          <p><strong className="text-zinc-300">30 / 90 / 180 days / All time</strong> changes what the three usage cards measure. Your choice is remembered.</p>
+          <p>It matters because usage hasn’t been steady: roughly <strong className="text-zinc-300">$20–35/wk</strong> through 2022–2024, <strong className="text-zinc-300">$148/wk</strong> across 2025, and <strong className="text-zinc-300">$297/wk</strong> so far in 2026. An all-time average lands near <strong className="text-zinc-300">$91/wk</strong> — roughly a fifth of where things actually sit now, which would badly understate how much gig income it takes to retire the habit.</p>
+          <p>So the selector is a <em>lens</em>, not a setting. Anything that makes a decision off real usage — chiefly the <strong className="text-zinc-300">Debt Payoff Calculator’s</strong> reliance gauge — always reads the fixed <strong className="text-zinc-300">trailing 90 days</strong>, no matter which window you’re viewing. 90 days is about 6.5 pay cycles: recent enough to track where usage is, long enough that one heavy fortnight or a vacation doesn’t swing it. When you’re viewing anything else, a line under the cards spells out the 90-day figure so the two are never confused.</p>
+        </Block>
         <Block title="Advance vs. Repay">
-          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now. “Currently owed” is simply advances minus repayments, running.</p>
+          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now.</p>
+        </Block>
+        <Block title="Imported history">
+          <p>Migration <strong className="text-zinc-300">048</strong> backfilled the log from a Monarch export — 336 transactions covering Oct 2021 → 8 Jul 2026. It stops there on purpose: entries from 10 Jul onward were logged by hand, and the import lands on a payday settlement at a balance of exactly <strong className="text-zinc-300">$0.00</strong>, so the hand-logged rows pick up from a clean zero with no overlap.</p>
+          <p>A Monarch repayment line bundles the advance with its tip/Lightning-Speed fee (a $150 advance comes back as a $155.99 debit), so the import records each repayment at the <strong className="text-zinc-300">principal it retired</strong> and drops the fee — otherwise those fees would compound into a drifting negative balance. There’s also one opening-balance advance, since the export begins mid-stream with repayments for advances drawn before its window.</p>
+          <p>Imported rows carry an <code className="text-zinc-300">import_key</code> under a unique index, so re-running the import — or loading a future export that overlaps — can’t duplicate anything. Rows you logged by hand have no key and are never touched.</p>
         </Block>
         <Block title="The Pending checkbox → Current Balances">
           <p>Check <strong className="text-zinc-300">Pending</strong> on a row before the money’s actually landed or cleared. It creates a real pending transfer on Bill Pay Checking — an advance posts as money <em>in</em>, a repay posts as money <em>out</em> — which is the same table Current Balances reads for its projected-balance lines. Editing the amount or date afterward keeps the linked transfer in sync; uncheck it (or delete the row) once the real transaction posts, and the transfer goes with it.</p>
         </Block>
         <Block title="Feeds the Waterfall live">
           <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly.</p>
+          <p>The <strong className="text-zinc-300">Debt Payoff Calculator</strong> reads this log too: its “Weekly Earnin draw” is now the live trailing-90-day average rather than a number typed in once and left to rot. It shows read-only there with a <span className="text-amber-400">live</span> badge, and the Export for Claude snapshot carries the same figures.</p>
         </Block>
       </section>
     </div>
