@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Plus, X, Trash2, Edit2, Check, Menu, ListChecks } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import SettingsPanel from '../components/SettingsPanel';
+import StrikeToast from '../components/StrikeToast';
 import ShiftPanel from '../components/ShiftPanel';
 import WeeklySchedulePanel from '../components/WeeklySchedulePanel';
 import { supabase } from '../lib/supabase';
@@ -13,6 +14,7 @@ const HISTORY_STORAGE_KEY = 'gig_tracker_history';
 const LAST_PLATFORM_KEY = 'gig_tracker_last_platform';
 const STRIKE_MODE_KEY = 'gig_tracker_strike_mode';
 const STRIKE_THRESHOLD_KEY = 'gig_tracker_strike_threshold';
+const AGGRESSIVENESS_KEY = 'gig_tracker_aggressiveness';
 const PLATFORMS = ['UberEats', 'DoorDash'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const ZONES = ['Augusta', 'Brunswick/Bath/Freeport', 'Lewiston', 'Portland'];
@@ -102,6 +104,121 @@ function computeElapsedMinutes(startTime, breakLength) {
   return Math.max(0, (now - startDate) / 60000 - Number(breakLength));
 }
 
+// --- Strike system (ported from the standalone Gig Tracker, items 2.9–2.11) ---
+// Aggressiveness scales the time-based triggers. 'conservative' = Hustle (fires
+// earliest), 'balanced' = default, 'aggressive' = Selective (fires latest).
+const AGG_DROOP_FACTOR    = { conservative: 0.85, balanced: 0.80, aggressive: 0.70 };
+const AGG_IDLE_MINUTES    = { conservative: 20,   balanced: 25,   aggressive: 35   };
+const AGG_STRIKE_LOOKBACK = { conservative: 1,    balanced: 2,    aggressive: 3    };
+
+// Order-event strike delta. hybrid/auto both auto-remove a strike when an order
+// pushes shift EPH to the daily peak; only auto adds a strike when EPH drops
+// below the current zone benchmark. manual is a no-op. Corrections (edit/remove)
+// pass allowAdd:false so a typo fix can only ever reduce strikes, never add.
+function computeStrikeUpdate({ currentStrikes, newEph, dayMax, zoneAvg = 0, strikeMode, strikeThreshold, allowAdd = true }) {
+  let newStrikes = currentStrikes;
+  if (strikeMode === 'hybrid') {
+    newStrikes = newEph >= dayMax ? Math.max(0, currentStrikes - 1) : currentStrikes;
+  } else if (strikeMode === 'auto') {
+    if (newEph >= dayMax) newStrikes = Math.max(0, currentStrikes - 1);
+    else if (allowAdd && newEph < zoneAvg) newStrikes = Math.min(strikeThreshold, currentStrikes + 1);
+  }
+  return newStrikes;
+}
+
+// Evaluate the four time-based strike triggers for one 60s tick. Pure — no side
+// effects; the caller owns cooldown refs and applies setState/toasts. At most one
+// trigger fires per tick (priority order: droop → idle → stretch → minGoal).
+// `zoneAvg` is the current zone/day EPH benchmark, passed in so live Supabase data
+// is used when available (falls back to the hardcoded ZONE_EPH at the call site).
+// Returns { fired, triggerKey, toastMsg, hybridMsg }.
+function evaluateStrikeTriggers({
+  orderLog, startTime, breakMinutes,
+  strikes, strikeThreshold, aggressiveness, nowMs, zoneAvg,
+  droopLastFiredMs, idleFired, stretchFired, minGoalFired,
+  stretchGoalDollars, stretchGoalHours, minGoalDollars, minGoalHours,
+  prevOrderEphs, shiftStartedAtMs,
+}) {
+  const none = { fired: false, triggerKey: null, toastMsg: null, hybridMsg: null };
+  if (strikes >= strikeThreshold) return none;
+
+  const orders      = orderLog || [];
+  const droopFactor = AGG_DROOP_FACTOR[aggressiveness]    ?? 0.80;
+  const idleMins    = AGG_IDLE_MINUTES[aggressiveness]    ?? 25;
+  const lookback    = AGG_STRIKE_LOOKBACK[aggressiveness] ?? 2;
+
+  const orderCombined = orders.reduce((sum, o) => sum + o.amount, 0);
+  let triggerKey = null;
+  let toastMsg   = null;
+  let hybridMsg  = null;
+
+  // Trigger 1 — Rolling-EPH droop (throttled to once per 5 min to avoid repeat fires).
+  // Requires shift elapsed ≥20 min and ≥2 orders in the window so a single early
+  // order isn't extrapolated over the full 30-min divisor.
+  if (!triggerKey && nowMs - droopLastFiredMs >= 5 * 60 * 1000) {
+    const elapsedForDroop = computeElapsedMinutes(startTime, Number(breakMinutes));
+    const thirtyMinAgo    = nowMs - 30 * 60 * 1000;
+    const recent          = orders.filter(o => new Date(o.timestamp).getTime() >= thirtyMinAgo);
+    if (elapsedForDroop >= 20 && recent.length >= 2) {
+      const rollingEph = recent.reduce((sum, o) => sum + o.amount, 0) / 0.5;
+      if (rollingEph <= zoneAvg * droopFactor) {
+        triggerKey = 'droop';
+        toastMsg   = `Your EPH dropped ${Math.round((1 - droopFactor) * 100)}% below your zone average over the last 30 min — strike added.`;
+        hybridMsg  = `🚩 Your EPH dropped ${Math.round((1 - droopFactor) * 100)}% below your zone average over the last 30 min. Add a strike?`;
+      }
+    }
+  }
+
+  // Trigger 2 — Idle gap + low current EPH (once per idle period, resets on next order).
+  if (!triggerKey && !idleFired) {
+    const lastTs     = orders.length > 0
+      ? Math.max(...orders.map(o => new Date(o.timestamp).getTime()))
+      : (shiftStartedAtMs || 0);
+    const elapsed    = computeElapsedMinutes(startTime, Number(breakMinutes));
+    const currentEph = elapsed > 0 ? orderCombined / (elapsed / 60) : 0;
+    if (nowMs - lastTs >= idleMins * 60 * 1000 && currentEph < zoneAvg) {
+      triggerKey = 'idle';
+      toastMsg   = `No new orders for ${idleMins} min and your EPH is below your zone average — strike added.`;
+      hybridMsg  = `🚩 No new orders for ${idleMins} min and your EPH is below your zone average. Add a strike?`;
+    }
+  }
+
+  // Trigger 4 — Stretch-hit cool-down: stretch goal reached but last N orders underperformed.
+  if (!triggerKey && !stretchFired) {
+    const stretchDols = Number(stretchGoalDollars) || 0;
+    const stretchHrs  = Number(stretchGoalHours)   || 0;
+    if (stretchDols > 0) {
+      const elapsed    = computeElapsedMinutes(startTime, Number(breakMinutes));
+      const stretchHit = orderCombined >= stretchDols && elapsed / 60 >= stretchHrs;
+      if (stretchHit) {
+        const recentEphs = (prevOrderEphs || []).slice(0, lookback);
+        if (recentEphs.length >= lookback && recentEphs.every(e => e < zoneAvg)) {
+          triggerKey = 'stretch';
+          toastMsg   = `You've hit your stretch goal and recent orders are slowing — consider heading home.`;
+          hybridMsg  = `🚩 You've hit your stretch goal and recent orders are slowing. Add a strike?`;
+        }
+      }
+    }
+  }
+
+  // Trigger 7 — Approaching min-goal time while well below target earnings (once per shift).
+  if (!triggerKey && !minGoalFired) {
+    const minDols = Number(minGoalDollars) || 0;
+    const minHrs  = Number(minGoalHours)   || 0;
+    if (minDols > 0 && minHrs > 0) {
+      const elapsed     = computeElapsedMinutes(startTime, Number(breakMinutes));
+      const minTimeLeft = Math.max(0, minHrs * 60 - elapsed);
+      if (minTimeLeft <= 30 && orderCombined < minDols * 0.7) {
+        triggerKey = 'minGoal';
+        toastMsg   = `Less than 30 min to goal time and you're under 70% of your target earnings — strike added.`;
+        hybridMsg  = `🚩 Less than 30 min to goal time and you're under 70% of your target earnings. Add a strike?`;
+      }
+    }
+  }
+
+  return { fired: triggerKey !== null, triggerKey, toastMsg, hybridMsg };
+}
+
 function getDefaultState() {
   return {
     shiftStarted: false,
@@ -126,6 +243,9 @@ function getDefaultState() {
     shiftDate: todayISO(),
     lastOrderEph: 0,
     orderType: 'Hourly',
+    // Strike-system fields (ported from standalone, items 2.9–2.11)
+    shiftStartedAtMs: 0,        // shift start epoch — idle-trigger baseline before any orders
+    prevOrderEphs: [],          // last 3 pre-order EPH snapshots (stretch cool-down lookback)
   };
 }
 
@@ -177,6 +297,28 @@ export default function GigTracker() {
   // Strike-tracking behavior: 'manual' | 'hybrid' | 'auto' (persisted per-device)
   const [strikeMode, setStrikeMode] = useState(() => localStorage.getItem(STRIKE_MODE_KEY) || 'hybrid');
   const [strikeThreshold, setStrikeThreshold] = useState(() => parseInt(localStorage.getItem(STRIKE_THRESHOLD_KEY) || '3', 10));
+  // Acceptance aggressiveness — scales the time-based strike triggers (2.9)
+  const [aggressiveness, setAggressiveness] = useState(() => localStorage.getItem(AGGRESSIVENESS_KEY) || 'balanced');
+
+  // Strike notification toasts (auto Undo / hybrid Yes-Skip prompts)
+  const [toasts, setToasts] = useState([]);
+
+  // Refs so the 60s strike interval reads live settings without stale closures
+  const strikeModeRef = useRef(strikeMode);
+  useEffect(() => { strikeModeRef.current = strikeMode; }, [strikeMode]);
+  const strikeThresholdRef = useRef(strikeThreshold);
+  useEffect(() => { strikeThresholdRef.current = strikeThreshold; }, [strikeThreshold]);
+  const aggressivenessRef = useRef(aggressiveness);
+  useEffect(() => { aggressivenessRef.current = aggressiveness; }, [aggressiveness]);
+
+  // 2.9 auto-strike trigger cooldown / once-per-period guards (refs, no re-render needed)
+  const droopStrikeLastMsRef = useRef(0);        // last droop fire (5-min gate)
+  const autoIdleStrikeFiredRef = useRef(false);  // idle: reset on each new order
+  const stretchStrikeFiredRef = useRef(false);   // stretch: once per shift
+  const minGoalStrikeFiredRef = useRef(false);   // min-goal: once per shift
+  const toastIdRef = useRef(0);
+  const addToastRef = useRef(null);
+  const addPromptToastRef = useRef(null);
 
   // Supabase-fetched benchmark data; null = not yet loaded (fallback to hardcoded)
   const [zoneData, setZoneData] = useState(null);
@@ -451,15 +593,117 @@ export default function GigTracker() {
   // Persist strike-tracking prefs whenever they change
   useEffect(() => { localStorage.setItem(STRIKE_MODE_KEY, strikeMode); }, [strikeMode]);
   useEffect(() => { localStorage.setItem(STRIKE_THRESHOLD_KEY, String(strikeThreshold)); }, [strikeThreshold]);
+  useEffect(() => { localStorage.setItem(AGGRESSIVENESS_KEY, aggressiveness); }, [aggressiveness]);
+
+  // Strike toast helpers — auto mode adds a strike then shows an Undo toast;
+  // hybrid mode shows a Yes/Skip prompt and only adds the strike on Yes.
+  function addToast(message, undoFn = null) {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { id, message, undoFn }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 8000);
+  }
+  function dismissToast(id) {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }
+  function addPromptToast(message, onYes) {
+    const id = ++toastIdRef.current;
+    let resolved = false;
+    const resolve = (actionFn) => {
+      if (resolved) return;
+      resolved = true;
+      actionFn?.();
+      setToasts(prev => prev.filter(t => t.id !== id));
+    };
+    setToasts(prev => [...prev, {
+      id,
+      message,
+      onYes: () => resolve(onYes),
+      onSkip: () => resolve(null),
+    }]);
+    setTimeout(() => resolve(null), 12000);
+  }
+  addToastRef.current = addToast;
+  addPromptToastRef.current = addPromptToast;
+
+  // 2.9 — Time-based auto-strike triggers, evaluated every 60s while a shift is
+  // active. Skipped during breaks and in manual mode. At most one strike fires
+  // per tick. In auto the strike is applied immediately with an Undo toast; in
+  // hybrid the driver is prompted (Yes/Skip) before anything is added.
+  useEffect(() => {
+    if (!state.shiftStarted) return;
+    const id = setInterval(() => {
+      const s = stateRef.current;
+      if (!s.shiftStarted || s.breakRunning) return;
+      const mode = strikeModeRef.current;
+      if (mode === 'manual') return;
+
+      const zd = zoneDataRef.current;
+      const zoneAvg = zd?.[s.zone]?.[s.day]?.eph ?? ZONE_EPH[s.zone]?.[s.day] ?? 20;
+
+      const nowMs  = Date.now();
+      const result = evaluateStrikeTriggers({
+        orderLog:           s.orderLog,
+        startTime:          s.startTime,
+        breakMinutes:       s.breakMinutes,
+        strikes:            s.strikes,
+        strikeThreshold:    strikeThresholdRef.current,
+        aggressiveness:     aggressivenessRef.current,
+        nowMs,
+        zoneAvg,
+        droopLastFiredMs:   droopStrikeLastMsRef.current,
+        idleFired:          autoIdleStrikeFiredRef.current,
+        stretchFired:       stretchStrikeFiredRef.current,
+        minGoalFired:       minGoalStrikeFiredRef.current,
+        stretchGoalDollars: s.stretchGoalDollars,
+        stretchGoalHours:   s.stretchGoalHours,
+        minGoalDollars:     s.minGoalDollars,
+        minGoalHours:       s.minGoalHours,
+        prevOrderEphs:      s.prevOrderEphs,
+        shiftStartedAtMs:   s.shiftStartedAtMs,
+      });
+
+      if (!result.fired) return;
+
+      // Advance the cooldown / once-per-period guard for whichever trigger fired.
+      if (result.triggerKey === 'droop')   droopStrikeLastMsRef.current   = nowMs;
+      if (result.triggerKey === 'idle')    autoIdleStrikeFiredRef.current = true;
+      if (result.triggerKey === 'stretch') stretchStrikeFiredRef.current  = true;
+      if (result.triggerKey === 'minGoal') minGoalStrikeFiredRef.current  = true;
+
+      if (mode === 'auto') {
+        setState(prev => ({ ...prev, strikes: Math.min(strikeThresholdRef.current, prev.strikes + 1) }));
+        if (result.toastMsg) {
+          addToastRef.current?.(result.toastMsg, () =>
+            setState(prev => ({ ...prev, strikes: Math.max(0, prev.strikes - 1) }))
+          );
+        }
+      } else if (result.hybridMsg) {
+        addPromptToastRef.current?.(
+          result.hybridMsg,
+          () => setState(prev => ({ ...prev, strikes: Math.min(strikeThresholdRef.current, prev.strikes + 1) }))
+        );
+      }
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, [state.shiftStarted]);
 
   function update(partial) {
     setState(s => ({ ...s, ...partial }));
   }
 
+  // Clear the strike-trigger cooldown / once-per-shift guards (end / reset / new shift)
+  function resetStrikeGuards() {
+    droopStrikeLastMsRef.current = 0;
+    autoIdleStrikeFiredRef.current = false;
+    stretchStrikeFiredRef.current = false;
+    minGoalStrikeFiredRef.current = false;
+  }
+
   function startShift() {
     const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
     const elapsed = computeElapsedMinutes(state.startTime, totalBreak);
-    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now() });
+    resetStrikeGuards(); // fresh shift → clear the strike-trigger guards
+    update({ shiftStarted: true, setupCollapsed: true, shiftDate: todayISO(), ephElapsedMinutes: elapsed, etaAnchorMs: Date.now(), shiftStartedAtMs: Date.now() });
     setResumePrompt(false);
     setSetupModalOpen(false);
     if (supabase) {
@@ -531,6 +775,7 @@ export default function GigTracker() {
     setSetupModalOpen(false);
     setHamburgerOpen(false);
     setResumePrompt(false);
+    resetStrikeGuards();
     setState(getDefaultState());
     setPrefsLoadKey(k => k + 1);
 
@@ -571,22 +816,23 @@ export default function GigTracker() {
     const dayMax = zd
       ? (Math.max(...ZONES.map(z => zd?.[z]?.[state.day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIndex] ?? 22))
       : (DAY_MAX_EPH[dayIndex] ?? 22);
-    const zoneEphs = zd
-      ? ZONES.map(z => zd[z]?.[state.day]?.eph).filter(Boolean)
-      : ZONES.map(z => ZONE_EPH[z]?.[state.day]).filter(Boolean);
-    const zoneAvg = zoneEphs.length > 0 ? zoneEphs.reduce((a, b) => a + b, 0) / zoneEphs.length : 0;
+    // Order-event strike threshold is the CURRENT zone/day benchmark (matches the
+    // standalone app and the "below your zone average" copy), preferring live data.
+    const zoneAvg = zd?.[state.zone]?.[state.day]?.eph ?? ZONE_EPH[state.zone]?.[state.day] ?? 20;
 
-    // Strike adjustment depends on the selected mode:
-    //  manual → no automatic change (driver uses +/− buttons)
-    //  hybrid → auto-clear one strike when EPH hits the daily peak; manual add
-    //  auto   → also auto-add a strike when EPH drops below the zone average
-    let newStrikes = state.strikes;
-    if (strikeMode === 'hybrid') {
-      if (newEph >= dayMax) newStrikes = Math.max(0, state.strikes - 1);
-    } else if (strikeMode === 'auto') {
-      if (newEph >= dayMax) newStrikes = Math.max(0, state.strikes - 1);
-      else if (newEph < zoneAvg) newStrikes = Math.min(strikeThreshold, state.strikes + 1);
+    // Order-event strike delta: hybrid/auto auto-remove at the daily peak; auto also
+    // adds when EPH drops below the zone benchmark. Manual is a no-op.
+    const newStrikes = computeStrikeUpdate({
+      currentStrikes: state.strikes, newEph, dayMax, zoneAvg, strikeMode, strikeThreshold,
+    });
+    if (newStrikes > state.strikes && strikeMode === 'auto') {
+      addToast('Your EPH dropped below your zone average — strike added.', () =>
+        setState(prev => ({ ...prev, strikes: Math.max(0, prev.strikes - 1) }))
+      );
     }
+    // Snapshot the pre-order EPH (last 3) for the stretch cool-down trigger lookback.
+    const preOrderEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
+    const newPrevOrderEphs = [preOrderEph, ...(state.prevOrderEphs || [])].slice(0, 3);
 
     setState(s => ({
       ...s,
@@ -595,12 +841,14 @@ export default function GigTracker() {
       etaAnchorMs: Date.now(),
       strikes: newStrikes,
       lastOrderEph: capturedEph,
+      prevOrderEphs: newPrevOrderEphs,
     }));
 
     localStorage.setItem(LAST_PLATFORM_KEY, platformLabel);
     setSelectedPlatform(platformLabel);
     setOrderInputOpen(false);
     setOrderInputValue('');
+    autoIdleStrikeFiredRef.current = false; // new order re-arms the idle trigger
   }
 
   function removeOrder(id) {
@@ -611,12 +859,26 @@ export default function GigTracker() {
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
+    // Recompute strikes from the corrected log. Corrections only ever REMOVE a
+    // strike (allowAdd:false) — a typo fix shouldn't penalise the driver.
+    const newCombined = state.orderLog.filter(o => o.id !== id).reduce((s, o) => s + o.amount, 0);
+    const newEph = currentElapsedHours > 0 ? newCombined / currentElapsedHours : 0;
+    const dayIndex = DAYS.indexOf(state.day);
+    const zd = zoneDataRef.current;
+    const dayMax = zd
+      ? (Math.max(...ZONES.map(z => zd?.[z]?.[state.day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIndex] ?? 22))
+      : (DAY_MAX_EPH[dayIndex] ?? 22);
+    const newStrikes = computeStrikeUpdate({
+      currentStrikes: state.strikes, newEph, dayMax, strikeMode, strikeThreshold, allowAdd: false,
+    });
+
     setState(s => ({
       ...s,
       orderLog: s.orderLog.filter(o => o.id !== id),
       ephElapsedMinutes: currentElapsed,
       etaAnchorMs: Date.now(),
       lastOrderEph: capturedEph,
+      strikes: newStrikes,
     }));
   }
 
@@ -631,12 +893,27 @@ export default function GigTracker() {
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? existingCombined / currentElapsedHours : 0;
 
+    // Recompute strikes from the edited log — corrections only ever remove (allowAdd:false).
+    const newCombined = state.orderLog
+      .map(o => o.id === id ? { ...o, amount: newAmount } : o)
+      .reduce((s, o) => s + o.amount, 0);
+    const newEph = currentElapsedHours > 0 ? newCombined / currentElapsedHours : 0;
+    const dayIndex = DAYS.indexOf(state.day);
+    const zd = zoneDataRef.current;
+    const dayMax = zd
+      ? (Math.max(...ZONES.map(z => zd?.[z]?.[state.day]?.eph ?? 0)) || (DAY_MAX_EPH[dayIndex] ?? 22))
+      : (DAY_MAX_EPH[dayIndex] ?? 22);
+    const newStrikes = computeStrikeUpdate({
+      currentStrikes: state.strikes, newEph, dayMax, strikeMode, strikeThreshold, allowAdd: false,
+    });
+
     setState(s => ({
       ...s,
       orderLog: s.orderLog.map(o => o.id === id ? { ...o, amount: newAmount } : o),
       ephElapsedMinutes: currentElapsed,
       etaAnchorMs: Date.now(),
       lastOrderEph: capturedEph,
+      strikes: newStrikes,
     }));
     setEditingOrderId(null);
     setEditingValue('');
@@ -910,7 +1187,12 @@ export default function GigTracker() {
         onStrikeModeChange={setStrikeMode}
         strikeThreshold={strikeThreshold}
         onStrikeThresholdChange={setStrikeThreshold}
+        aggressiveness={aggressiveness}
+        onAggressivenessChange={setAggressiveness}
       />
+
+      {/* Strike notifications (auto Undo / hybrid Yes-Skip prompts) */}
+      <StrikeToast toasts={toasts} onDismiss={dismissToast} />
 
       {/* Shift panel — Edit Setup, Break Timer, End Shift, Reset together */}
       <ShiftPanel
@@ -928,6 +1210,7 @@ export default function GigTracker() {
         onReset={() => {
           clearActiveShiftRemote();
           localStorage.removeItem(STORAGE_KEY);
+          resetStrikeGuards();
           setState(getDefaultState());
           setPrefsLoadKey(k => k + 1);
         }}
