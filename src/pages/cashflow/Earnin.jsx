@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Wallet, CalendarDays, CalendarRange, TrendingDown, Receipt } from 'lucide-react';
+import { Plus, Trash2, Wallet, CalendarDays, CalendarRange, TrendingDown } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
   fetchEarninTransactions, upsertEarninTransaction, deleteRow,
@@ -12,22 +12,13 @@ import EditCell from './EditCell';
 import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
 import { notifyError } from './toast';
 
-// 'fee' is a tip / Lightning Speed charge. It's money owed to Earnin just like
-// an advance, so it ADDS to the running balance — Earnin debits advance + fee
-// together, and a repay row carries that whole debit. Keeping the fee on its own
-// line is what makes the balance net to zero each cycle and surfaces the real
-// cost of leaning on Earnin (the Monarch backfill in migration 048 splits every
-// historical repayment this way).
-const KINDS = ['advance', 'repay', 'fee'];
-const KIND_LABEL = { advance: 'Advance', repay: 'Repay', fee: 'Fee / Tip' };
-const KIND_COLOR = { advance: '#f59e0b', repay: '#10b981', fee: '#f43f5e' };
-const ADDS_TO_BALANCE = (kind) => kind === 'advance' || kind === 'fee';
+const KINDS = ['advance', 'repay'];
+const KIND_LABEL = { advance: 'Advance', repay: 'Repay' };
+const KIND_COLOR = { advance: '#f59e0b', repay: '#10b981' };
 // Advances land IN Bill Pay Checking; repayments go OUT of it back to Earnin —
 // same account-by-name convention the Waterfall uses (balanceFor('Bill Pay Checking')).
-// A fee never moves money on its own (it rides along with the repay debit), so
-// it's not offered a pending transfer.
 const BILL_PAY_NAME = 'Bill Pay Checking';
-const DIRECTION_FOR_KIND = { advance: 'in', repay: 'out', fee: 'out' };
+const DIRECTION_FOR_KIND = { advance: 'in', repay: 'out' };
 
 // A log of Earnin advances/repayments — feeds the Waterfall's allocation
 // engine live (its Plan Inputs "payback owed" figure is this log's running
@@ -69,7 +60,7 @@ export default function Earnin() {
     let running = 0;
     const balanceById = new Map();
     for (const r of chrono) {
-      running += ADDS_TO_BALANCE(r.kind) ? (r.amount ?? 0) : -(r.amount ?? 0);
+      running += r.kind === 'advance' ? (r.amount ?? 0) : -(r.amount ?? 0);
       balanceById.set(r.id, running);
     }
     return rows.map((r) => ({ ...r, balanceAfter: balanceById.get(r.id) ?? 0 }));
@@ -103,11 +94,6 @@ export default function Earnin() {
   const prior30 = advancedWithin(60, 30);
   const hasPrior = spanDays > 30;
   const delta30 = last30 - prior30;
-
-  // Fees are what Earnin actually costs — the advances themselves come back.
-  // Shown as a lifetime total plus an effective rate against everything drawn.
-  const totalFees = rows.filter((r) => r.kind === 'fee').reduce((s, r) => s + (r.amount ?? 0), 0);
-  const feeRate = totalAdvanced > 0 ? (totalFees / totalAdvanced) * 100 : 0;
 
   const update = async (id, field, value) => {
     const row = rows.find((r) => r.id === id);
@@ -183,10 +169,8 @@ export default function Earnin() {
     if (error || !data?.[0]) { notifyError('Couldn’t add that entry. Please retry.'); return; }
     let row = data[0];
     // Marking pending in the modal creates the same linked transfer the row's
-    // Pending checkbox would — the entry still saves if that part fails. Fees
-    // never get one (they ride along with their repayment debit), so a draft
-    // switched to 'fee' after ticking Pending can't leave a stray transfer.
-    if (draft.pending && draft.kind !== 'fee') {
+    // Pending checkbox would — the entry still saves if that part fails.
+    if (draft.pending) {
       if (!billPayAccountId) {
         notifyError(`Entry saved, but no "${BILL_PAY_NAME}" account exists to mark it pending.`);
       } else {
@@ -220,7 +204,7 @@ export default function Earnin() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Currently owed" value={fmt(currentOwed)} privacy={privacy} tone="text-amber-400" icon={Wallet} />
         <Stat
           label="Avg / week" value={fmt(avgPerWeek)} privacy={privacy} tone="text-orange-400" icon={CalendarDays}
@@ -242,11 +226,6 @@ export default function Earnin() {
           hintTone={hasPrior && Math.abs(delta30) >= 0.005 ? (delta30 < 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
           title="Advances drawn in the trailing 30 days, compared with the 30 days before that. Down is progress."
         />
-        <Stat
-          label="Fees paid" value={fmt(totalFees)} privacy={privacy} tone="text-rose-400" icon={Receipt}
-          hint={totalFees > 0.005 ? `${feeRate.toFixed(1)}% of everything drawn` : 'No fees logged yet'}
-          title="Tips and Lightning Speed charges — the actual cost of Earnin, since the advances themselves come back. This is the number to drive to zero."
-        />
       </div>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
@@ -261,9 +240,6 @@ export default function Earnin() {
             </button>
             <button onClick={() => openAdd('repay')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
               <Plus size={14} /> Repay
-            </button>
-            <button onClick={() => openAdd('fee')} title="Log a tip or Lightning Speed charge — it adds to what you owe" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-800/60 bg-rose-900/20 text-xs font-medium text-rose-400 hover:bg-rose-900/40 transition-colors">
-              <Plus size={14} /> Fee
             </button>
           </div>
         </div>
@@ -307,19 +283,15 @@ export default function Earnin() {
                     <Redacted on={privacy}><span className="tabular-nums text-zinc-400">{fmtDec(r.balanceAfter)}</span></Redacted>
                   </Td>
                   <Td className="text-center">
-                    {r.kind === 'fee' ? (
-                      <span className="text-[11px] text-zinc-600" title="A fee rides along with its repayment debit — it never moves money on its own">—</span>
-                    ) : (
-                      <input
-                        type="checkbox"
-                        checked={!!r.pending_transfer_id}
-                        onChange={(e) => togglePending(r, e.target.checked)}
-                        className="h-4 w-4 accent-cyan-500 cursor-pointer"
-                        title={r.pending_transfer_id
-                          ? `Showing as pending ${DIRECTION_FOR_KIND[r.kind]} on ${BILL_PAY_NAME}`
-                          : `Mark pending — adds this as a ${DIRECTION_FOR_KIND[r.kind] === 'in' ? 'pending inflow to' : 'pending outflow from'} ${BILL_PAY_NAME}`}
-                      />
-                    )}
+                    <input
+                      type="checkbox"
+                      checked={!!r.pending_transfer_id}
+                      onChange={(e) => togglePending(r, e.target.checked)}
+                      className="h-4 w-4 accent-cyan-500 cursor-pointer"
+                      title={r.pending_transfer_id
+                        ? `Showing as pending ${DIRECTION_FOR_KIND[r.kind]} on ${BILL_PAY_NAME}`
+                        : `Mark pending — adds this as a ${DIRECTION_FOR_KIND[r.kind] === 'in' ? 'pending inflow to' : 'pending outflow from'} ${BILL_PAY_NAME}`}
+                    />
                   </Td>
                   <Td><EditCell value={r.notes} onSave={(v) => update(r.id, 'notes', v)} className="text-zinc-500" placeholder="—" /></Td>
                   <Td className="text-right">
@@ -396,19 +368,15 @@ function AddEntryModal({ draft, privacy, onChange, onCancel, onSave }) {
             />
           </ModalRow>
 
-          {/* A fee rides along with its repayment debit, so it never gets a
-              pending transfer of its own. */}
-          {draft.kind !== 'fee' && (
-            <ModalRow
-              label="Pending"
-              hint={`Adds a pending ${DIRECTION_FOR_KIND[draft.kind] === 'in' ? 'inflow to' : 'outflow from'} ${BILL_PAY_NAME}`}
-            >
-              <input
-                type="checkbox" checked={!!draft.pending} onChange={(e) => set('pending')(e.target.checked)}
-                className="h-4 w-4 accent-cyan-500 cursor-pointer"
-              />
-            </ModalRow>
-          )}
+          <ModalRow
+            label="Pending"
+            hint={`Adds a pending ${DIRECTION_FOR_KIND[draft.kind] === 'in' ? 'inflow to' : 'outflow from'} ${BILL_PAY_NAME}`}
+          >
+            <input
+              type="checkbox" checked={!!draft.pending} onChange={(e) => set('pending')(e.target.checked)}
+              className="h-4 w-4 accent-cyan-500 cursor-pointer"
+            />
+          </ModalRow>
 
           <div>
             <p className="text-xs text-zinc-400 mb-1">Notes</p>

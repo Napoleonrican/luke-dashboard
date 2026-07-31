@@ -296,11 +296,8 @@ export default function Waterfall() {
   // Earnin payback owed used to be a manual Plan Inputs figure you'd copy over
   // from the Earnin tab by hand. It's exactly the Earnin log's running balance
   // (advances add, repayments subtract), so it's computed live from there now.
-  // Advances and fees both add to what Earnin is owed (a tip / Lightning Speed
-  // charge is debited alongside the advance it rides with); repayments subtract.
-  // Must stay in step with the Earnin tab's own running-balance calc.
   const earninOwed = earninTxns.reduce(
-    (s, t) => s + (t.kind === 'repay' ? -(t.amount ?? 0) : (t.amount ?? 0)), 0,
+    (s, t) => s + (t.kind === 'advance' ? (t.amount ?? 0) : -(t.amount ?? 0)), 0,
   );
   // Uber Pro backup owed moved out of Plan Inputs and into Current Balances as
   // a liability row, so it's read live from that account. Falls back to the old

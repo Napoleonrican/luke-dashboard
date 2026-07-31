@@ -296,33 +296,32 @@ export default function Guide() {
       <section id="earnin" className="space-y-4 scroll-mt-6">
         <SectionHeader s={meta('earnin')} />
         <p className="text-sm text-zinc-400 leading-relaxed">
-          A transaction log for Earnin advances and repayments, plus the reliance averages that show
-          whether usage is trending down. Its running balance feeds the Waterfall live, and it can
-          post directly to Current Balances as a pending transfer.
+          A transaction log for Earnin advances and repayments, backfilled from Monarch and carrying
+          the reliance averages that show whether usage is trending down. Its running balance feeds
+          the Waterfall live, and it can post directly to Current Balances as a pending transfer.
         </p>
-        <Block title="The five cards — reliance, not lifetime totals">
+        <Block title="The four cards — reliance, not lifetime totals">
           <p>Since the goal is driving Earnin usage <em>down</em>, the headline numbers are rates rather than running totals:</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li><strong className="text-zinc-300">Currently owed</strong> — advances and fees minus repayments, running. This is the figure the Waterfall reads.</li>
+            <li><strong className="text-zinc-300">Currently owed</strong> — advances minus repayments, running. This is the figure the Waterfall reads.</li>
             <li><strong className="text-zinc-300">Avg / week</strong> — total advanced ÷ the <em>whole</em> span since your first advance. Weeks where you didn’t borrow are counted, so this measures how much you lean on Earnin overall — not what a borrowing week costs. A quiet fortnight pulls it down, which is the point.</li>
             <li><strong className="text-zinc-300">Avg / month</strong> — the weekly average × 52/12, so it’s comparable to a monthly bill.</li>
             <li><strong className="text-zinc-300">Last 30 days</strong> — advances in the trailing 30 days, with the change vs. the 30 days before it. Green ↓ means reliance is easing; red ↑ means it’s climbing.</li>
-            <li><strong className="text-zinc-300">Fees paid</strong> — tips and Lightning Speed charges, with the effective rate against everything drawn. The advances themselves come back, so this is what Earnin <em>actually costs</em> — the number to drive to zero.</li>
           </ul>
         </Block>
-        <Block title="Advance, Repay & Fee">
-          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Each button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now.</p>
-          <p>A <strong className="text-zinc-300">Fee</strong> is a tip or Lightning Speed charge. It <em>adds</em> to the balance exactly like an advance does, because it’s money owed to Earnin — Earnin debits the advance and its fee together, and the matching Repay row carries that whole debit. Keeping fees on their own line is what lets the balance net to zero each cycle while still showing the real cost. Fees don’t get a Pending checkbox (they ride along with their repayment, they never move money on their own).</p>
+        <Block title="Advance vs. Repay">
+          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now.</p>
         </Block>
         <Block title="Imported history">
-          <p>Migration <strong className="text-zinc-300">048</strong> backfilled the log from a Monarch export — 351 transactions spanning Oct 2021 → Jul 2026. Because the export only records what moved in and out of checking, each repayment line is principal <em>and</em> fee combined; the import splits them, matching every repayment to the advance denomination it retired. It also adds one opening-balance advance, since the export begins mid-stream with repayments for advances drawn before its window.</p>
+          <p>Migration <strong className="text-zinc-300">048</strong> backfilled the log from a Monarch export — 336 transactions covering Oct 2021 → 8 Jul 2026. It stops there on purpose: entries from 10 Jul onward were logged by hand, and the import lands on a payday settlement at a balance of exactly <strong className="text-zinc-300">$0.00</strong>, so the hand-logged rows pick up from a clean zero with no overlap.</p>
+          <p>A Monarch repayment line bundles the advance with its tip/Lightning-Speed fee (a $150 advance comes back as a $155.99 debit), so the import records each repayment at the <strong className="text-zinc-300">principal it retired</strong> and drops the fee — otherwise those fees would compound into a drifting negative balance. There’s also one opening-balance advance, since the export begins mid-stream with repayments for advances drawn before its window.</p>
           <p>Imported rows carry an <code className="text-zinc-300">import_key</code> under a unique index, so re-running the import — or loading a future export that overlaps — can’t duplicate anything. Rows you logged by hand have no key and are never touched.</p>
         </Block>
         <Block title="The Pending checkbox → Current Balances">
           <p>Check <strong className="text-zinc-300">Pending</strong> on a row before the money’s actually landed or cleared. It creates a real pending transfer on Bill Pay Checking — an advance posts as money <em>in</em>, a repay posts as money <em>out</em> — which is the same table Current Balances reads for its projected-balance lines. Editing the amount or date afterward keeps the linked transfer in sync; uncheck it (or delete the row) once the real transaction posts, and the transfer goes with it.</p>
         </Block>
         <Block title="Feeds the Waterfall live">
-          <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly. Both sides count advances <em>and</em> fees as owed, so the two never disagree.</p>
+          <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly.</p>
         </Block>
       </section>
     </div>
