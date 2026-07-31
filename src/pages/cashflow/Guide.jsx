@@ -18,7 +18,7 @@ const SECTIONS = [
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-30' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Repeat,     color: '#ec4899', updated: '2026-07-15' },
-  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-30' },
+  { id: 'earnin',        label: 'Earnin',        icon: Banknote,   color: '#f59e0b', updated: '2026-07-31' },
 ];
 
 // Every waterfall step, in pour order, in plain English. Mirrors DEFAULT_STEPS
@@ -296,12 +296,21 @@ export default function Guide() {
       <section id="earnin" className="space-y-4 scroll-mt-6">
         <SectionHeader s={meta('earnin')} />
         <p className="text-sm text-zinc-400 leading-relaxed">
-          A transaction log for Earnin advances and repayments — until a Monarch export can backfill
-          full history. Its running balance feeds the Waterfall live, and it can post directly to
-          Current Balances as a pending transfer.
+          A transaction log for Earnin advances and repayments, plus the reliance averages that show
+          whether usage is trending down. Its running balance feeds the Waterfall live, and it can
+          post directly to Current Balances as a pending transfer.
         </p>
+        <Block title="The four cards — reliance, not lifetime totals">
+          <p>Since the goal is driving Earnin usage <em>down</em>, the headline numbers are rates rather than running totals:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong className="text-zinc-300">Currently owed</strong> — advances minus repayments, running. This is the figure the Waterfall reads.</li>
+            <li><strong className="text-zinc-300">Avg / week</strong> — total advanced ÷ the <em>whole</em> span since your first advance. Weeks where you didn’t borrow are counted, so this measures how much you lean on Earnin overall — not what a borrowing week costs. A quiet fortnight pulls it down, which is the point.</li>
+            <li><strong className="text-zinc-300">Avg / month</strong> — the weekly average × 52/12, so it’s comparable to a monthly bill.</li>
+            <li><strong className="text-zinc-300">Last 30 days</strong> — advances in the trailing 30 days, with the change vs. the 30 days before it. Green ↓ means reliance is easing; red ↑ means it’s climbing.</li>
+          </ul>
+        </Block>
         <Block title="Advance vs. Repay">
-          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now. “Currently owed” is simply advances minus repayments, running.</p>
+          <p>Log an <strong className="text-zinc-300">Advance</strong> when you draw from Earnin; log a <strong className="text-zinc-300">Repay</strong> when it’s paid back (usually same-day as payday). Either button opens a short form for the whole entry — type, amount, date, <strong className="text-zinc-300">Pending</strong>, and notes — so a new row lands complete instead of as a $0 placeholder you edit cell by cell. <strong className="text-zinc-300">Repay</strong> pre-fills the amount with the current running balance — what you actually owe right now.</p>
         </Block>
         <Block title="The Pending checkbox → Current Balances">
           <p>Check <strong className="text-zinc-300">Pending</strong> on a row before the money’s actually landed or cleared. It creates a real pending transfer on Bill Pay Checking — an advance posts as money <em>in</em>, a repay posts as money <em>out</em> — which is the same table Current Balances reads for its projected-balance lines. Editing the amount or date afterward keeps the linked transfer in sync; uncheck it (or delete the row) once the real transaction posts, and the transfer goes with it.</p>

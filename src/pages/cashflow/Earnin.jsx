@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Wallet } from 'lucide-react';
+import { Plus, Trash2, Wallet, CalendarDays, CalendarRange, TrendingDown } from 'lucide-react';
 import { Redacted } from './CashflowLayout';
 import {
   fetchEarninTransactions, upsertEarninTransaction, deleteRow,
   fetchAccounts, upsertPendingTransfer, accountNameMatches,
 } from '../../lib/fin';
-import { fmt, fmtDec, fmtDate, todayISO } from './format';
+import { fmt, fmtDec, fmtDate, todayISO, daysSince } from './format';
 import { AmountEdit } from './ModalField';
 import EditCell from './EditCell';
 import { Th, Td, StateRow, LoadErrorRow } from './tableparts';
@@ -67,8 +67,33 @@ export default function Earnin() {
   })();
 
   const currentOwed = withBalance[0]?.balanceAfter ?? 0;
-  const totalAdvanced = rows.filter((r) => r.kind === 'advance').reduce((s, r) => s + (r.amount ?? 0), 0);
-  const totalRepaid = rows.filter((r) => r.kind === 'repay').reduce((s, r) => s + (r.amount ?? 0), 0);
+
+  // ── Reliance averages ──────────────────────────────────────────────────────
+  // The point of this tab is driving Earnin usage DOWN, so the headline numbers
+  // are rates, not lifetime totals. Averages divide by the whole elapsed span
+  // (first advance → today), not just the weeks a draw happened — a quiet
+  // fortnight should pull the average down, otherwise it only ever reports what
+  // a borrowing week costs and never whether you're borrowing less often.
+  const advances = rows.filter((r) => r.kind === 'advance');
+  const totalAdvanced = advances.reduce((s, r) => s + (r.amount ?? 0), 0);
+
+  const firstAdvanceISO = advances.reduce(
+    (min, r) => (r.txn_date && (!min || r.txn_date < min) ? r.txn_date : min), null,
+  );
+  // Inclusive of today, so a single same-day advance reads as 1 day, not 0.
+  const spanDays = firstAdvanceISO ? Math.max(1, (daysSince(firstAdvanceISO) ?? 0) + 1) : 0;
+  const avgPerWeek = spanDays ? totalAdvanced / (spanDays / 7) : 0;
+  const avgPerMonth = avgPerWeek * (52 / 12);
+
+  // Trailing 30 days vs the 30 before it — is reliance climbing or easing?
+  const advancedWithin = (fromDaysAgo, toDaysAgo) => advances.reduce((s, r) => {
+    const ago = daysSince(r.txn_date);
+    return ago != null && ago >= toDaysAgo && ago < fromDaysAgo ? s + (r.amount ?? 0) : s;
+  }, 0);
+  const last30 = advancedWithin(30, 0);
+  const prior30 = advancedWithin(60, 30);
+  const hasPrior = spanDays > 30;
+  const delta30 = last30 - prior30;
 
   const update = async (id, field, value) => {
     const row = rows.find((r) => r.id === id);
@@ -181,9 +206,26 @@ export default function Earnin() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Currently owed" value={fmt(currentOwed)} privacy={privacy} tone="text-amber-400" icon={Wallet} />
-        <Stat label="Total advanced" value={fmt(totalAdvanced)} privacy={privacy} tone="text-orange-400" icon={ArrowDownCircle} />
-        <Stat label="Total repaid" value={fmt(totalRepaid)} privacy={privacy} tone="text-emerald-400" icon={ArrowUpCircle} />
-        <Stat label="Entries" value={String(rows.length)} />
+        <Stat
+          label="Avg / week" value={fmt(avgPerWeek)} privacy={privacy} tone="text-orange-400" icon={CalendarDays}
+          hint={spanDays ? `Advances ÷ ${spanDays >= 14 ? `${Math.round(spanDays / 7)} weeks` : `${spanDays}d`} tracked` : 'No advances logged yet'}
+          title="Total advanced divided by the whole span since your first advance — quiet weeks count too, so this reflects how often you draw, not just how much a borrowing week costs."
+        />
+        <Stat
+          label="Avg / month" value={fmt(avgPerMonth)} privacy={privacy} tone="text-orange-400" icon={CalendarRange}
+          hint="Weekly average × 52/12"
+          title="The weekly average scaled to a month — comparable to a monthly bill."
+        />
+        <Stat
+          label="Last 30 days" value={fmt(last30)} privacy={privacy} tone="text-zinc-100" icon={TrendingDown}
+          hint={hasPrior
+            ? (Math.abs(delta30) < 0.005
+              ? 'Flat vs prior 30d'
+              : `${delta30 < 0 ? '↓' : '↑'} ${fmt(Math.abs(delta30))} vs prior 30d`)
+            : 'Not enough history to compare'}
+          hintTone={hasPrior && Math.abs(delta30) >= 0.005 ? (delta30 < 0 ? 'text-emerald-400' : 'text-red-400') : undefined}
+          title="Advances drawn in the trailing 30 days, compared with the 30 days before that. Down is progress."
+        />
       </div>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
@@ -204,14 +246,17 @@ export default function Earnin() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
+              {/* Notes takes `w-full` so it absorbs the table's slack — otherwise
+                  the browser spreads it across the numeric columns and they drift
+                  away from their headings. */}
               <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wide text-zinc-500">
                 <Th>Date</Th>
                 <Th>Type</Th>
                 <Th align="right">Amount</Th>
                 <Th align="right">Balance</Th>
-                <Th className="text-center">Pending</Th>
-                <Th>Notes</Th>
-                <Th />
+                <Th align="center">Pending</Th>
+                <Th className="w-full">Notes</Th>
+                <Th className="w-10" />
               </tr>
             </thead>
             <tbody>
@@ -370,15 +415,16 @@ function ModalRow({ label, hint, children }) {
   );
 }
 
-function Stat({ label, value, privacy, tone = 'text-white', icon: Icon }) {
+function Stat({ label, value, privacy, tone = 'text-white', icon: Icon, hint, hintTone, title }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4" title={title}>
       <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1.5">
         {Icon && <Icon size={13} className={tone} />}{label}
       </p>
       {privacy !== undefined
         ? <Redacted on={privacy}><span className={`text-xl font-bold tabular-nums ${tone}`}>{value}</span></Redacted>
         : <span className={`text-xl font-bold tabular-nums ${tone}`}>{value}</span>}
+      {hint && <p className={`mt-1.5 text-[11px] ${hintTone || 'text-zinc-600'}`}>{hint}</p>}
     </div>
   );
 }
