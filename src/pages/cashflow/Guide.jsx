@@ -310,6 +310,11 @@ export default function Guide() {
           </ul>
           <p>The synthetic opening-balance row from the import is excluded from all of these — it stands in for pre-export draws, so counting it would inflate the totals and stretch the tracked span back past your first real advance.</p>
         </Block>
+        <Block title="Draw volume is not an income gap">
+          <p>The weekly average is the biggest number on this tab, and it’s easy to read it as “I’m short this much every week.” You aren’t. Each advance is clawed back from the next paycheck, so the same money recycles inside the pay cycle — the volume is mostly <em>churn</em>.</p>
+          <p>The honest measure of how deep you are is the <strong className="text-zinc-300">average carried balance</strong>: what’s outstanding averaged across the whole window. It’s used instead of a point-in-time balance because that depends entirely on where you happen to be in the pay cycle — sampled mid-cycle it’s a full stack of draws, sampled the day after payday it’s near zero. On the current data that float sits around <strong className="text-zinc-300">$500</strong> and has hovered there for years, rather than compounding.</p>
+          <p>Which is why the Debt Payoff Calculator shows reliance as <em>context</em> and doesn’t stack it onto the break-even target: doing so would treat recycled money as missing income and overstate the goal by roughly an order of magnitude. Hit break-even and the float retires itself as your buffer rebuilds.</p>
+        </Block>
         <Block title="The window selector — and why 90 days runs the plan">
           <p><strong className="text-zinc-300">30 / 90 / 180 days / All time</strong> changes what the three usage cards measure. Your choice is remembered.</p>
           <p>It matters because usage hasn’t been steady: roughly <strong className="text-zinc-300">$20–35/wk</strong> through 2022–2024, <strong className="text-zinc-300">$148/wk</strong> across 2025, and <strong className="text-zinc-300">$297/wk</strong> so far in 2026. An all-time average lands near <strong className="text-zinc-300">$91/wk</strong> — roughly a fifth of where things actually sit now, which would badly understate how much gig income it takes to retire the habit.</p>
@@ -328,7 +333,7 @@ export default function Guide() {
         </Block>
         <Block title="Feeds the Waterfall live">
           <p>The running “currently owed” balance <em>is</em> the Waterfall’s Plan Inputs “Earnin — payback owed” figure — no manual copying. It drives Step 0b (Earnin Repayment) directly.</p>
-          <p>The <strong className="text-zinc-300">Debt Payoff Calculator</strong> reads this log too: its “Weekly Earnin draw” is now the live trailing-90-day average rather than a number typed in once and left to rot. It shows read-only there with a <span className="text-amber-400">live</span> badge.</p>
+          <p>The <strong className="text-zinc-300">Debt Payoff Calculator</strong> reads this log too: its “Weekly Earnin draw” is now the live trailing-90-day average rather than a number typed in once and left to rot. It shows read-only there with a <span className="text-amber-400">live</span> badge, and the Export for Claude snapshot carries the same figures.</p>
         </Block>
       </section>
     </div>

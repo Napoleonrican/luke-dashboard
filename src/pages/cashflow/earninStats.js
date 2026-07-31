@@ -91,7 +91,60 @@ export function usageStats(rows = [], windowDays = RELIANCE_WINDOW_DAYS) {
  * The canonical weekly reliance figure — what the Debt Payoff Calculator (and
  * anything else deciding off real usage) reads. Always the trailing 90 days,
  * regardless of what window the Earnin tab happens to be displaying.
+ *
+ * NOTE this is draw VOLUME, not an income gap. Advances are clawed back each
+ * payday, so most of it is recycled within the cycle — see avgCarriedBalance
+ * for the part that's actually outstanding money.
  */
 export function relianceWeekly(rows = []) {
   return usageStats(rows, RELIANCE_WINDOW_DAYS).perWeek;
+}
+
+// ── Balance-side metrics ────────────────────────────────────────────────────
+// Unlike the usage rates above, these INCLUDE the opening-balance row: it
+// represents genuinely owed money even though it isn't a real draw.
+
+const signedDeltas = (rows) => rows
+  .map((r) => ({ ago: daysSince(r.txn_date), delta: (r.kind === 'advance' ? 1 : -1) * (r.amount ?? 0) }))
+  .filter((e) => e.ago != null);
+
+/** Balance as of `daysAgo` days before today (0 = right now). */
+export function balanceAt(rows = [], daysAgo = 0) {
+  return signedDeltas(rows).reduce((s, e) => (e.ago >= daysAgo ? s + e.delta : s), 0);
+}
+
+/**
+ * Mean outstanding balance across the window — the honest read on "how deep am
+ * I in?".
+ *
+ * A point-in-time balance is near-useless here because it depends entirely on
+ * where you are in the pay cycle: sampled mid-cycle it's a full draw stack,
+ * sampled just after payday it's ~zero. Averaging over the window washes that
+ * phase out, so two windows are actually comparable.
+ *
+ * Each event contributes its delta to every day at or after it, so the exact
+ * mean is Σ delta × (days it was in effect within the window) ÷ window.
+ */
+export function avgCarriedBalance(rows = [], windowDays = RELIANCE_WINDOW_DAYS) {
+  if (!windowDays) return 0;
+  return signedDeltas(rows).reduce(
+    (s, e) => (e.ago < 0 ? s : s + e.delta * Math.min(e.ago + 1, windowDays)), 0,
+  ) / windowDays;
+}
+
+/**
+ * Everything the Claude export (and any "what does Earnin actually cost me?"
+ * readout) needs, with the churn-vs-real distinction already drawn.
+ */
+export function balanceSummary(rows = []) {
+  const carried = avgCarriedBalance(rows, RELIANCE_WINDOW_DAYS);
+  return {
+    owed: balanceAt(rows, 0),
+    weeklyDraw: relianceWeekly(rows),
+    carried,
+    // Same-length window immediately before, to show whether the float is
+    // deepening or easing.
+    carriedPrior: (avgCarriedBalance(rows, RELIANCE_WINDOW_DAYS * 2) * 2) - carried,
+    yearChange: balanceAt(rows, 0) - balanceAt(rows, 365),
+  };
 }

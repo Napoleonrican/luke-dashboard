@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, Settings, ExternalLink, Copy, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchDebts, fetchEarninTransactions } from '../lib/fin';
-import { relianceWeekly, RELIANCE_WINDOW_DAYS } from './cashflow/earninStats';
+import { relianceWeekly, balanceSummary, RELIANCE_WINDOW_DAYS } from './cashflow/earninStats';
 import { buildSnapshotMarkdown } from '../lib/claudeExport';
 import {
   LineChart, Line, AreaChart, Area,
@@ -364,6 +364,7 @@ export default function DebtCalculator() {
         payoffMonth: d.id in payoffMonths ? payoffMonths[d.id] : null,
       })),
       strategyComparison,
+      earnin: hasLiveEarnin ? balanceSummary(earninTxns) : null,
     });
 
     if (navigator.clipboard?.writeText) {

@@ -46,6 +46,8 @@ const isoDate = (base = new Date()) =>
  * @param {number|null} p.debtFreeMonth  current strategy debt-free offset
  * @param {Array}    p.debts             [{name, balance, apr, min, tag, payoffMonth}]
  * @param {Array}    p.strategyComparison [{label, totalInterest, debtFreeMonth}]
+ * @param {object|null} [p.earnin]       balanceSummary() from earninStats; omit
+ *                                       the section entirely when there's no log
  * @param {Date}     [p.now]             injectable clock (tests)
  * @returns {string} markdown
  */
@@ -53,6 +55,36 @@ export function buildSnapshotMarkdown(p) {
   const now = p.now || new Date();
   const surplus = p.monthlyDeficit > 0 ? null : p.takeHome - p.monthlyOutflow;
   const totalDebt = p.debts.reduce((s, d) => s + (d.balance ?? 0), 0);
+
+  // Earnin is deliberately framed, not just dumped. The weekly draw is the
+  // biggest number in the whole snapshot, and read naively it looks like a
+  // ~$420/wk income gap — which would push any reader toward "find $420/wk
+  // more income", the wrong conclusion. Advances are clawed back each payday,
+  // so the volume is recycled; the average carried balance is what's actually
+  // outstanding. Stating that inline is the point of the section.
+  const e = p.earnin;
+  const drift = e && Math.abs(e.yearChange) < 250
+    ? `roughly flat over the past year (${e.yearChange >= 0 ? '+' : ''}${fmt(e.yearChange)}), so this is a revolving float rather than a compounding hole`
+    : e && e.yearChange > 0
+      ? `up ${fmt(e.yearChange)} over the past year — the float is deepening`
+      : e ? `down ${fmt(Math.abs(e.yearChange))} over the past year — the float is being retired` : '';
+
+  const earninSection = !e ? '' : `
+## Earnin (payday advances)
+- Currently owed: **${fmt(e.owed)}**
+- Draw volume: **${fmt(e.weeklyDraw)}/wk** (trailing 90 days)
+- Average carried balance: **${fmt(e.carried)}** (trailing 90 days, vs ${fmt(e.carriedPrior)} the 90 days before)
+- Net balance change: ${drift}
+
+> **How to read this:** the ${fmt(e.weeklyDraw)}/wk is draw *volume*, not an income
+> shortfall. Each advance is repaid out of the next paycheck, so the same money
+> recycles within the pay cycle — treating it as ${fmt(e.weeklyDraw)}/wk of missing
+> income would overstate the gap by roughly an order of magnitude. The real
+> exposure is the ~${fmt(e.carried)} standing float (plus per-advance fees, which
+> aren't tracked in this data). The structural shortfall is the break-even
+> figure above; the Earnin float is a symptom of it, not an additional hole to
+> fill on top.
+`;
 
   const debtRows = p.debts
     .slice()
@@ -84,7 +116,7 @@ export function buildSnapshotMarkdown(p) {
       : `Monthly surplus after bills (before gig income): **${fmt(surplus)}/mo**`}
 - Break-even DoorDash: **${fmt(p.breakEvenWeekly)}/wk**
 - Extra available for debt paydown (at current gig level): **${fmt(p.extraPerMonth)}/mo**
-
+${earninSection}
 ## Debts (live from Debts tab, sorted by APR)
 | Lender | Balance | APR | Min/mo | Type | Payoff (current strategy) |
 |--------|---------|-----|--------|------|---------------------------|
@@ -102,7 +134,8 @@ ${stratRows}
 ## Key Questions for Review
 1. Given these balances and APRs, is **${p.strategyLabel}** still the right payoff order, or would another strategy meaningfully cut total interest or time?
 2. How soon can I reduce DoorDash hours without pushing out the debt-free date? At what debt milestones does the required ${fmt(p.breakEvenWeekly)}/wk break-even drop?
-3. What's the fastest realistic path to cut reliance on gig income — accelerating a specific debt payoff, trimming the ${fmt(p.billsVariable)}/mo expenses, or something else?
+3. What's the fastest realistic path to cut reliance on gig income — accelerating a specific debt payoff, trimming the ${fmt(p.billsVariable)}/mo expenses, or something else?${e ? `
+4. The Earnin float sits around ${fmt(e.carried)}. Is it worth directing extra cash at clearing it once, versus putting the same money toward the highest-APR debt above? (Consider that the float carries per-advance fees rather than APR.)` : ''}
 
 ---
 *Snapshot generated from the Debt Payoff Calculator. All figures reflect current live data and scenario inputs at export time.*
