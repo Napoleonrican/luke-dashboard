@@ -12,7 +12,7 @@ WITH v AS (
   RETURNING id
 )
 INSERT INTO veh_fuel_logs (vehicle_id, fill_date, odometer, gallons, total_cost)
-SELECT v.id, x.fill_date, x.odometer, x.gallons, x.total_cost FROM v, (VALUES
+SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
   ('2024-01-05', 64049, 12.145, 41.28),
   ('2024-01-08', 64394, 13.588, 45.78),
   ('2024-01-12', 64745, 13.497, 44.53),
@@ -241,7 +241,7 @@ SELECT v.id, x.fill_date, x.odometer, x.gallons, x.total_cost FROM v, (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM veh_fuel_logs fl JOIN veh_vehicles vv ON vv.id = fl.vehicle_id WHERE vv.name = 'CX-5');
 
 INSERT INTO veh_service_plan (vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
-SELECT v.id, x.service, x.interval_months, x.interval_miles, x.avg_cost, x.last_completed_date, x.last_odometer, x.sort_order
+SELECT v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
 FROM (SELECT id FROM veh_vehicles WHERE name = 'CX-5') v, (VALUES
   ('Replace Spark Plugs', NULL, 100000, NULL, NULL, NULL, 0),
   ('Mile Service', NULL, 10334, 250.2, '2025-03-28', 105024, 1),
@@ -704,7 +704,7 @@ WITH v AS (
   RETURNING id
 )
 INSERT INTO veh_fuel_logs (vehicle_id, fill_date, odometer, gallons, total_cost)
-SELECT v.id, x.fill_date, x.odometer, x.gallons, x.total_cost FROM v, (VALUES
+SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
   ('2021-01-02', 101998, 8.86, 21.26),
   ('2021-01-10', 102280, 8.904, 22.25),
   ('2021-01-23', 102576, 9.003, 22.14),
@@ -914,7 +914,7 @@ SELECT v.id, x.fill_date, x.odometer, x.gallons, x.total_cost FROM v, (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM veh_fuel_logs fl JOIN veh_vehicles vv ON vv.id = fl.vehicle_id WHERE vv.name = 'Versa');
 
 INSERT INTO veh_service_plan (vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
-SELECT v.id, x.service, x.interval_months, x.interval_miles, x.avg_cost, x.last_completed_date, x.last_odometer, x.sort_order
+SELECT v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
 FROM (SELECT id FROM veh_vehicles WHERE name = 'Versa') v, (VALUES
   ('Replace In-Cabin Air Filter', 54, 45000, 142.768333, '2021-04-06', 105672, 0),
   ('Wheel Alignment', 12, 5000, 99.786, '2023-07-28', 156147, 1),
