@@ -59,6 +59,11 @@ const MovieDetail = lazy(() => import('./pages/watchtracker/MovieDetail'));
 const Upcoming = lazy(() => import('./pages/watchtracker/Upcoming'));
 const WtHistory = lazy(() => import('./pages/watchtracker/History'));
 const WtStats = lazy(() => import('./pages/watchtracker/Stats'));
+const VehiclesLayout = lazy(() => import('./pages/vehicles/VehiclesLayout'));
+const VehiclesUpcoming = lazy(() => import('./pages/vehicles/Upcoming'));
+const VehiclesServiceLog = lazy(() => import('./pages/vehicles/ServiceLog'));
+const VehiclesFuelLog = lazy(() => import('./pages/vehicles/FuelLog'));
+const VehiclesInsights = lazy(() => import('./pages/vehicles/Insights'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -134,6 +139,15 @@ export default function App() {
           <Route path="upcoming" element={<Upcoming />} />
           <Route path="history" element={<WtHistory />} />
           <Route path="stats" element={<WtStats />} />
+        </Route>
+        <Route path="/vehicles" element={
+          <FinancialAuthGate requireOwner title="Vehicle Care" subtitle="Secure sign-in required"><VehiclesLayout /></FinancialAuthGate>
+        }>
+          <Route index element={<Navigate to="upcoming" replace />} />
+          <Route path="upcoming" element={<VehiclesUpcoming />} />
+          <Route path="service-log" element={<VehiclesServiceLog />} />
+          <Route path="fuel" element={<VehiclesFuelLog />} />
+          <Route path="insights" element={<VehiclesInsights />} />
         </Route>
         <Route path="/mission-control" element={
           <FinancialAuthGate requireOwner title="Mission Control" subtitle="Secure sign-in required">
