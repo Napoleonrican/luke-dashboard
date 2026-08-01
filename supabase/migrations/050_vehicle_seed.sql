@@ -277,7 +277,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 390.35, 'New Tires Purchased & Mounted', 0),
   ('Wheel Alignment', 59, '2 Wheels', 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -293,7 +293,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -314,7 +314,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -338,7 +338,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -362,7 +362,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -377,7 +377,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brake Fluid', 0, NULL, 0),
   ('Inspect Brakes', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -399,7 +399,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -422,7 +422,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Brake Pads', 80.78, 'Rear Brakes', 0),
   ('Replace Brake Rotors', 239.9, 'Rear Brakes', 1),
   ('Replace Cabin Air Filter', 39.95, NULL, 2),
@@ -441,7 +441,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Engine Air Filter', 12.11, 'Purchased through Amazon', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -456,7 +456,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -480,7 +480,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 50.7, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('Shop Supplies, Taxes, & Misc.', 9.83, NULL, 2)
@@ -497,7 +497,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 50.95, NULL, 0),
   ('Mile Service', 67, '5k Service', 1),
   ('Inspect Brake Fluid', 0, NULL, 2),
@@ -516,7 +516,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 172.69, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -531,7 +531,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('General Repair', 3.5, 'Washer Fluid', 1),
   ('Labor', 10.5, NULL, 2),
@@ -549,7 +549,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Mile Service', 449.5, '30k Service', 0),
   ('Wheel Alignment', NULL, '30k Service', 1),
   ('Tire Rotation', NULL, '30k Service', 2),
@@ -575,7 +575,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Brake Pads', 187.65, '(Replaced 4x pads w/Eric) Pads & Supplies', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -590,7 +590,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -605,7 +605,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 3.05, NULL, 1),
   ('Labor', 10.5, NULL, 2)
@@ -622,7 +622,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('(Re)Balance Tires', 53.35, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('State Inspection', 18.8, NULL, 2),
@@ -643,7 +643,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
@@ -660,7 +660,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 247.4, 'Replaced vehicle battery', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -675,7 +675,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 172.69, 'Used Affirm to Register', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -690,7 +690,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
@@ -947,7 +947,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -963,7 +963,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -979,7 +979,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Brake Fluid', 140, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
@@ -996,7 +996,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1),
   ('Replace Engine Air Filter', 13, NULL, 2)
@@ -1013,7 +1013,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1028,7 +1028,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1043,7 +1043,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 197, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1058,7 +1058,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1074,7 +1074,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1089,7 +1089,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1105,7 +1105,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('CVT Flush & Fill', 288, NULL, 0),
   ('Replace In-Cabin Air Filter', 143, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
@@ -1122,7 +1122,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 175.41, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1137,7 +1137,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 325.12, 'Shock Replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1152,7 +1152,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1167,7 +1167,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1182,7 +1182,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 434.6, NULL, 0),
   ('Wheel Alignment', 59.99, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1198,7 +1198,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1213,7 +1213,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1229,7 +1229,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 568.15, 'Muffler and Resonator replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1244,7 +1244,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1259,7 +1259,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1274,7 +1274,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1289,7 +1289,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1304,7 +1304,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1319,7 +1319,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Brake Pads', 245.825, NULL, 0),
   ('Replace Brake Rotors', 245.825, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1335,7 +1335,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 145.78, NULL, 0),
   ('Replace Brake Fluid', 140.48, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1351,7 +1351,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1366,7 +1366,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1381,7 +1381,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1396,7 +1396,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 310.59, 'Control Arm and Hose Clamps', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1411,7 +1411,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 142.536667, NULL, 0),
   ('Replace Spark Plugs', 142.536667, NULL, 1),
   ('Replace In-Cabin Air Filter', 142.536667, NULL, 2)
@@ -1428,7 +1428,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Wheel Alignment', 119, NULL, 0),
   ('Tire Rotation', 0, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1444,7 +1444,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 32.07, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1459,7 +1459,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1474,7 +1474,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.85, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1489,7 +1489,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1504,7 +1504,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1519,7 +1519,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1535,7 +1535,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1550,7 +1550,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1565,7 +1565,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1580,7 +1580,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Brake Rotors', 225.91, NULL, 0),
   ('Replace Brake Pads', 55.63, 'Under Warranty - Replaced (Labor Cost)', 1),
   ('Inspect Brakes', 0, NULL, 2)
@@ -1597,7 +1597,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 110.78, 'Driver''s side window tint replaced', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1612,7 +1612,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Wheel Alignment', 79.95, 'Front tires alligned, rear checked.', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1627,7 +1627,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1642,7 +1642,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 0, 'Installed winter tires that Eric gave me.', 0),
   ('Tire Rotation', 0, 'Installed winter tires that Eric gave me.', 1),
   ('(Re)Balance Tires', 0, 'Tires already came balanced.', 2)
@@ -1659,7 +1659,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 41.1, 'Swap over TPMS sensors from old tires', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1674,7 +1674,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 68.27, 'TMPS Kit - Repair for flat tires after TPMS swap', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1689,7 +1689,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('CVT Flush & Fill', 288.01, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1704,7 +1704,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1719,7 +1719,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 642.98, 'Replaced Muffler and Exhaust', 0),
   ('General Repair', 420.99, 'Replaced Lower Control Arm and Ball Assembly', 1),
   ('General Repair', 276.94, 'Replaced Front Sway Bar Links', 2),
@@ -1740,7 +1740,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 55.9, 'Replaced Headlamp Bulbs', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1755,7 +1755,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('(Re)Balance Tires', 60, NULL, 0),
   ('Tire Rotation', 24.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1771,7 +1771,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1786,7 +1786,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Registration', 102.92, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1801,7 +1801,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Oil Change/Oil Filter', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1816,7 +1816,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Inspect Brakes', 0, 'Brakework done with Eric', 0),
   ('Replace Brake Fluid', NULL, 'Brakework done with Eric', 1),
   ('Replace Brake Pads', 126.86, 'Brakework done with Eric', 2),
@@ -1835,7 +1835,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Tire Rotation', 0, 'Summer/Winter Tire Swap - New Tires Mounted', 0),
   ('Wheel Alignment', 129.99, 'Summer/Winter Tire Swap - New Tires Mounted', 1),
   ('(Re)Balance Tires', 48.8, 'Summer/Winter Tire Swap - New Tires Mounted', 2),
@@ -1853,7 +1853,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 322.36, 'Replaced Brake Drums & Shoes w/Eric', 0),
   ('Oil Change/Oil Filter', 40.93, 'Done with Eric', 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1869,7 +1869,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('Replace Engine Air Filter', 11.99, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1884,7 +1884,7 @@ WITH visit AS (
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
   ('General Repair', 207.99, 'Replaced the Battery', 0),
   ('Oil Change/Oil Filter', 30.49, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
