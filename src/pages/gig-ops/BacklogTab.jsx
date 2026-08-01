@@ -201,7 +201,15 @@ export default function BacklogTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/gig-ops-backlog');
+      // Forward the Supabase access token so the endpoint can confirm the
+      // caller is signed in before returning the private repo's backlog.
+      const { data: sessionData } = supabase
+        ? await supabase.auth.getSession()
+        : { data: null };
+      const accessToken = sessionData?.session?.access_token;
+      const res = await fetch('/api/gig-ops-backlog', {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not load the backlog.');
       setMarkdown(data.markdown || '');
