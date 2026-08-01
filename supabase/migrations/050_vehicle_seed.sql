@@ -272,12 +272,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2020-12-16' AND sv.odometer = 27521
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2020-12-16' AND sv.odometer IS NOT DISTINCT FROM 27521
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 390.35, 'New Tires Purchased & Mounted', 0),
   ('Wheel Alignment', 59, '2 Wheels', 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -288,12 +288,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2021-10-14' AND sv.odometer = 41467
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2021-10-14' AND sv.odometer IS NOT DISTINCT FROM 41467
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -309,12 +309,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2022-03-09' AND sv.odometer = 45476
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2022-03-09' AND sv.odometer IS NOT DISTINCT FROM 45476
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -333,12 +333,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2023-03-16' AND sv.odometer = 54408
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2023-03-16' AND sv.odometer IS NOT DISTINCT FROM 54408
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -357,12 +357,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2023-09-01' AND sv.odometer = NULL
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2023-09-01' AND sv.odometer IS NOT DISTINCT FROM NULL
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -372,12 +372,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-02-08' AND sv.odometer = 67538
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-02-08' AND sv.odometer IS NOT DISTINCT FROM 67538
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brake Fluid', 0, NULL, 0),
   ('Inspect Brakes', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -394,12 +394,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-05-31' AND sv.odometer = 77669
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-05-31' AND sv.odometer IS NOT DISTINCT FROM 77669
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -417,12 +417,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-06-10' AND sv.odometer = 79325
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-06-10' AND sv.odometer IS NOT DISTINCT FROM 79325
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Brake Pads', 80.78, 'Rear Brakes', 0),
   ('Replace Brake Rotors', 239.9, 'Rear Brakes', 1),
   ('Replace Cabin Air Filter', 39.95, NULL, 2),
@@ -436,12 +436,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-06-14' AND sv.odometer = 79900
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-06-14' AND sv.odometer IS NOT DISTINCT FROM 79900
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Engine Air Filter', 12.11, 'Purchased through Amazon', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -451,12 +451,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-07-26' AND sv.odometer = 84355
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-07-26' AND sv.odometer IS NOT DISTINCT FROM 84355
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -475,12 +475,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-09-07' AND sv.odometer = 89765
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-09-07' AND sv.odometer IS NOT DISTINCT FROM 89765
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 50.7, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('Shop Supplies, Taxes, & Misc.', 9.83, NULL, 2)
@@ -492,12 +492,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-10-07' AND sv.odometer = 92918
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-10-07' AND sv.odometer IS NOT DISTINCT FROM 92918
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 50.95, NULL, 0),
   ('Mile Service', 67, '5k Service', 1),
   ('Inspect Brake Fluid', 0, NULL, 2),
@@ -511,12 +511,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-10-29' AND sv.odometer = 94972
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2024-10-29' AND sv.odometer IS NOT DISTINCT FROM 94972
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 172.69, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -526,12 +526,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-02-22' AND sv.odometer = 102158
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-02-22' AND sv.odometer IS NOT DISTINCT FROM 102158
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('General Repair', 3.5, 'Washer Fluid', 1),
   ('Labor', 10.5, NULL, 2),
@@ -544,12 +544,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-03-28' AND sv.odometer = 105024
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-03-28' AND sv.odometer IS NOT DISTINCT FROM 105024
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Mile Service', 449.5, '30k Service', 0),
   ('Wheel Alignment', NULL, '30k Service', 1),
   ('Tire Rotation', NULL, '30k Service', 2),
@@ -570,12 +570,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-05-26' AND sv.odometer = 110795
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-05-26' AND sv.odometer IS NOT DISTINCT FROM 110795
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Brake Pads', 187.65, '(Replaced 4x pads w/Eric) Pads & Supplies', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -585,12 +585,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-05-30' AND sv.odometer = 111382
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-05-30' AND sv.odometer IS NOT DISTINCT FROM 111382
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -600,12 +600,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-06-14' AND sv.odometer = 112983
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-06-14' AND sv.odometer IS NOT DISTINCT FROM 112983
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 3.05, NULL, 1),
   ('Labor', 10.5, NULL, 2)
@@ -617,12 +617,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-07-03' AND sv.odometer = 115099
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-07-03' AND sv.odometer IS NOT DISTINCT FROM 115099
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('(Re)Balance Tires', 53.35, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('State Inspection', 18.8, NULL, 2),
@@ -638,12 +638,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-08-29' AND sv.odometer = 120700
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-08-29' AND sv.odometer IS NOT DISTINCT FROM 120700
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
@@ -655,12 +655,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-10-09' AND sv.odometer = 125650
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-10-09' AND sv.odometer IS NOT DISTINCT FROM 125650
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 247.4, 'Replaced vehicle battery', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -670,12 +670,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-12-11' AND sv.odometer = 131110
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-12-11' AND sv.odometer IS NOT DISTINCT FROM 131110
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 172.69, 'Used Affirm to Register', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -685,12 +685,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-12-13' AND sv.odometer = 131294
+    WHERE vv.name = 'CX-5' AND sv.service_date = '2025-12-13' AND sv.odometer IS NOT DISTINCT FROM 131294
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
@@ -942,12 +942,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2015-10-09' AND sv.odometer = 4938
+    WHERE vv.name = 'Versa' AND sv.service_date = '2015-10-09' AND sv.odometer IS NOT DISTINCT FROM 4938
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -958,12 +958,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2015-12-26' AND sv.odometer = 9201
+    WHERE vv.name = 'Versa' AND sv.service_date = '2015-12-26' AND sv.odometer IS NOT DISTINCT FROM 9201
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -974,12 +974,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2016-03-31' AND sv.odometer = 15068
+    WHERE vv.name = 'Versa' AND sv.service_date = '2016-03-31' AND sv.odometer IS NOT DISTINCT FROM 15068
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Brake Fluid', 140, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
@@ -991,12 +991,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2016-10-13' AND sv.odometer = 26131
+    WHERE vv.name = 'Versa' AND sv.service_date = '2016-10-13' AND sv.odometer IS NOT DISTINCT FROM 26131
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1),
   ('Replace Engine Air Filter', 13, NULL, 2)
@@ -1008,12 +1008,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2016-12-04' AND sv.odometer = NULL
+    WHERE vv.name = 'Versa' AND sv.service_date = '2016-12-04' AND sv.odometer IS NOT DISTINCT FROM NULL
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1023,12 +1023,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2017-07-21' AND sv.odometer = 42401
+    WHERE vv.name = 'Versa' AND sv.service_date = '2017-07-21' AND sv.odometer IS NOT DISTINCT FROM 42401
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1038,12 +1038,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2017-11-09' AND sv.odometer = NULL
+    WHERE vv.name = 'Versa' AND sv.service_date = '2017-11-09' AND sv.odometer IS NOT DISTINCT FROM NULL
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 197, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1053,12 +1053,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2017-12-02' AND sv.odometer = 52179
+    WHERE vv.name = 'Versa' AND sv.service_date = '2017-12-02' AND sv.odometer IS NOT DISTINCT FROM 52179
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1069,12 +1069,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2018-02-17' AND sv.odometer = 58267
+    WHERE vv.name = 'Versa' AND sv.service_date = '2018-02-17' AND sv.odometer IS NOT DISTINCT FROM 58267
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1084,12 +1084,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2018-04-08' AND sv.odometer = 61877
+    WHERE vv.name = 'Versa' AND sv.service_date = '2018-04-08' AND sv.odometer IS NOT DISTINCT FROM 61877
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1100,12 +1100,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2018-06-07' AND sv.odometer = 67657
+    WHERE vv.name = 'Versa' AND sv.service_date = '2018-06-07' AND sv.odometer IS NOT DISTINCT FROM 67657
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('CVT Flush & Fill', 288, NULL, 0),
   ('Replace In-Cabin Air Filter', 143, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
@@ -1117,12 +1117,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-02-21' AND sv.odometer = NULL
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-02-21' AND sv.odometer IS NOT DISTINCT FROM NULL
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 175.41, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1132,12 +1132,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-02-22' AND sv.odometer = 79241
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-02-22' AND sv.odometer IS NOT DISTINCT FROM 79241
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 325.12, 'Shock Replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1147,12 +1147,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-04-06' AND sv.odometer = 81402
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-04-06' AND sv.odometer IS NOT DISTINCT FROM 81402
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1162,12 +1162,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-04-22' AND sv.odometer = 82089
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-04-22' AND sv.odometer IS NOT DISTINCT FROM 82089
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1177,12 +1177,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-10-19' AND sv.odometer = 88520
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-10-19' AND sv.odometer IS NOT DISTINCT FROM 88520
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 434.6, NULL, 0),
   ('Wheel Alignment', 59.99, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1193,12 +1193,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-10-20' AND sv.odometer = 88545
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-10-20' AND sv.odometer IS NOT DISTINCT FROM 88545
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1208,12 +1208,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2019-11-01' AND sv.odometer = 88880
+    WHERE vv.name = 'Versa' AND sv.service_date = '2019-11-01' AND sv.odometer IS NOT DISTINCT FROM 88880
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1224,12 +1224,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-28' AND sv.odometer = 93657
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-28' AND sv.odometer IS NOT DISTINCT FROM 93657
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 568.15, 'Muffler and Resonator replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1239,12 +1239,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-28' AND sv.odometer = 93692
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-28' AND sv.odometer IS NOT DISTINCT FROM 93692
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1254,12 +1254,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-29' AND sv.odometer = 93729
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-02-29' AND sv.odometer IS NOT DISTINCT FROM 93729
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1269,12 +1269,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-04-18' AND sv.odometer = 99442
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-04-18' AND sv.odometer IS NOT DISTINCT FROM 99442
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1284,12 +1284,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-09-18' AND sv.odometer = 93729
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-09-18' AND sv.odometer IS NOT DISTINCT FROM 93729
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1299,12 +1299,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-09-19' AND sv.odometer = 99538
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-09-19' AND sv.odometer IS NOT DISTINCT FROM 99538
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1314,12 +1314,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-11-02' AND sv.odometer = 100167
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-11-02' AND sv.odometer IS NOT DISTINCT FROM 100167
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Brake Pads', 245.825, NULL, 0),
   ('Replace Brake Rotors', 245.825, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1330,12 +1330,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2020-11-05' AND sv.odometer = 100406
+    WHERE vv.name = 'Versa' AND sv.service_date = '2020-11-05' AND sv.odometer IS NOT DISTINCT FROM 100406
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 145.78, NULL, 0),
   ('Replace Brake Fluid', 140.48, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1346,12 +1346,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-07' AND sv.odometer = 104263
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-07' AND sv.odometer IS NOT DISTINCT FROM 104263
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1361,12 +1361,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-13' AND sv.odometer = 104583
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-13' AND sv.odometer IS NOT DISTINCT FROM 104583
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1376,12 +1376,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-13' AND sv.odometer = 104590
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-13' AND sv.odometer IS NOT DISTINCT FROM 104590
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1391,12 +1391,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-26' AND sv.odometer = 105059
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-03-26' AND sv.odometer IS NOT DISTINCT FROM 105059
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 310.59, 'Control Arm and Hose Clamps', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1406,12 +1406,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-04-06' AND sv.odometer = 105672
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-04-06' AND sv.odometer IS NOT DISTINCT FROM 105672
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 142.536667, NULL, 0),
   ('Replace Spark Plugs', 142.536667, NULL, 1),
   ('Replace In-Cabin Air Filter', 142.536667, NULL, 2)
@@ -1423,12 +1423,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-06-26' AND sv.odometer = 110232
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-06-26' AND sv.odometer IS NOT DISTINCT FROM 110232
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Wheel Alignment', 119, NULL, 0),
   ('Tire Rotation', 0, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1439,12 +1439,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-06-26' AND sv.odometer = 110237
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-06-26' AND sv.odometer IS NOT DISTINCT FROM 110237
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 32.07, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1454,12 +1454,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-07-03' AND sv.odometer = 100167
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-07-03' AND sv.odometer IS NOT DISTINCT FROM 100167
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1469,12 +1469,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-02' AND sv.odometer = 115048
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-02' AND sv.odometer IS NOT DISTINCT FROM 115048
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.85, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1484,12 +1484,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-20' AND sv.odometer = 116161
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-20' AND sv.odometer IS NOT DISTINCT FROM 116161
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1499,12 +1499,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-20' AND sv.odometer = 116198
+    WHERE vv.name = 'Versa' AND sv.service_date = '2021-11-20' AND sv.odometer IS NOT DISTINCT FROM 116198
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1514,12 +1514,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-03-19' AND sv.odometer = 121083
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-03-19' AND sv.odometer IS NOT DISTINCT FROM 121083
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1530,12 +1530,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-03-19' AND sv.odometer = 121076
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-03-19' AND sv.odometer IS NOT DISTINCT FROM 121076
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1545,12 +1545,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-05-11' AND sv.odometer = 123627
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-05-11' AND sv.odometer IS NOT DISTINCT FROM 123627
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1560,12 +1560,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-07-02' AND sv.odometer = 126975
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-07-02' AND sv.odometer IS NOT DISTINCT FROM 126975
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1575,12 +1575,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-07-12' AND sv.odometer = 127751
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-07-12' AND sv.odometer IS NOT DISTINCT FROM 127751
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Brake Rotors', 225.91, NULL, 0),
   ('Replace Brake Pads', 55.63, 'Under Warranty - Replaced (Labor Cost)', 1),
   ('Inspect Brakes', 0, NULL, 2)
@@ -1592,12 +1592,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-08-22' AND sv.odometer = 130433
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-08-22' AND sv.odometer IS NOT DISTINCT FROM 130433
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 110.78, 'Driver''s side window tint replaced', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1607,12 +1607,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-09-08' AND sv.odometer = 132275
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-09-08' AND sv.odometer IS NOT DISTINCT FROM 132275
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Wheel Alignment', 79.95, 'Front tires alligned, rear checked.', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1622,12 +1622,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-09-17' AND sv.odometer = 133295
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-09-17' AND sv.odometer IS NOT DISTINCT FROM 133295
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1637,12 +1637,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-02' AND sv.odometer = 136934
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-02' AND sv.odometer IS NOT DISTINCT FROM 136934
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 0, 'Installed winter tires that Eric gave me.', 0),
   ('Tire Rotation', 0, 'Installed winter tires that Eric gave me.', 1),
   ('(Re)Balance Tires', 0, 'Tires already came balanced.', 2)
@@ -1654,12 +1654,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-12' AND sv.odometer = 136822
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-12' AND sv.odometer IS NOT DISTINCT FROM 136822
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 41.1, 'Swap over TPMS sensors from old tires', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1669,12 +1669,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-16' AND sv.odometer = 136946
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-16' AND sv.odometer IS NOT DISTINCT FROM 136946
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 68.27, 'TMPS Kit - Repair for flat tires after TPMS swap', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1684,12 +1684,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-25' AND sv.odometer = 137764
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-11-25' AND sv.odometer IS NOT DISTINCT FROM 137764
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('CVT Flush & Fill', 288.01, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1699,12 +1699,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-12-10' AND sv.odometer = 139169
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-12-10' AND sv.odometer IS NOT DISTINCT FROM 139169
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1714,12 +1714,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2022-12-30' AND sv.odometer = 141030
+    WHERE vv.name = 'Versa' AND sv.service_date = '2022-12-30' AND sv.odometer IS NOT DISTINCT FROM 141030
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 642.98, 'Replaced Muffler and Exhaust', 0),
   ('General Repair', 420.99, 'Replaced Lower Control Arm and Ball Assembly', 1),
   ('General Repair', 276.94, 'Replaced Front Sway Bar Links', 2),
@@ -1735,12 +1735,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-24' AND sv.odometer = 145650
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-24' AND sv.odometer IS NOT DISTINCT FROM 145650
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 55.9, 'Replaced Headlamp Bulbs', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1750,12 +1750,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-25' AND sv.odometer = 145673
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-25' AND sv.odometer IS NOT DISTINCT FROM 145673
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('(Re)Balance Tires', 60, NULL, 0),
   ('Tire Rotation', 24.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1766,12 +1766,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-25' AND sv.odometer = 145674
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-02-25' AND sv.odometer IS NOT DISTINCT FROM 145674
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1781,12 +1781,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-04-10' AND sv.odometer = 148732
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-04-10' AND sv.odometer IS NOT DISTINCT FROM 148732
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Registration', 102.92, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1796,12 +1796,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-05-22' AND sv.odometer = 151714
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-05-22' AND sv.odometer IS NOT DISTINCT FROM 151714
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Oil Change/Oil Filter', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1811,12 +1811,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-07-25' AND sv.odometer = 156004
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-07-25' AND sv.odometer IS NOT DISTINCT FROM 156004
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Inspect Brakes', 0, 'Brakework done with Eric', 0),
   ('Replace Brake Fluid', NULL, 'Brakework done with Eric', 1),
   ('Replace Brake Pads', 126.86, 'Brakework done with Eric', 2),
@@ -1830,12 +1830,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-07-28' AND sv.odometer = 156147
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-07-28' AND sv.odometer IS NOT DISTINCT FROM 156147
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Tire Rotation', 0, 'Summer/Winter Tire Swap - New Tires Mounted', 0),
   ('Wheel Alignment', 129.99, 'Summer/Winter Tire Swap - New Tires Mounted', 1),
   ('(Re)Balance Tires', 48.8, 'Summer/Winter Tire Swap - New Tires Mounted', 2),
@@ -1848,12 +1848,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-08-13' AND sv.odometer = 158247
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-08-13' AND sv.odometer IS NOT DISTINCT FROM 158247
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 322.36, 'Replaced Brake Drums & Shoes w/Eric', 0),
   ('Oil Change/Oil Filter', 40.93, 'Done with Eric', 1)
 ) AS x(service_type, cost, notes, sort_order);
@@ -1864,12 +1864,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2023-10-16' AND sv.odometer = 162310
+    WHERE vv.name = 'Versa' AND sv.service_date = '2023-10-16' AND sv.odometer IS NOT DISTINCT FROM 162310
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('Replace Engine Air Filter', 11.99, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
@@ -1879,12 +1879,12 @@ WITH visit AS (
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
-    WHERE vv.name = 'Versa' AND sv.service_date = '2024-09-07' AND sv.odometer = 168181
+    WHERE vv.name = 'Versa' AND sv.service_date = '2024-09-07' AND sv.odometer IS NOT DISTINCT FROM 168181
   )
   RETURNING id
 )
 INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
-SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost::numeric, x.notes, x.sort_order::int FROM visit, (VALUES
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES
   ('General Repair', 207.99, 'Replaced the Battery', 0),
   ('Oil Change/Oil Filter', 30.49, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);

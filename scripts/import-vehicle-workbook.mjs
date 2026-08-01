@@ -162,18 +162,22 @@ function summarize(items) {
   return top.join(', ');
 }
 
+// Seeding runs from the SQL editor, where auth.uid() is null — stamp the owner
+// explicitly (same UID scripts/seed-financial.mjs uses).
+const OWNER = `'39345745-a876-422d-ab32-12f85692f681'::uuid`;
+
 // ── build SQL ─────────────────────────────────────────────────────────────
 function buildVehicleSQL({ label, name, make, model, modelYear, fuelRows, scheduleRows, visits }) {
   const lines = [];
   lines.push(`-- ── ${label} ──────────────────────────────────────────────────`);
   lines.push(`WITH v AS (`);
-  lines.push(`  INSERT INTO veh_vehicles (name, make, model, model_year, active)`);
-  lines.push(`  SELECT ${sqlStr(name)}, ${sqlStr(make)}, ${sqlStr(model)}, ${sqlNum(modelYear)}, true`);
+  lines.push(`  INSERT INTO veh_vehicles (owner, name, make, model, model_year, active)`);
+  lines.push(`  SELECT ${OWNER}, ${sqlStr(name)}, ${sqlStr(make)}, ${sqlStr(model)}, ${sqlNum(modelYear)}, true`);
   lines.push(`  WHERE NOT EXISTS (SELECT 1 FROM veh_vehicles WHERE name = ${sqlStr(name)})`);
   lines.push(`  RETURNING id`);
   lines.push(`)`);
-  lines.push(`INSERT INTO veh_fuel_logs (vehicle_id, fill_date, odometer, gallons, total_cost)`);
-  lines.push(`SELECT v.id, x.fill_date, x.odometer, x.gallons, x.total_cost FROM v, (VALUES`);
+  lines.push(`INSERT INTO veh_fuel_logs (owner, vehicle_id, fill_date, odometer, gallons, total_cost)`);
+  lines.push(`SELECT ${OWNER}, v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES`);
   lines.push(
     fuelRows
       .map((r, i) => `  (${sqlDate(r.fill_date)}, ${sqlNum(r.odometer)}, ${sqlNum(r.gallons)}, ${sqlNum(r.total_cost)})${i === fuelRows.length - 1 ? '' : ','}`)
@@ -184,8 +188,8 @@ function buildVehicleSQL({ label, name, make, model, modelYear, fuelRows, schedu
   lines.push('');
 
   if (scheduleRows.length) {
-    lines.push(`INSERT INTO veh_service_plan (vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)`);
-    lines.push(`SELECT v.id, x.service, x.interval_months, x.interval_miles, x.avg_cost, x.last_completed_date, x.last_odometer, x.sort_order`);
+    lines.push(`INSERT INTO veh_service_plan (owner, vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)`);
+    lines.push(`SELECT ${OWNER}, v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int`);
     lines.push(`FROM (SELECT id FROM veh_vehicles WHERE name = ${sqlStr(name)}) v, (VALUES`);
     lines.push(
       scheduleRows
@@ -205,17 +209,17 @@ function buildVehicleSQL({ label, name, make, model, modelYear, fuelRows, schedu
       const totalCost = Math.round(visit.items.reduce((s, i) => s + (i.cost || 0), 0) * 100) / 100;
       const summary = summarize(visit.items);
       lines.push(`WITH visit AS (`);
-      lines.push(`  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)`);
-      lines.push(`  SELECT id, ${sqlDate(visit.date)}, ${sqlNum(visit.odometer)}, ${sqlStr(summary)}, ${sqlNum(totalCost)}`);
+      lines.push(`  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)`);
+      lines.push(`  SELECT ${OWNER}, id, ${sqlDate(visit.date)}, ${sqlNum(visit.odometer)}, ${sqlStr(summary)}, ${sqlNum(totalCost)}`);
       lines.push(`  FROM veh_vehicles WHERE name = ${sqlStr(name)}`);
       lines.push(`  AND NOT EXISTS (`);
       lines.push(`    SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id`);
-      lines.push(`    WHERE vv.name = ${sqlStr(name)} AND sv.service_date = ${sqlDate(visit.date)} AND sv.odometer = ${sqlNum(visit.odometer)}`);
+      lines.push(`    WHERE vv.name = ${sqlStr(name)} AND sv.service_date = ${sqlDate(visit.date)} AND sv.odometer IS NOT DISTINCT FROM ${sqlNum(visit.odometer)}`);
       lines.push(`  )`);
       lines.push(`  RETURNING id`);
       lines.push(`)`);
-      lines.push(`INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)`);
-      lines.push(`SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES`);
+      lines.push(`INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)`);
+      lines.push(`SELECT ${OWNER}, visit.id, x.service_type, COALESCE(x.cost::numeric, 0), x.notes, COALESCE(x.sort_order::int, 0) FROM visit, (VALUES`);
       lines.push(
         visit.items
           .map((it, i) => `  (${sqlStr(it.service)}, ${sqlNum(it.cost)}, ${sqlStr(it.notes)}, ${i})${i === visit.items.length - 1 ? '' : ','}`)
