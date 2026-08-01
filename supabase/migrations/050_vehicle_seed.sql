@@ -6,13 +6,13 @@
 
 -- ── CX-5 ──────────────────────────────────────────────────
 WITH v AS (
-  INSERT INTO veh_vehicles (name, make, model, model_year, active)
-  SELECT 'CX-5', 'Mazda', 'CX-5', 2016, true
+  INSERT INTO veh_vehicles (owner, name, make, model, model_year, active)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, 'CX-5', 'Mazda', 'CX-5', 2016, true
   WHERE NOT EXISTS (SELECT 1 FROM veh_vehicles WHERE name = 'CX-5')
   RETURNING id
 )
-INSERT INTO veh_fuel_logs (vehicle_id, fill_date, odometer, gallons, total_cost)
-SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
+INSERT INTO veh_fuel_logs (owner, vehicle_id, fill_date, odometer, gallons, total_cost)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
   ('2024-01-05', 64049, 12.145, 41.28),
   ('2024-01-08', 64394, 13.588, 45.78),
   ('2024-01-12', 64745, 13.497, 44.53),
@@ -240,8 +240,8 @@ SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total
 ) AS x(fill_date, odometer, gallons, total_cost)
 WHERE NOT EXISTS (SELECT 1 FROM veh_fuel_logs fl JOIN veh_vehicles vv ON vv.id = fl.vehicle_id WHERE vv.name = 'CX-5');
 
-INSERT INTO veh_service_plan (vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
-SELECT v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
+INSERT INTO veh_service_plan (owner, vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
 FROM (SELECT id FROM veh_vehicles WHERE name = 'CX-5') v, (VALUES
   ('Replace Spark Plugs', NULL, 100000, NULL, NULL, NULL, 0),
   ('Mile Service', NULL, 10334, 250.2, '2025-03-28', 105024, 1),
@@ -267,8 +267,8 @@ FROM (SELECT id FROM veh_vehicles WHERE name = 'CX-5') v, (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM veh_service_plan sp JOIN veh_vehicles vv ON vv.id = sp.vehicle_id WHERE vv.name = 'CX-5');
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-12-16', 27521, 'New Tires Purchased & Mounted, Wheel Alignment', 449.35
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-12-16', 27521, 'New Tires Purchased & Mounted, Wheel Alignment', 449.35
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -276,15 +276,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 390.35, 'New Tires Purchased & Mounted', 0),
   ('Wheel Alignment', 59, '2 Wheels', 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-10-14', 41467, 'Replace Brake Rotors, Labor, Replace Brake Pads', 555.84
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-10-14', 41467, 'Replace Brake Rotors, Labor, Replace Brake Pads', 555.84
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -292,8 +292,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -304,8 +304,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-03-09', 45476, 'New Tires Purchased & Mounted, Labor, Replace Brake Rotors', 2091.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-03-09', 45476, 'New Tires Purchased & Mounted, Labor, Replace Brake Rotors', 2091.95
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -313,8 +313,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -328,8 +328,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-03-16', 54408, 'Wheel Alignment, Replace Cabin Air Filter, Oil Change/Oil Filter', 346.23
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-03-16', 54408, 'Wheel Alignment, Replace Cabin Air Filter, Oil Change/Oil Filter', 346.23
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -337,8 +337,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -352,8 +352,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-09-01', NULL, 'Registration', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-09-01', NULL, 'Registration', 0
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -361,14 +361,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-02-08', 67538, 'Labor, Oil Change/Oil Filter, Shop Supplies, Taxes, & Misc.', 129.23
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-02-08', 67538, 'Labor, Oil Change/Oil Filter, Shop Supplies, Taxes, & Misc.', 129.23
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -376,8 +376,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brake Fluid', 0, NULL, 0),
   ('Inspect Brakes', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -389,8 +389,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-05-31', 77669, '(Re)Balance Tires, Oil Change/Oil Filter, Labor', 208.6
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-05-31', 77669, '(Re)Balance Tires, Oil Change/Oil Filter, Labor', 208.6
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -398,8 +398,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -412,8 +412,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-06-10', 79325, 'Labor, Replace Brake Rotors, Shop Supplies, Taxes, & Misc.', 771.2
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-06-10', 79325, 'Labor, Replace Brake Rotors, Shop Supplies, Taxes, & Misc.', 771.2
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -421,8 +421,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Brake Pads', 80.78, 'Rear Brakes', 0),
   ('Replace Brake Rotors', 239.9, 'Rear Brakes', 1),
   ('Replace Cabin Air Filter', 39.95, NULL, 2),
@@ -431,8 +431,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-06-14', 79900, 'Replace Engine Air Filter', 12.11
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-06-14', 79900, 'Replace Engine Air Filter', 12.11
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -440,14 +440,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Engine Air Filter', 12.11, 'Purchased through Amazon', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-07-26', 84355, 'Mile Service, New Tires Purchased & Mounted, Shop Supplies, Taxes, & Misc.', 508.29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-07-26', 84355, 'Mile Service, New Tires Purchased & Mounted, Shop Supplies, Taxes, & Misc.', 508.29
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -455,8 +455,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0),
   ('Inspect Brake Fluid', 0, NULL, 1),
   ('Inspect Drive Belts', 0, NULL, 2),
@@ -470,8 +470,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-09-07', 89765, 'Inspect Brakes, Shop Supplies, Taxes, & Misc., Tire Rotation', 60.53
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-09-07', 89765, 'Inspect Brakes, Shop Supplies, Taxes, & Misc., Tire Rotation', 60.53
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -479,16 +479,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 50.7, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('Shop Supplies, Taxes, & Misc.', 9.83, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-10-07', 92918, 'Mile Service, Oil Change/Oil Filter, Shop Supplies, Taxes, & Misc.', 129.23
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-10-07', 92918, 'Mile Service, Oil Change/Oil Filter, Shop Supplies, Taxes, & Misc.', 129.23
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -496,8 +496,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 50.95, NULL, 0),
   ('Mile Service', 67, '5k Service', 1),
   ('Inspect Brake Fluid', 0, NULL, 2),
@@ -506,8 +506,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-10-29', 94972, 'Registration', 172.69
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-10-29', 94972, 'Registration', 172.69
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -515,14 +515,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 172.69, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-02-22', 102158, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 74.27
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-02-22', 102158, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 74.27
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -530,8 +530,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('General Repair', 3.5, 'Washer Fluid', 1),
   ('Labor', 10.5, NULL, 2),
@@ -539,8 +539,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-03-28', 105024, 'Labor, Mile Service, General Repair', 1409.77
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-03-28', 105024, 'Labor, Mile Service, General Repair', 1409.77
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -548,8 +548,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Mile Service', 449.5, '30k Service', 0),
   ('Wheel Alignment', NULL, '30k Service', 1),
   ('Tire Rotation', NULL, '30k Service', 2),
@@ -565,8 +565,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-05-26', 110795, 'Replace Brake Pads', 187.65
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-05-26', 110795, 'Replace Brake Pads', 187.65
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -574,14 +574,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Brake Pads', 187.65, '(Replaced 4x pads w/Eric) Pads & Supplies', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-05-30', 111382, 'Inspect Brakes', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-05-30', 111382, 'Inspect Brakes', 0
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -589,14 +589,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-06-14', 112983, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 69
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-06-14', 112983, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 69
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -604,16 +604,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 3.05, NULL, 1),
   ('Labor', 10.5, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-07-03', 115099, '(Re)Balance Tires, State Inspection, Shop Supplies, Taxes, & Misc.', 83.96
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-07-03', 115099, '(Re)Balance Tires, State Inspection, Shop Supplies, Taxes, & Misc.', 83.96
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -621,8 +621,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('(Re)Balance Tires', 53.35, NULL, 0),
   ('Tire Rotation', 0, NULL, 1),
   ('State Inspection', 18.8, NULL, 2),
@@ -633,8 +633,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-08-29', 120700, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 71.58
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-08-29', 120700, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 71.58
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -642,16 +642,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-10-09', 125650, 'General Repair', 247.4
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-10-09', 125650, 'General Repair', 247.4
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -659,14 +659,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 247.4, 'Replaced vehicle battery', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-12-11', 131110, 'Registration', 172.69
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-12-11', 131110, 'Registration', 172.69
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -674,14 +674,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 172.69, 'Used Affirm to Register', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2025-12-13', 131294, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 71.58
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2025-12-13', 131294, 'Oil Change/Oil Filter, Labor, Shop Supplies, Taxes, & Misc.', 71.58
   FROM veh_vehicles WHERE name = 'CX-5'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -689,8 +689,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 55.45, NULL, 0),
   ('Shop Supplies, Taxes, & Misc.', 4.63, NULL, 1),
   ('Labor', 11.5, NULL, 2)
@@ -698,13 +698,13 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 
 -- ── Versa ──────────────────────────────────────────────────
 WITH v AS (
-  INSERT INTO veh_vehicles (name, make, model, model_year, active)
-  SELECT 'Versa', 'Nissan', 'Versa', 2015, true
+  INSERT INTO veh_vehicles (owner, name, make, model, model_year, active)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, 'Versa', 'Nissan', 'Versa', 2015, true
   WHERE NOT EXISTS (SELECT 1 FROM veh_vehicles WHERE name = 'Versa')
   RETURNING id
 )
-INSERT INTO veh_fuel_logs (vehicle_id, fill_date, odometer, gallons, total_cost)
-SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
+INSERT INTO veh_fuel_logs (owner, vehicle_id, fill_date, odometer, gallons, total_cost)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total_cost::numeric FROM v, (VALUES
   ('2021-01-02', 101998, 8.86, 21.26),
   ('2021-01-10', 102280, 8.904, 22.25),
   ('2021-01-23', 102576, 9.003, 22.14),
@@ -913,8 +913,8 @@ SELECT v.id, x.fill_date::date, x.odometer::numeric, x.gallons::numeric, x.total
 ) AS x(fill_date, odometer, gallons, total_cost)
 WHERE NOT EXISTS (SELECT 1 FROM veh_fuel_logs fl JOIN veh_vehicles vv ON vv.id = fl.vehicle_id WHERE vv.name = 'Versa');
 
-INSERT INTO veh_service_plan (vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
-SELECT v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
+INSERT INTO veh_service_plan (owner, vehicle_id, service, interval_months, interval_miles, avg_cost, last_completed_date, last_odometer, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, v.id, x.service, x.interval_months::int, x.interval_miles::int, x.avg_cost::numeric, x.last_completed_date::date, x.last_odometer::numeric, x.sort_order::int
 FROM (SELECT id FROM veh_vehicles WHERE name = 'Versa') v, (VALUES
   ('Replace In-Cabin Air Filter', 54, 45000, 142.768333, '2021-04-06', 105672, 0),
   ('Wheel Alignment', 12, 5000, 99.786, '2023-07-28', 156147, 1),
@@ -937,8 +937,8 @@ FROM (SELECT id FROM veh_vehicles WHERE name = 'Versa') v, (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM veh_service_plan sp JOIN veh_vehicles vv ON vv.id = sp.vehicle_id WHERE vv.name = 'Versa');
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2015-10-09', 4938, 'Tire Rotation, Oil Change/Oil Filter', 58.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2015-10-09', 4938, 'Tire Rotation, Oil Change/Oil Filter', 58.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -946,15 +946,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2015-12-26', 9201, 'Tire Rotation, Oil Change/Oil Filter', 58.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2015-12-26', 9201, 'Tire Rotation, Oil Change/Oil Filter', 58.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -962,15 +962,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2016-03-31', 15068, 'Replace Brake Fluid, Tire Rotation, Oil Change/Oil Filter', 198.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2016-03-31', 15068, 'Replace Brake Fluid, Tire Rotation, Oil Change/Oil Filter', 198.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -978,16 +978,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Brake Fluid', 140, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2016-10-13', 26131, 'Tire Rotation, Oil Change/Oil Filter, Replace Engine Air Filter', 71.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2016-10-13', 26131, 'Tire Rotation, Oil Change/Oil Filter, Replace Engine Air Filter', 71.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -995,16 +995,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1),
   ('Replace Engine Air Filter', 13, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2016-12-04', NULL, 'Tire Rotation', 29.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2016-12-04', NULL, 'Tire Rotation', 29.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1012,14 +1012,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2017-07-21', 42401, 'Oil Change/Oil Filter', 29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2017-07-21', 42401, 'Oil Change/Oil Filter', 29
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1027,14 +1027,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2017-11-09', NULL, 'Registration', 197
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2017-11-09', NULL, 'Registration', 197
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1042,14 +1042,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 197, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2017-12-02', 52179, 'Tire Rotation, Oil Change/Oil Filter', 58.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2017-12-02', 52179, 'Tire Rotation, Oil Change/Oil Filter', 58.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1057,15 +1057,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Oil Change/Oil Filter', 29, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2018-02-17', 58267, 'Oil Change/Oil Filter', 29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2018-02-17', 58267, 'Oil Change/Oil Filter', 29
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1073,14 +1073,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2018-04-08', 61877, 'Tire Rotation, Tire Rotation', 59.9
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2018-04-08', 61877, 'Tire Rotation, Tire Rotation', 59.9
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1088,15 +1088,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 29.95, NULL, 0),
   ('Tire Rotation', 29.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2018-06-07', 67657, 'CVT Flush & Fill, Replace In-Cabin Air Filter, Oil Change/Oil Filter', 460
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2018-06-07', 67657, 'CVT Flush & Fill, Replace In-Cabin Air Filter, Oil Change/Oil Filter', 460
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1104,16 +1104,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('CVT Flush & Fill', 288, NULL, 0),
   ('Replace In-Cabin Air Filter', 143, NULL, 1),
   ('Oil Change/Oil Filter', 29, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-02-21', NULL, 'Registration', 175.41
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-02-21', NULL, 'Registration', 175.41
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1121,14 +1121,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 175.41, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-02-22', 79241, 'General Repair', 325.12
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-02-22', 79241, 'General Repair', 325.12
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1136,14 +1136,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 325.12, 'Shock Replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-04-06', 81402, 'Oil Change/Oil Filter', 29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-04-06', 81402, 'Oil Change/Oil Filter', 29
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1151,14 +1151,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-04-22', 82089, 'Tire Rotation', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-04-22', 82089, 'Tire Rotation', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1166,14 +1166,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-10-19', 88520, 'New Tires Purchased & Mounted, Wheel Alignment', 494.59
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-10-19', 88520, 'New Tires Purchased & Mounted, Wheel Alignment', 494.59
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1181,15 +1181,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('New Tires Purchased & Mounted', 434.6, NULL, 0),
   ('Wheel Alignment', 59.99, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-10-20', 88545, 'State Inspection', 12.5
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-10-20', 88545, 'State Inspection', 12.5
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1197,14 +1197,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2019-11-01', 88880, 'Oil Change/Oil Filter, Replace Engine Air Filter', 39.99
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2019-11-01', 88880, 'Oil Change/Oil Filter, Replace Engine Air Filter', 39.99
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1212,15 +1212,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-02-28', 93657, 'General Repair', 568.15
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-02-28', 93657, 'General Repair', 568.15
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1228,14 +1228,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 568.15, 'Muffler and Resonator replacement', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-02-28', 93692, 'Oil Change/Oil Filter', 27.33
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-02-28', 93692, 'Oil Change/Oil Filter', 27.33
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1243,14 +1243,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.33, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-02-29', 93729, 'Registration', 101.6
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-02-29', 93729, 'Registration', 101.6
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1258,14 +1258,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-04-18', 99442, 'Oil Change/Oil Filter', 25.74
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-04-18', 99442, 'Oil Change/Oil Filter', 25.74
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1273,14 +1273,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-09-18', 93729, 'Oil Change/Oil Filter', 29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-09-18', 93729, 'Oil Change/Oil Filter', 29
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1288,14 +1288,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-09-19', 99538, 'Tire Rotation', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-09-19', 99538, 'Tire Rotation', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1303,14 +1303,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-11-02', 100167, 'Replace Brake Pads, Replace Brake Rotors', 491.65
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-11-02', 100167, 'Replace Brake Pads, Replace Brake Rotors', 491.65
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1318,15 +1318,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Brake Pads', 245.825, NULL, 0),
   ('Replace Brake Rotors', 245.825, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2020-11-05', 100406, 'Replace Antifreeze/Coolant, Replace Brake Fluid', 286.26
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2020-11-05', 100406, 'Replace Antifreeze/Coolant, Replace Brake Fluid', 286.26
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1334,15 +1334,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 145.78, NULL, 0),
   ('Replace Brake Fluid', 140.48, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-03-07', 104263, 'Registration', 101.6
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-03-07', 104263, 'Registration', 101.6
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1350,14 +1350,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-03-13', 104583, 'Oil Change/Oil Filter', 25.74
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-03-13', 104583, 'Oil Change/Oil Filter', 25.74
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1365,14 +1365,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 25.74, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-03-13', 104590, 'Tire Rotation', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-03-13', 104590, 'Tire Rotation', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1380,14 +1380,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-03-26', 105059, 'General Repair', 310.59
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-03-26', 105059, 'General Repair', 310.59
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1395,14 +1395,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 310.59, 'Control Arm and Hose Clamps', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-04-06', 105672, 'Replace Antifreeze/Coolant, Replace Spark Plugs, Replace In-Cabin Air Filter', 427.61
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-04-06', 105672, 'Replace Antifreeze/Coolant, Replace Spark Plugs, Replace In-Cabin Air Filter', 427.61
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1410,16 +1410,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Antifreeze/Coolant', 142.536667, NULL, 0),
   ('Replace Spark Plugs', 142.536667, NULL, 1),
   ('Replace In-Cabin Air Filter', 142.536667, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-06-26', 110232, 'Wheel Alignment, Tire Rotation', 119
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-06-26', 110232, 'Wheel Alignment, Tire Rotation', 119
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1427,15 +1427,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Wheel Alignment', 119, NULL, 0),
   ('Tire Rotation', 0, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-06-26', 110237, 'Oil Change/Oil Filter', 32.07
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-06-26', 110237, 'Oil Change/Oil Filter', 32.07
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1443,14 +1443,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 32.07, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-07-03', 100167, 'Inspect Brakes', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-07-03', 100167, 'Inspect Brakes', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1458,14 +1458,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-11-02', 115048, 'Oil Change/Oil Filter', 27.85
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-11-02', 115048, 'Oil Change/Oil Filter', 27.85
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1473,14 +1473,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 27.85, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-11-20', 116161, 'State Inspection', 12.5
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-11-20', 116161, 'State Inspection', 12.5
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1488,14 +1488,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('State Inspection', 12.5, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2021-11-20', 116198, 'Tire Rotation', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2021-11-20', 116198, 'Tire Rotation', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1503,14 +1503,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-03-19', 121083, 'Oil Change/Oil Filter, Replace Engine Air Filter', 42.62
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-03-19', 121083, 'Oil Change/Oil Filter, Replace Engine Air Filter', 42.62
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1518,15 +1518,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0),
   ('Replace Engine Air Filter', 12.66, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-03-19', 121076, 'Tire Rotation', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-03-19', 121076, 'Tire Rotation', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1534,14 +1534,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 0, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-05-11', 123627, 'Registration', 101.6
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-05-11', 123627, 'Registration', 101.6
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1549,14 +1549,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 101.6, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-07-02', 126975, 'Oil Change/Oil Filter', 29.96
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-07-02', 126975, 'Oil Change/Oil Filter', 29.96
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1564,14 +1564,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-07-12', 127751, 'Replace Brake Rotors, Replace Brake Pads, Inspect Brakes', 281.54
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-07-12', 127751, 'Replace Brake Rotors, Replace Brake Pads, Inspect Brakes', 281.54
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1579,16 +1579,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Brake Rotors', 225.91, NULL, 0),
   ('Replace Brake Pads', 55.63, 'Under Warranty - Replaced (Labor Cost)', 1),
   ('Inspect Brakes', 0, NULL, 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-08-22', 130433, 'General Repair', 110.78
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-08-22', 130433, 'General Repair', 110.78
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1596,14 +1596,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 110.78, 'Driver''s side window tint replaced', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-09-08', 132275, 'Wheel Alignment', 79.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-09-08', 132275, 'Wheel Alignment', 79.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1611,14 +1611,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Wheel Alignment', 79.95, 'Front tires alligned, rear checked.', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-09-17', 133295, 'Oil Change/Oil Filter', 29.96
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-09-17', 133295, 'Oil Change/Oil Filter', 29.96
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1626,14 +1626,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-11-02', 136934, 'General Repair, Tire Rotation, (Re)Balance Tires', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-11-02', 136934, 'General Repair, Tire Rotation, (Re)Balance Tires', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1641,16 +1641,16 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 0, 'Installed winter tires that Eric gave me.', 0),
   ('Tire Rotation', 0, 'Installed winter tires that Eric gave me.', 1),
   ('(Re)Balance Tires', 0, 'Tires already came balanced.', 2)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-11-12', 136822, 'General Repair', 41.1
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-11-12', 136822, 'General Repair', 41.1
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1658,14 +1658,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 41.1, 'Swap over TPMS sensors from old tires', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-11-16', 136946, 'General Repair', 68.27
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-11-16', 136946, 'General Repair', 68.27
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1673,14 +1673,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 68.27, 'TMPS Kit - Repair for flat tires after TPMS swap', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-11-25', 137764, 'CVT Flush & Fill', 288.01
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-11-25', 137764, 'CVT Flush & Fill', 288.01
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1688,14 +1688,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('CVT Flush & Fill', 288.01, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-12-10', 139169, 'Oil Change/Oil Filter', 29.96
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-12-10', 139169, 'Oil Change/Oil Filter', 29.96
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1703,14 +1703,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2022-12-30', 141030, 'General Repair, General Repair, General Repair', 1480.86
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2022-12-30', 141030, 'General Repair, General Repair, General Repair', 1480.86
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1718,8 +1718,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 642.98, 'Replaced Muffler and Exhaust', 0),
   ('General Repair', 420.99, 'Replaced Lower Control Arm and Ball Assembly', 1),
   ('General Repair', 276.94, 'Replaced Front Sway Bar Links', 2),
@@ -1730,8 +1730,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-02-24', 145650, 'General Repair', 55.9
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-02-24', 145650, 'General Repair', 55.9
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1739,14 +1739,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 55.9, 'Replaced Headlamp Bulbs', 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-02-25', 145673, '(Re)Balance Tires, Tire Rotation', 84.95
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-02-25', 145673, '(Re)Balance Tires, Tire Rotation', 84.95
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1754,15 +1754,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('(Re)Balance Tires', 60, NULL, 0),
   ('Tire Rotation', 24.95, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-02-25', 145674, 'Oil Change/Oil Filter', 29.96
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-02-25', 145674, 'Oil Change/Oil Filter', 29.96
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1770,14 +1770,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', 29.96, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-04-10', 148732, 'Registration', 102.92
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-04-10', 148732, 'Registration', 102.92
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1785,14 +1785,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Registration', 102.92, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-05-22', 151714, 'Oil Change/Oil Filter', 0
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-05-22', 151714, 'Oil Change/Oil Filter', 0
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1800,14 +1800,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Oil Change/Oil Filter', NULL, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-07-25', 156004, 'Replace Brake Rotors, General Repair, Replace Brake Pads', 471.6
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-07-25', 156004, 'Replace Brake Rotors, General Repair, Replace Brake Pads', 471.6
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1815,8 +1815,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Inspect Brakes', 0, 'Brakework done with Eric', 0),
   ('Replace Brake Fluid', NULL, 'Brakework done with Eric', 1),
   ('Replace Brake Pads', 126.86, 'Brakework done with Eric', 2),
@@ -1825,8 +1825,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-07-28', 156147, 'New Tires Purchased & Mounted, Wheel Alignment, (Re)Balance Tires', 1031.75
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-07-28', 156147, 'New Tires Purchased & Mounted, Wheel Alignment, (Re)Balance Tires', 1031.75
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1834,8 +1834,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Tire Rotation', 0, 'Summer/Winter Tire Swap - New Tires Mounted', 0),
   ('Wheel Alignment', 129.99, 'Summer/Winter Tire Swap - New Tires Mounted', 1),
   ('(Re)Balance Tires', 48.8, 'Summer/Winter Tire Swap - New Tires Mounted', 2),
@@ -1843,8 +1843,8 @@ SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALU
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-08-13', 158247, 'General Repair, Oil Change/Oil Filter', 363.29
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-08-13', 158247, 'General Repair, Oil Change/Oil Filter', 363.29
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1852,15 +1852,15 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 322.36, 'Replaced Brake Drums & Shoes w/Eric', 0),
   ('Oil Change/Oil Filter', 40.93, 'Done with Eric', 1)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2023-10-16', 162310, 'Replace Engine Air Filter', 11.99
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2023-10-16', 162310, 'Replace Engine Air Filter', 11.99
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1868,14 +1868,14 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('Replace Engine Air Filter', 11.99, NULL, 0)
 ) AS x(service_type, cost, notes, sort_order);
 
 WITH visit AS (
-  INSERT INTO veh_service_visits (vehicle_id, service_date, odometer, summary, total_cost)
-  SELECT id, '2024-09-07', 168181, 'General Repair, Oil Change/Oil Filter', 238.48
+  INSERT INTO veh_service_visits (owner, vehicle_id, service_date, odometer, summary, total_cost)
+  SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, id, '2024-09-07', 168181, 'General Repair, Oil Change/Oil Filter', 238.48
   FROM veh_vehicles WHERE name = 'Versa'
   AND NOT EXISTS (
     SELECT 1 FROM veh_service_visits sv JOIN veh_vehicles vv ON vv.id = sv.vehicle_id
@@ -1883,8 +1883,8 @@ WITH visit AS (
   )
   RETURNING id
 )
-INSERT INTO veh_service_items (visit_id, service_type, cost, notes, sort_order)
-SELECT visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
+INSERT INTO veh_service_items (owner, visit_id, service_type, cost, notes, sort_order)
+SELECT '39345745-a876-422d-ab32-12f85692f681'::uuid, visit.id, x.service_type, x.cost, x.notes, x.sort_order FROM visit, (VALUES
   ('General Repair', 207.99, 'Replaced the Battery', 0),
   ('Oil Change/Oil Filter', 30.49, NULL, 1)
 ) AS x(service_type, cost, notes, sort_order);
