@@ -218,9 +218,12 @@ export function useClimateData() {
   // Load the live schedule + executor kill-switch + last actual AC push.
   const loadSchedule = useCallback(async () => {
     if (!supabase) return;
+    // ac_goal_schedule (v2) — the only table controller.py actually plans against
+    // since the 2026-08-02 cutover. ac_schedule (Schedule (legacy)) is frozen and no
+    // longer reflects what the AC will do next; showing it here would silently lie.
     const { data: sched } = await supabase
-      .from('ac_schedule')
-      .select('*')
+      .from('ac_goal_schedule')
+      .select('id,position,days,time_local,phase,goal_room,goal_temp_f,deadband_f,quiet,enabled')
       .order('time_local', { ascending: true });
     setSchedule(sched ?? []);
     const { data: prefs } = await supabase

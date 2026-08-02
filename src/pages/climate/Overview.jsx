@@ -53,11 +53,20 @@ function computeActiveAndNext(schedule) {
   return { active, next };
 }
 
+const ROOM_LABEL = { bedroom: 'Bedroom', living: 'Living Room' };
+const PHASE_LABEL = { sleep: 'Sleep', precool: 'Precool', home: 'Home', away: 'Away', off: 'Off' };
+
+// ac_goal_schedule (v2) blocks are a phase + goal, not a stored temp/mode/fan —
+// controller.py derives the actual device state live from the goal + thermal
+// model, so there's no fixed setpoint to show here, only what it's aiming for.
 function blockSummary(r) {
   if (!r) return '—';
-  if (r.action === 'off') return 'Off';
-  const t = r.temp_f != null ? `${r.temp_f}°F` : '';
-  return `${t} ${r.mode ?? ''}${r.fan ? ` · Fan ${r.fan}` : ''}`.trim();
+  if (r.phase === 'off') return 'Off';
+  const label = PHASE_LABEL[r.phase] ?? r.phase ?? '';
+  if (r.goal_room && r.goal_temp_f != null) {
+    return `${label} · ${ROOM_LABEL[r.goal_room] ?? r.goal_room} → ${r.goal_temp_f}°F`;
+  }
+  return label;
 }
 
 // Tiered battery indicator: pick the icon + color from the charge level relative to
