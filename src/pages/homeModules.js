@@ -1,6 +1,6 @@
 import {
   Thermometer, Lightbulb, Radar, ListChecks, Truck, Wallet, Droplets,
-  Inbox, Mail, Fuel, Wrench, Tv,
+  Inbox, Mail, Fuel, Wrench, Tv, Car,
 } from 'lucide-react';
 
 // Single source of truth for every module on the dashboard. `placement` decides
@@ -46,6 +46,11 @@ export const MODULES = [
     id: 'cashflow', icon: Droplets, title: 'Cashflow Plan', to: '/cashflow',
     accent: 'text-emerald-400', placement: 'action-money', locked: true,
     description: 'Weekly cash waterfall, daily runway & bills — your workbooks, on the dashboard.',
+  },
+  {
+    id: 'vehicles', icon: Car, title: 'Vehicle Care', to: '/vehicles',
+    accent: 'text-sky-400', placement: 'action-money', locked: true,
+    description: 'Maintenance schedule, service log & fuel tracking for the CX-5 and Versa.',
   },
   {
     id: 'debt', icon: Wallet, title: 'Debt Payoff Calculator', to: '/debt-calculator',
