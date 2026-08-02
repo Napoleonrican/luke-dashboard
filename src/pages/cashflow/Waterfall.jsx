@@ -71,7 +71,14 @@ const MANUAL_TYPES = ['Bill', 'Debt/Loan', 'One-Time', 'Digital Sub.'];
 // balance feeds `inputs.uberBackupOwed`, so Step 0a (Uber Pro backup repayment)
 // and Step 6's Uber-surplus credit read it exactly as they did before.
 const UBER_BACKUP_OWED_NAME = 'Uber Pro Backup Owed';
-const isOwedAccount = (a) => accountNameMatches(a, UBER_BACKUP_OWED_NAME);
+// The row is keyed off its immutable slug (assigned once at creation in
+// addUberOwedAccount and never editable in the UI) rather than its name, so
+// renaming the account — even accidentally — can't silently reclassify this
+// liability as ordinary cash. The name match stays as a fallback for any row
+// that predates the slug.
+const UBER_BACKUP_OWED_SLUG = 'uber-pro-backup-owed';
+const isOwedAccount = (a) =>
+  a?.slug === UBER_BACKUP_OWED_SLUG || accountNameMatches(a, UBER_BACKUP_OWED_NAME);
 
 const INPUT_FIELDS = [
   { group: 'Targets (from your Inputs sheet)', fields: [

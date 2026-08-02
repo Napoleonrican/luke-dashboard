@@ -13,7 +13,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-07-30' },
+  { id: 'waterfall',     label: 'Waterfall',     icon: Droplets,   color: '#06b6d4', updated: '2026-08-02' },
   { id: 'summary',       label: 'Summary',       icon: Layers,     color: '#64748b', updated: '2026-07-15' },
   { id: 'bills',         label: 'Bills',         icon: Receipt,    color: '#3b82f6', updated: '2026-07-15' },
   { id: 'debts',         label: 'Debts',         icon: CreditCard, color: '#8b5cf6', updated: '2026-07-30' },
@@ -195,7 +195,7 @@ export default function Guide() {
 
         <Block title="7. Current Balances & pending transfers">
           <p>Edit any balance inline; a freshness dot + “Xd ago” shows how stale it is. The <strong className="text-zinc-300">gear</strong> adds an account; <strong className="text-zinc-300">Transfers</strong> opens the pending-transfers modal (money in flight that hasn’t landed — it shows as a projected balance but doesn’t change the pour). Once a day, a <strong className="text-zinc-300">“Still accurate?”</strong> prompt asks you to confirm or update stale balances before you plan.</p>
-          <p><strong className="text-zinc-300">Uber Pro Backup Owed</strong> lives here too, tagged <strong className="text-amber-400">owed</strong> — it’s strictly <em>what you owe back</em> to the backup balance, so it never counts toward Total cash on hand and can never be banked into the pool (its Bank cell shows “—”). Editing it here drives Step 0a (Uber Pro backup repayment) and Step 6’s Uber-surplus credit, exactly as the old Plan Inputs field did. If you don’t have the row yet, the gear menu offers <strong className="text-zinc-300">Add Uber Pro owed</strong>, seeded from your old Plan Inputs figure.</p>
+          <p><strong className="text-zinc-300">Uber Pro Backup Owed</strong> lives here too, tagged <strong className="text-amber-400">owed</strong> — it’s strictly <em>what you owe back</em> to the backup balance, so it never counts toward Total cash on hand and can never be banked into the pool (its Bank cell shows “—”). Editing it here drives Step 0a (Uber Pro backup repayment) and Step 6’s Uber-surplus credit, exactly as the old Plan Inputs field did. If you don’t have the row yet, the gear menu offers <strong className="text-zinc-300">Add Uber Pro owed</strong>, seeded from your old Plan Inputs figure. Renaming the row is safe — it stays tagged as owed and keeps feeding the plan, because it’s tracked by a fixed internal id, not its label.</p>
         </Block>
 
         <Block title="8. Plan Inputs, freshness & the payday reminder">
