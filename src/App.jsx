@@ -35,6 +35,7 @@ const History = lazy(() => import('./pages/climate/History'));
 const Schedule = lazy(() => import('./pages/climate/Schedule'));
 const Goals = lazy(() => import('./pages/climate/Goals'));
 const AgentLog = lazy(() => import('./pages/climate/AgentLog'));
+const GoalSchedule = lazy(() => import('./pages/climate/GoalSchedule'));
 const Shadow = lazy(() => import('./pages/climate/Shadow'));
 const Settings = lazy(() => import('./pages/climate/Settings'));
 const MissionControl = lazy(() => import('./pages/MissionControl'));
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="schedule" element={<Schedule />} />
           <Route path="goals" element={<Goals />} />
           <Route path="log" element={<AgentLog />} />
+          <Route path="goal-schedule" element={<GoalSchedule />} />
           <Route path="shadow" element={<Shadow />} />
           <Route path="settings" element={<Settings />} />
         </Route>
