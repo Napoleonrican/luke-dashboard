@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CalendarClock, Plus, Trash2, Save, Power } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Save, Power, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // bit 0 = Sunday
@@ -84,10 +85,19 @@ export default function AcSchedule() {
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 mb-6">
+      <div className="flex items-start gap-2 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+        <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-amber-200/90 leading-relaxed">
+          <strong>Frozen as of the v2 cutover (2026-08-02).</strong> Nothing reads this table anymore — the AC is
+          driven entirely by <Link to="/climate/goal-schedule" className="text-amber-300 underline">Goal Schedule (v2)</Link>.
+          This page is kept only as the v1 rollback path; edits here will not change what the AC does.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <CalendarClock size={16} className="text-amber-400" />
-          <span className="text-sm font-semibold text-zinc-100">AC Schedule</span>
+          <span className="text-sm font-semibold text-zinc-100">AC Schedule (legacy / v1 rollback)</span>
         </div>
         <button
           onClick={addRow}
@@ -98,8 +108,8 @@ export default function AcSchedule() {
       </div>
 
       <p className="text-xs text-zinc-500 mb-4 leading-relaxed">
-        This is the live schedule the executor applies to your AC — each entry takes effect at its
-        time. The agent tunes it automatically toward your goals; you can also edit any block here.
+        This is the v1 schedule — kept frozen as the instant-rollback path (flip the old executor/goal-follower
+        timers back on, they'll pick up exactly what's here). It is no longer read by the live controller.
       </p>
 
       {/* ── Current schedule (editable) ── */}

@@ -6,12 +6,14 @@ import { useClimateData } from './useClimateData';
 const NAV_ITEMS = [
   { to: 'overview', label: 'Overview', icon: LayoutGrid },
   { to: 'history', label: 'History', icon: LineChart },
-  { to: 'schedule', label: 'Schedule', icon: CalendarClock },
+  // Goal Schedule (v2) is the real, editable schedule as of the 2026-08-02
+  // cutover — controller.py reads this exclusively. Given top billing here.
+  { to: 'goal-schedule', label: 'Schedule', icon: ListChecks },
   { to: 'goals', label: 'Goals', icon: Target },
   { to: 'log', label: 'Agent Log', icon: History },
-  // AC v2 (both temporary — remove once the controller cuts over fully and
-  // ac_schedule/controller_shadow rows stop being produced; see Phase 4).
-  { to: 'goal-schedule', label: 'Goal Schedule (v2)', icon: ListChecks },
+  // Old v1 table — frozen, kept only as the rollback path (see the banner on
+  // the page itself). Not deleted so instant rollback stays possible.
+  { to: 'schedule', label: 'Schedule (legacy)', icon: CalendarClock },
   { to: 'shadow', label: 'Shadow (v2)', icon: GitCompare },
   { to: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
