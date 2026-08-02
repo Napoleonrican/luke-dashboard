@@ -51,11 +51,18 @@ export default function GoalSchedule() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [dirty, setDirty] = useState(() => new Set());
+  // A failed request here (RLS, a bad column, network) must never be able to look
+  // the same as "the table is genuinely empty" -- that ambiguity is exactly what
+  // made a real incident (a still-unexplained empty render on 2026-08-02) hard to
+  // diagnose after the fact. Every mutating call below surfaces its error instead
+  // of silently swallowing it.
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
-    const [{ data: sched }, { data: edits }] = await Promise.all([
+    setError(null);
+    const [{ data: sched, error: schedErr }, { data: edits, error: editsErr }] = await Promise.all([
       supabase
         .from('ac_goal_schedule')
         .select('id,position,days,time_local,phase,goal_room,goal_temp_f,deadband_f,quiet,enabled')
@@ -68,6 +75,8 @@ export default function GoalSchedule() {
         .order('ts', { ascending: false })
         .limit(10),
     ]);
+    if (schedErr) setError(`Couldn't load the schedule: ${schedErr.message}`);
+    else if (editsErr) setError(`Couldn't load recent agent edits: ${editsErr.message}`);
     setRows(sched ?? []);
     setAgentEdits(edits ?? []);
     setDirty(new Set());
@@ -78,25 +87,39 @@ export default function GoalSchedule() {
 
   async function addRow() {
     const position = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 1;
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('ac_goal_schedule')
       .insert({ position, days: EVERY_DAY, time_local: '00:00', phase: 'home',
                 goal_room: null, goal_temp_f: null, deadband_f: 2.0, quiet: false, enabled: true })
       .select()
       .single();
+    if (err) { setError(`Couldn't add the block: ${err.message}`); return; }
+    setError(null);
     if (data) setRows((p) => [...p, data]);
   }
 
   async function saveRow(row) {
     setSavingId(row.id);
     const { id, ...fields } = row;
-    await supabase.from('ac_goal_schedule').update(fields).eq('id', id);
+    const { error: err } = await supabase.from('ac_goal_schedule').update(fields).eq('id', id);
     setSavingId(null);
+    if (err) { setError(`Couldn't save that block: ${err.message}`); return; }
+    setError(null);
     setDirty((p) => { const n = new Set(p); n.delete(id); return n; });
   }
 
-  async function deleteRow(id) {
-    await supabase.from('ac_goal_schedule').delete().eq('id', id);
+  async function deleteRow(id, row) {
+    // This table is the ONLY thing controller.py plans against — an accidental
+    // one-click delete here doesn't just remove a row from a list, it can leave
+    // the controller with nothing to control until someone notices and reruns
+    // sync_goal_schedule.py by hand. Cheap to guard, expensive to skip.
+    const label = row ? `${fmtTime12(row.time_local)} (${row.phase})` : 'this block';
+    if (!window.confirm(`Delete ${label}? The AC will have no plan for this block until it's re-added.`)) {
+      return;
+    }
+    const { error: err } = await supabase.from('ac_goal_schedule').delete().eq('id', id);
+    if (err) { setError(`Couldn't delete that block: ${err.message}`); return; }
+    setError(null);
     setRows((p) => p.filter((r) => r.id !== id));
     setDirty((p) => { const n = new Set(p); n.delete(id); return n; });
   }
@@ -133,6 +156,12 @@ export default function GoalSchedule() {
         <strong className="text-zinc-400">Schedule</strong> tab is frozen (v1 rollback path only) — edits there no
         longer reach the AC.
       </p>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-300">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-zinc-500 py-6 text-center">Loading…</div>
@@ -256,7 +285,7 @@ export default function GoalSchedule() {
                     <Save size={15} />
                   </button>
                   <button
-                    onClick={() => deleteRow(r.id)}
+                    onClick={() => deleteRow(r.id, r)}
                     className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 transition-colors"
                     title="Delete"
                   >
