@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Maximize2, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { fetchFuelLogs, upsertFuelLog, deleteRow } from '../../lib/vehicles';
 import { fmt, fmtDec, fmtDate, todayISO } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
@@ -135,19 +135,18 @@ export default function FuelLog() {
               <StateRow colSpan={9}>No fill-ups yet — add one.</StateRow>
             ) : sorted.map((l) => (
               <tr key={l.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
-                <Td className="tabular-nums"><EditCell type="date" value={l.fill_date} onSave={(v) => update(l.id, 'fill_date', v)} display={fmtDate} className="text-zinc-300" /></Td>
+                <Td className="tabular-nums">
+                  <button onClick={() => setEditingId(l.id)} className="text-left font-medium text-zinc-300 hover:text-emerald-400 transition-colors">
+                    {fmtDate(l.fill_date)}
+                  </button>
+                </Td>
                 <Td className="text-right tabular-nums"><EditCell type="number" value={l.odometer} onSave={(v) => update(l.id, 'odometer', v)} className="text-zinc-400" /></Td>
                 <Td className="text-right tabular-nums"><EditCell type="number" value={l.gallons} onSave={(v) => update(l.id, 'gallons', v)} className="text-zinc-400" /></Td>
                 <Td className="text-right"><AmountEdit value={l.total_cost} onCommit={(v) => update(l.id, 'total_cost', v)} className="text-zinc-200 font-medium" /></Td>
                 <Td className="text-right tabular-nums text-zinc-500">{l.pricePerGallon != null ? fmtDec(l.pricePerGallon) : '—'}</Td>
                 <Td className="text-right tabular-nums text-zinc-500">{l.miles != null ? Math.round(l.miles) : '—'}</Td>
                 <Td className="text-right tabular-nums text-zinc-300">{l.mpg != null ? l.mpg.toFixed(1) : '—'}</Td>
-                <Td>
-                  <span className="flex items-center gap-2">
-                    <button onClick={() => setEditingId(l.id)} title="Open full editor" className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0"><Maximize2 size={13} /></button>
-                    <EditCell value={l.notes} onSave={(v) => update(l.id, 'notes', v)} className="text-zinc-500" />
-                  </span>
-                </Td>
+                <Td><EditCell value={l.notes} onSave={(v) => update(l.id, 'notes', v)} className="text-zinc-500" /></Td>
                 <Td className="text-right">
                   <button onClick={() => remove(l.id)} aria-label="Delete fill-up" title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>

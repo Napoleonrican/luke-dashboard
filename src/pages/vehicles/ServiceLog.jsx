@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Maximize2, X } from 'lucide-react';
+import { Plus, Trash2, X, ChevronDown, Check } from 'lucide-react';
 import {
-  fetchServiceVisits, fetchServiceItemsForVisits, upsertServiceVisit, upsertServiceItem,
-  deleteRow,
+  fetchServiceVisits, fetchServiceItemsForVisits, fetchServicePlan, upsertServiceVisit,
+  upsertServiceItem, deleteRow,
 } from '../../lib/vehicles';
 import { fmt, fmtDate, todayISO } from '../cashflow/format';
 import EditCell from '../cashflow/EditCell';
@@ -19,13 +19,13 @@ const SORT_ACCESSORS = {
   summary:      (v) => (v.summary || '').toLowerCase(),
   items:        (v) => v.itemCount,
   total_cost:   (v) => v.total_cost,
-  shop:         (v) => (v.shop || '').toLowerCase(),
 };
 
 export default function ServiceLog() {
   const { vehicleId, setPageMenuItems } = useOutletContext();
   const [visits, setVisits] = useState([]);
   const [itemsByVisit, setItemsByVisit] = useState({});
+  const [planRows, setPlanRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -52,6 +52,7 @@ export default function ServiceLog() {
       setItemsByVisit(grouped);
       setLoading(false);
     });
+    fetchServicePlan(vehicleId).then(({ data }) => { if (active) setPlanRows(data || []); });
     return () => { active = false; };
   }, [vehicleId, reloadKey]);
 
@@ -120,30 +121,27 @@ export default function ServiceLog() {
               <Th sortKey="summary" sort={sort} onSort={toggleSort}>Summary</Th>
               <Th sortKey="items" sort={sort} onSort={toggleSort} align="right">Items</Th>
               <Th sortKey="total_cost" sort={sort} onSort={toggleSort} align="right">Total</Th>
-              <Th sortKey="shop" sort={sort} onSort={toggleSort}>Shop</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <StateRow colSpan={7}>Loading…</StateRow>
+              <StateRow colSpan={6}>Loading…</StateRow>
             ) : error ? (
-              <LoadErrorRow colSpan={7} onRetry={reload} />
+              <LoadErrorRow colSpan={6} onRetry={reload} />
             ) : sorted.length === 0 ? (
-              <StateRow colSpan={7}>No service visits yet — add one.</StateRow>
+              <StateRow colSpan={6}>No service visits yet — add one.</StateRow>
             ) : sorted.map((v) => (
               <tr key={v.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                 <Td className="tabular-nums"><EditCell type="date" value={v.service_date} onSave={(x) => update(v.id, 'service_date', x)} display={fmtDate} className="text-zinc-300" /></Td>
                 <Td className="text-right tabular-nums"><EditCell type="number" value={v.odometer} onSave={(x) => update(v.id, 'odometer', x)} className="text-zinc-400" /></Td>
                 <Td>
-                  <span className="flex items-center gap-2">
-                    <button onClick={() => setEditingId(v.id)} title="Open visit detail" className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0"><Maximize2 size={13} /></button>
-                    <EditCell value={v.summary} onSave={(x) => update(v.id, 'summary', x)} className="text-zinc-200 font-medium" />
-                  </span>
+                  <button onClick={() => setEditingId(v.id)} className="text-left font-medium text-zinc-200 hover:text-emerald-400 transition-colors">
+                    {v.summary || 'Service visit'}
+                  </button>
                 </Td>
                 <Td className="text-right tabular-nums text-zinc-500">{v.itemCount}</Td>
                 <Td className="text-right"><AmountEdit value={v.total_cost} onCommit={(x) => update(v.id, 'total_cost', x)} className="text-zinc-200 font-medium" /></Td>
-                <Td><EditCell value={v.shop} onSave={(x) => update(v.id, 'shop', x)} className="text-zinc-400" /></Td>
                 <Td className="text-right">
                   <button onClick={() => remove(v.id)} aria-label="Delete visit" title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>
@@ -173,7 +171,6 @@ export default function ServiceLog() {
             <CardField label="Date">{fmtDate(v.service_date)}</CardField>
             <CardField label="Odometer">{v.odometer != null ? Math.round(v.odometer).toLocaleString() : '—'}</CardField>
             <CardField label="Items">{v.itemCount}</CardField>
-            <CardField label="Shop">{v.shop || '—'}</CardField>
           </Card>
         ))}
       </CardList>
@@ -182,6 +179,7 @@ export default function ServiceLog() {
         <VisitModal
           visit={visits.find((v) => v.id === editingId)}
           items={itemsByVisit[editingId] || []}
+          planRows={planRows}
           onChangeVisit={update}
           onChangeItems={(items) => onItemsChange(editingId, items)}
           onClose={() => setEditingId(null)}
@@ -192,8 +190,12 @@ export default function ServiceLog() {
 }
 
 // Detail surface: visit key fields on top, then a repeating line-item editor
-// whose sum drives the visit total, then notes.
-function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
+// whose sum drives the visit total, then notes. Line items can come from the
+// "Add from schedule" checklist (services already tracked on the Upcoming
+// tab — this is also what lets Upcoming auto-detect "last done" from here)
+// or from "Add item" for one-off work not on the schedule (registration,
+// diagnostics, general repair, etc.).
+function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onClose }) {
   if (!visit) return null;
   const set = (field) => (v) => onChangeVisit(visit.id, field, v);
 
@@ -202,9 +204,9 @@ function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
     onChangeItems(next);
     await upsertServiceItem({ id, [field]: value });
   };
-  const addItem = async () => {
+  const addItem = async (serviceType = 'New item') => {
     const { data } = await upsertServiceItem({
-      visit_id: visit.id, service_type: 'New item', cost: 0, sort_order: items.length,
+      visit_id: visit.id, service_type: serviceType, cost: 0, sort_order: items.length,
     });
     if (data?.[0]) onChangeItems([...items, data[0]]);
   };
@@ -212,8 +214,13 @@ function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
     onChangeItems(items.filter((i) => i.id !== id));
     await deleteRow('veh_service_items', id);
   };
+  const removeItemByServiceType = async (serviceType) => {
+    const match = items.find((i) => (i.service_type || '').trim().toLowerCase() === serviceType.trim().toLowerCase());
+    if (match) await removeItem(match.id);
+  };
 
   const itemsTotal = items.reduce((s, i) => s + (i.cost || 0), 0);
+  const checkedServices = new Set(items.map((i) => (i.service_type || '').trim().toLowerCase()));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={onClose}>
@@ -229,7 +236,6 @@ function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
               <Field label="Date"><ModalEdit type="date" value={visit.service_date} onCommit={set('service_date')} /></Field>
               <Field label="Odometer"><ModalEdit type="number" value={visit.odometer} onCommit={set('odometer')} /></Field>
               <Field label="Summary"><ModalEdit value={visit.summary} onCommit={set('summary')} /></Field>
-              <Field label="Shop"><ModalEdit value={visit.shop} onCommit={set('shop')} /></Field>
               <Field label="Total (derived from items below)">
                 <span className="text-sm font-semibold text-emerald-400 tabular-nums">{fmt(itemsTotal)}</span>
               </Field>
@@ -240,19 +246,28 @@ function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
           <div className="border-t border-zinc-800 pt-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] uppercase tracking-wide text-zinc-500">Line items</p>
-              <button onClick={addItem} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-                <Plus size={12} /> Add item
-              </button>
+              <div className="flex items-center gap-2">
+                <ScheduleChecklist
+                  planRows={planRows}
+                  checked={checkedServices}
+                  onToggle={(service, isChecked) => (isChecked ? addItem(service) : removeItemByServiceType(service))}
+                />
+                <button onClick={() => addItem()} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+                  <Plus size={12} /> Add item
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               {items.length === 0 ? (
-                <p className="text-sm text-zinc-600">No line items yet.</p>
+                <p className="text-sm text-zinc-600">No line items yet — check off what was done above, or add a one-off item.</p>
               ) : items.map((i) => (
-                <div key={i.id} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
-                  <EditCell value={i.service_type} onSave={(v) => updateItem(i.id, 'service_type', v)} className="flex-1 min-w-0 text-zinc-200" />
-                  <EditCell value={i.notes} onSave={(v) => updateItem(i.id, 'notes', v)} className="flex-1 min-w-0 text-zinc-500 text-xs" placeholder="notes" />
-                  <AmountEdit value={i.cost} onCommit={(v) => updateItem(i.id, 'cost', v)} className="w-20 shrink-0 text-zinc-300" />
-                  <button onClick={() => removeItem(i.id)} aria-label="Delete item" className="shrink-0 text-red-400/70 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                <div key={i.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <EditCell value={i.service_type} onSave={(v) => updateItem(i.id, 'service_type', v)} className="flex-1 min-w-0 text-zinc-200 font-medium" />
+                    <AmountEdit value={i.cost} onCommit={(v) => updateItem(i.id, 'cost', v)} className="w-20 shrink-0 text-right text-zinc-300" />
+                    <button onClick={() => removeItem(i.id)} aria-label="Delete item" className="shrink-0 text-red-400/70 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                  </div>
+                  <EditCell value={i.notes} onSave={(v) => updateItem(i.id, 'notes', v)} className="block w-full text-zinc-500 text-xs" placeholder="notes" />
                 </div>
               ))}
             </div>
@@ -268,6 +283,58 @@ function VisitModal({ visit, items, onChangeVisit, onChangeItems, onClose }) {
           <button onClick={onClose} className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">Done</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Popover checklist of the vehicle's Upcoming-tab services. Checking a box
+// adds it as a line item (cost starts at $0 — filled in below); unchecking
+// removes that line item. Closes on outside click or Escape, same pattern as
+// CashflowLayout's SettingsMenu.
+function ScheduleChecklist({ planRows, checked, onToggle }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  if (!planRows.length) return null;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
+          open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+        }`}
+      >
+        From schedule <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-2 w-64 max-h-72 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-xl shadow-black/40">
+          {planRows.map((r) => {
+            const isChecked = checked.has((r.service || '').trim().toLowerCase());
+            return (
+              <button
+                key={r.id}
+                onClick={() => onToggle(r.service, !isChecked)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-200 transition-colors hover:bg-zinc-800"
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isChecked ? 'border-emerald-500 bg-emerald-600' : 'border-zinc-600'}`}>
+                  {isChecked && <Check size={11} className="text-white" />}
+                </span>
+                {r.service || 'Service'}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

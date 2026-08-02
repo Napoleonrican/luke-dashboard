@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, Maximize2, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
-  fetchServicePlan, fetchFuelLogs, upsertServicePlanRow, deleteRow,
+  fetchServicePlan, fetchFuelLogs, fetchServiceVisits, fetchServiceItemsForVisits,
+  upsertServicePlanRow, deleteRow,
 } from '../../lib/vehicles';
-import { fmt, fmtDate, todayISO } from '../cashflow/format';
-import EditCell from '../cashflow/EditCell';
+import { fmt, fmtDate } from '../cashflow/format';
 import { Th, Td, StateRow, LoadErrorRow } from '../cashflow/tableparts';
 import { CardList, Card, CardField, CardState, CardLoadError } from '../cashflow/cardparts';
 import { makeToggleSort, sortRows } from '../cashflow/sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from '../cashflow/ModalField';
 import { notifyError } from '../cashflow/toast';
-import { estimatedOdometer, milesPerDay, serviceDue } from './vehicleCalc';
+import {
+  estimatedOdometer, milesPerDay, serviceDue, costPerYear, lastServiceFromLog,
+} from './vehicleCalc';
 
 const STATUS_COLOR = {
   overdue: { color: 'hsl(0 85% 70%)', background: 'hsl(0 80% 45% / 0.22)' },
@@ -28,31 +30,45 @@ const SORT_ACCESSORS = {
   timeDue:  (r) => r.due.timeDue,
   eta:      (r) => r.due.eta,
   avgCost:  (r) => r.avg_cost,
+  costYr:   (r) => r.costPerYear,
 };
+
+// Default view: soonest-due first — the whole point of this tab is "what
+// needs attention next". Nulls (no due date at all) sort last regardless of
+// direction, same as sortRows' general null-handling.
+const DEFAULT_SORT = { key: 'eta', dir: 'asc' };
 
 export default function Upcoming() {
   const { vehicleId, vehicles, setPageMenuItems } = useOutletContext();
   const [plan, setPlan] = useState([]);
   const [fuelLogs, setFuelLogs] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [itemsByVisit, setItemsByVisit] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [editingId, setEditingId] = useState(null);
-  const [sort, setSort] = useState(null);
+  const [sort, setSort] = useState(DEFAULT_SORT);
 
   useEffect(() => { if (setPageMenuItems) setPageMenuItems([]); }, [setPageMenuItems]);
 
   useEffect(() => {
     if (!vehicleId) return;
     let active = true;
-    Promise.all([fetchServicePlan(vehicleId), fetchFuelLogs(vehicleId)]).then(([p, f]) => {
+    Promise.all([
+      fetchServicePlan(vehicleId), fetchFuelLogs(vehicleId), fetchServiceVisits(vehicleId),
+    ]).then(async ([p, f, v]) => {
       if (!active) return;
-      if (p.error || f.error) setError(p.error || f.error);
-      else {
-        setError(null);
-        if (p.data) setPlan(p.data);
-        if (f.data) setFuelLogs(f.data);
-      }
+      if (p.error || f.error || v.error) { setError(p.error || f.error || v.error); setLoading(false); return; }
+      setError(null);
+      if (p.data) setPlan(p.data);
+      if (f.data) setFuelLogs(f.data);
+      setVisits(v.data || []);
+      const { data: items } = await fetchServiceItemsForVisits((v.data || []).map((x) => x.id));
+      if (!active) return;
+      const grouped = {};
+      for (const it of items || []) (grouped[it.visit_id] ||= []).push(it);
+      setItemsByVisit(grouped);
       setLoading(false);
     });
     return () => { active = false; };
@@ -89,7 +105,18 @@ export default function Upcoming() {
     if (err) { setPlan(snapshot); notifyError('Couldn’t delete that service — restored. Please retry.'); }
   };
 
-  const rowsWithDue = plan.map((r) => ({ ...r, due: serviceDue(r, { estOdo, milesPerDay: mpd }) }));
+  // "Last done" prefers a real Service Log entry over the plan row's stored
+  // last_completed_date/last_odometer (which is only the workbook-import
+  // seed, or a manual placeholder for a service never logged yet) — so
+  // logging a visit in the Service Log with a matching line item is what
+  // moves this tab's due dates forward, no separate "mark completed" step.
+  const rowsWithDue = plan.map((r) => {
+    const logged = lastServiceFromLog(r.service, visits, itemsByVisit);
+    const merged = logged
+      ? { ...r, last_completed_date: logged.date, last_odometer: logged.odometer }
+      : r;
+    return { ...merged, due: serviceDue(merged, { estOdo, milesPerDay: mpd }), costPerYear: costPerYear(merged, mpd) };
+  });
   const toggleSort = makeToggleSort(setSort, () => {});
   const sorted = sortRows(rowsWithDue, sort, SORT_ACCESSORS);
   const dueNowCount = rowsWithDue.filter((r) => r.due.status === 'overdue').length;
@@ -128,26 +155,29 @@ export default function Upcoming() {
               <Th sortKey="timeDue" sort={sort} onSort={toggleSort}>Due by</Th>
               <Th sortKey="eta" sort={sort} onSort={toggleSort}>ETA</Th>
               <Th sortKey="avgCost" sort={sort} onSort={toggleSort} align="right">Avg cost</Th>
+              <Th sortKey="costYr" sort={sort} onSort={toggleSort} align="right">Cost/yr</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <StateRow colSpan={9}>Loading…</StateRow>
+              <StateRow colSpan={10}>Loading…</StateRow>
             ) : error ? (
-              <LoadErrorRow colSpan={9} onRetry={reload} />
+              <LoadErrorRow colSpan={10} onRetry={reload} />
             ) : sorted.length === 0 ? (
-              <StateRow colSpan={9}>No scheduled services yet — add one.</StateRow>
+              <StateRow colSpan={10}>No scheduled services yet — add one.</StateRow>
             ) : sorted.map((r) => {
               const sc = STATUS_COLOR[r.due.status];
               return (
                 <tr key={r.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                   <Td><span className="h-2 w-2 rounded-full inline-block" style={{ background: STATUS_DOT[r.due.status] }} title={r.due.status} /></Td>
                   <Td>
-                    <span className="flex items-center gap-2">
-                      <button onClick={() => setEditingId(r.id)} title="Open full editor" className="text-zinc-600 hover:text-emerald-400 transition-colors shrink-0"><Maximize2 size={13} /></button>
-                      <EditCell value={r.service} onSave={(v) => update(r.id, 'service', v)} className="text-zinc-200 font-medium" />
-                    </span>
+                    <button
+                      onClick={() => setEditingId(r.id)}
+                      className="text-left font-medium text-zinc-200 hover:text-emerald-400 transition-colors"
+                    >
+                      {r.service || 'Service'}
+                    </button>
                   </Td>
                   <Td className="text-right tabular-nums text-zinc-400">
                     {r.interval_months ?? '—'}mo / {r.interval_miles?.toLocaleString() ?? '—'}mi
@@ -161,6 +191,7 @@ export default function Upcoming() {
                     <span className="rounded px-1.5 py-0.5 font-medium" style={sc}>{r.due.eta ? fmtDate(r.due.eta) : '—'}</span>
                   </Td>
                   <Td className="text-right"><AmountEdit value={r.avg_cost} onCommit={(v) => update(r.id, 'avg_cost', v)} className="text-zinc-400" /></Td>
+                  <Td className="text-right tabular-nums text-zinc-500">{r.costPerYear != null ? fmt(r.costPerYear) : '—'}</Td>
                   <Td className="text-right">
                     <button onClick={() => remove(r.id)} aria-label={`Delete ${r.service || 'service'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                   </Td>
@@ -190,6 +221,7 @@ export default function Upcoming() {
           >
             <CardField label="Interval">{r.interval_months ?? '—'}mo / {r.interval_miles?.toLocaleString() ?? '—'}mi</CardField>
             <CardField label="Avg cost">{r.avg_cost != null ? fmt(r.avg_cost) : '—'}</CardField>
+            <CardField label="Cost/yr">{r.costPerYear != null ? fmt(r.costPerYear) : '—'}</CardField>
             <CardField label="Last done" full>{fmtDate(r.last_completed_date)}{r.last_odometer != null && ` @ ${Math.round(r.last_odometer).toLocaleString()}`}</CardField>
             <CardField label="Due at (odo)">{r.due.milesDue != null ? Math.round(r.due.milesDue).toLocaleString() : '—'}</CardField>
             <CardField label="Due by">{r.due.timeDue ? fmtDate(r.due.timeDue) : '—'}</CardField>
@@ -237,22 +269,20 @@ function ServiceModal({ row, onChange, onClose }) {
               <Field label="Interval (months)"><ModalEdit type="number" value={row.interval_months} onCommit={set('interval_months')} /></Field>
               <Field label="Interval (miles)"><ModalEdit type="number" value={row.interval_miles} onCommit={set('interval_miles')} /></Field>
               <Field label="Avg cost"><ModalEdit type="currency" value={row.avg_cost} onCommit={set('avg_cost')} /></Field>
-              <Field label="Last completed date"><ModalEdit type="date" value={row.last_completed_date} onCommit={set('last_completed_date')} /></Field>
-              <Field label="Last odometer"><ModalEdit type="number" value={row.last_odometer} onCommit={set('last_odometer')} /></Field>
             </div>
           </div>
+          <p className="text-xs text-zinc-500 -mt-2">
+            Last done and due dates update automatically from the Service Log — log a visit with a
+            matching item here to mark this service done, instead of setting it manually.
+          </p>
           <MoreDetails>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Notes"><ModalEdit value={row.notes} onCommit={set('notes')} /></Field>
-              <Field label="Mark completed">
-                <button
-                  onClick={() => {
-                    set('last_completed_date')(todayISO());
-                  }}
-                  className="rounded-lg border border-emerald-600 bg-emerald-900/30 px-3 py-1.5 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors"
-                >
-                  Mark completed today
-                </button>
+              <Field label="Last completed date (manual — used until logged)">
+                <ModalEdit type="date" value={row.last_completed_date} onCommit={set('last_completed_date')} />
+              </Field>
+              <Field label="Last odometer (manual — used until logged)">
+                <ModalEdit type="number" value={row.last_odometer} onCommit={set('last_odometer')} />
               </Field>
             </div>
           </MoreDetails>

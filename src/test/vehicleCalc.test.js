@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  fuelStats, milesPerDay, estimatedOdometer, serviceDue, DEFAULT_MILES_PER_DAY,
+  fuelStats, milesPerDay, estimatedOdometer, serviceDue, costPerYear, lastServiceFromLog,
+  DEFAULT_MILES_PER_DAY,
 } from '../pages/vehicles/vehicleCalc';
 
 // Real early CX-5 fill-ups from Mazda-Fuel Tracking (cols F:I), Jan 2024.
@@ -48,6 +49,28 @@ describe('fuelStats', () => {
     expect(stats[1].miles).toBe(345);       // odometer delta still computed
     expect(stats[1].mpg).toBeNull();        // but MPG is suppressed
     expect(stats[2].miles).toBe(351);       // downstream deltas unaffected
+  });
+
+  it('nulls out an implausible odometer delta instead of poisoning MPG', () => {
+    // A same-day entry logged out of order can make the "next" delta negative
+    // or absurd — e.g. a typo'd odometer far below the running total.
+    const badEntry = [
+      CX5_FILLS[0],
+      { fill_date: '2024-01-06', odometer: 6439, gallons: 10, total_cost: 35 }, // typo: missing a digit
+      CX5_FILLS[2],
+    ];
+    const stats = fuelStats(badEntry);
+    expect(stats[1].miles).toBeNull();
+    expect(stats[1].mpg).toBeNull();
+    // The next real fill's delta is against the bad row's odometer, which is
+    // also implausible (58306mi) — also nulled rather than reported as real.
+    expect(stats[2].miles).toBeNull();
+  });
+
+  it('suppresses $/gallon for a near-zero gallons reading', () => {
+    const tinyGallons = [{ ...CX5_FILLS[0], gallons: 0.05, total_cost: 40 }];
+    const stats = fuelStats(tinyGallons);
+    expect(stats[0].pricePerGallon).toBeNull();
   });
 });
 
@@ -124,5 +147,47 @@ describe('serviceDue', () => {
     expect(result.timeDue).toBe('2024-02-05');
     expect(result.eta).toBe('2024-02-05');
     expect(result.status).toBe('soon');   // 2 days out — inside the 30-day "soon" window
+  });
+});
+
+describe('costPerYear', () => {
+  it('annualizes a months-based interval directly', () => {
+    // Oil change every 12 months at $52.95 → $52.95/yr.
+    expect(costPerYear({ avg_cost: 52.95, interval_months: 12 })).toBeCloseTo(52.95, 2);
+    // Every 6 months → happens twice a year.
+    expect(costPerYear({ avg_cost: 30, interval_months: 6 })).toBeCloseTo(60, 2);
+  });
+
+  it('annualizes a miles-only interval using miles/day', () => {
+    // Every 5000mi at 105.7 mi/day → 365*105.7/5000 ≈ 7.716 times/yr.
+    const result = costPerYear({ avg_cost: 10, interval_miles: 5000 }, 105.7);
+    expect(result).toBeCloseTo(10 * (105.7 * 365 / 5000), 4);
+  });
+
+  it('returns null with no cost or no usable interval', () => {
+    expect(costPerYear({ avg_cost: null, interval_months: 12 })).toBeNull();
+    expect(costPerYear({ avg_cost: 50 })).toBeNull();
+  });
+});
+
+describe('lastServiceFromLog', () => {
+  const visits = [
+    { id: 'v1', service_date: '2024-06-10', odometer: 79325 },
+    { id: 'v2', service_date: '2025-03-28', odometer: 105024 },
+    { id: 'v3', service_date: '2025-12-13', odometer: 131294 },
+  ];
+  const itemsByVisitId = {
+    v1: [{ service_type: 'Replace Brake Pads' }, { service_type: 'Labor' }],
+    v2: [{ service_type: 'Wheel Alignment' }, { service_type: 'Oil Change/Oil Filter' }],
+    v3: [{ service_type: 'Oil Change/Oil Filter' }],
+  };
+
+  it('finds the most recent visit whose items include the service, case-insensitively', () => {
+    const result = lastServiceFromLog('oil change/oil filter', visits, itemsByVisitId);
+    expect(result).toEqual({ date: '2025-12-13', odometer: 131294 });
+  });
+
+  it('returns null when the service has never been logged', () => {
+    expect(lastServiceFromLog('State Inspection', visits, itemsByVisitId)).toBeNull();
   });
 });

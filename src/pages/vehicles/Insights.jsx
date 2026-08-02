@@ -22,6 +22,21 @@ const monthLabel = (key) => {
 
 const tooltipStyle = { background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 12 };
 
+// Recharts' 'dataMin - N' string domains fall back to raw data extremes (with
+// no padding logic of their own) whenever a series has fewer than two finite
+// points, which is what produced the runaway axis labels — a lone reliable
+// value with nothing to range against. Computing the domain ourselves from
+// only the finite values, with a real fallback, keeps the axis sane even when
+// a month has just one data point.
+function niceDomain(values, pad, fallback = [0, 1]) {
+  const finite = values.filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (!finite.length) return fallback;
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  if (min === max) return [min - pad, max + pad];
+  return [min - pad, max + pad];
+}
+
 export default function Insights() {
   const { vehicleId, setPageMenuItems } = useOutletContext();
   const [fuelLogs, setFuelLogs] = useState([]);
@@ -56,6 +71,9 @@ export default function Insights() {
   const maintYearData = r.maintenanceByYear.map((y) => ({ ...y, label: y.key }));
   const weekData = r.byWeek.slice(-16).map((w) => ({ ...w, label: w.key.slice(5) }));
 
+  const mpgDomain = niceDomain(monthData.map((m) => m.mpg), 2, [0, 40]);
+  const ppgDomain = niceDomain(monthData.map((m) => m.pricePerGallon), 0.2, [0, 5]);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -71,7 +89,7 @@ export default function Insights() {
           <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#71717a' }} interval="preserveStartEnd" />
-            <YAxis tick={{ fontSize: 11, fill: '#71717a' }} domain={['dataMin - 2', 'dataMax + 2']} />
+            <YAxis tick={{ fontSize: 11, fill: '#71717a' }} domain={mpgDomain} tickFormatter={(v) => v.toFixed(0)} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v?.toFixed(1), 'MPG']} />
             <Line type="monotone" dataKey="mpg" stroke={HUE_MPG} strokeWidth={2} dot={false} connectNulls />
           </LineChart>
@@ -96,7 +114,7 @@ export default function Insights() {
             <LineChart data={monthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#71717a' }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11, fill: '#71717a' }} domain={['dataMin - 0.2', 'dataMax + 0.2']} />
+              <YAxis tick={{ fontSize: 11, fill: '#71717a' }} domain={ppgDomain} tickFormatter={(v) => v.toFixed(2)} />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtDec(v), '$/gal']} />
               <Line type="monotone" dataKey="pricePerGallon" stroke={HUE_COST} strokeWidth={2} dot={false} connectNulls />
             </LineChart>
