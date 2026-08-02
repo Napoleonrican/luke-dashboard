@@ -95,7 +95,15 @@ export default function GoalSchedule() {
     setDirty((p) => { const n = new Set(p); n.delete(id); return n; });
   }
 
-  async function deleteRow(id) {
+  async function deleteRow(id, row) {
+    // This table is the ONLY thing controller.py plans against — an accidental
+    // one-click delete here doesn't just remove a row from a list, it can leave
+    // the controller with nothing to control until someone notices and reruns
+    // sync_goal_schedule.py by hand. Cheap to guard, expensive to skip.
+    const label = row ? `${fmtTime12(row.time_local)} (${row.phase})` : 'this block';
+    if (!window.confirm(`Delete ${label}? The AC will have no plan for this block until it's re-added.`)) {
+      return;
+    }
     await supabase.from('ac_goal_schedule').delete().eq('id', id);
     setRows((p) => p.filter((r) => r.id !== id));
     setDirty((p) => { const n = new Set(p); n.delete(id); return n; });
@@ -256,7 +264,7 @@ export default function GoalSchedule() {
                     <Save size={15} />
                   </button>
                   <button
-                    onClick={() => deleteRow(r.id)}
+                    onClick={() => deleteRow(r.id, r)}
                     className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 transition-colors"
                     title="Delete"
                   >
