@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   fuelStats, milesPerDay, estimatedOdometer, serviceDue, costPerYear, lastServiceFromLog,
-  avgCostFromLog, DEFAULT_MILES_PER_DAY,
+  avgCostFromLog, rollups, mpgByYearMonth, DEFAULT_MILES_PER_DAY,
 } from '../pages/vehicles/vehicleCalc';
 
 // Real early CX-5 fill-ups from Mazda-Fuel Tracking (cols F:I), Jan 2024.
@@ -210,5 +210,62 @@ describe('avgCostFromLog', () => {
 
   it('returns null, not 0, when the service has never been logged', () => {
     expect(avgCostFromLog('Wheel Alignment', visits, itemsByVisitId)).toBeNull();
+  });
+});
+
+describe('rollups — avgCostPerFillup/Week/Month', () => {
+  it('averages spend per fill-up, and per active week/month (not every calendar week/month)', () => {
+    const logs = [
+      { fill_date: '2024-01-05', odometer: 1000, gallons: 10, total_cost: 30 },
+      { fill_date: '2024-01-12', odometer: 1300, gallons: 10, total_cost: 40 },
+      { fill_date: '2024-02-10', odometer: 1600, gallons: 10, total_cost: 50 },
+    ];
+    const r = rollups(logs, []);
+    // Per fillup: (30+40+50)/3 = 40.
+    expect(r.avgCostPerFillup).toBeCloseTo(40, 5);
+    // 3 distinct fill weeks (Jan 5, Jan 12 land in different weeks, Feb 10 its own) → (30+40+50)/3.
+    expect(r.avgCostPerWeek).toBeCloseTo(40, 5);
+    // 2 active months: Jan = 70, Feb = 50 → (70+50)/2 = 60.
+    expect(r.avgCostPerMonth).toBeCloseTo(60, 5);
+  });
+
+  it('returns null for an empty log instead of dividing by zero', () => {
+    const r = rollups([], []);
+    expect(r.avgCostPerFillup).toBeNull();
+    expect(r.avgCostPerWeek).toBeNull();
+    expect(r.avgCostPerMonth).toBeNull();
+  });
+});
+
+describe('mpgByYearMonth', () => {
+  it('pivots MPG into one row per month with a column per year', () => {
+    const logs = [
+      // 2024: Jan fills only.
+      { fill_date: '2024-01-05', odometer: 1000, gallons: 10, total_cost: 30 },
+      { fill_date: '2024-01-15', odometer: 1300, gallons: 10, total_cost: 30 }, // 300mi/10gal = 30mpg
+      // 2025: Jan fills, different efficiency.
+      { fill_date: '2025-01-05', odometer: 5000, gallons: 10, total_cost: 35 },
+      { fill_date: '2025-01-15', odometer: 5250, gallons: 10, total_cost: 35 }, // 250mi/10gal = 25mpg
+    ];
+    const { years, rows } = mpgByYearMonth(logs);
+    expect(years).toEqual([2024, 2025]);
+    const jan = rows.find((r) => r.label === 'Jan');
+    // A month's MPG is total miles ÷ total reliable gallons across every
+    // fill that landed in it — the first fill of each year has no prior
+    // odometer to diff against, so only the second fill's 300mi/250mi count,
+    // divided by both fills' 20 combined gallons: 300/20=15, 250/20=12.5.
+    expect(jan[2024]).toBeCloseTo(15, 5);
+    expect(jan[2025]).toBeCloseTo(12.5, 5);
+    // Untouched months are null, not 0 or undefined-as-zero on the chart.
+    const feb = rows.find((r) => r.label === 'Feb');
+    expect(feb[2024]).toBeNull();
+    expect(feb[2025]).toBeNull();
+    expect(rows).toHaveLength(12);
+  });
+
+  it('returns no years and all-null rows for an empty log', () => {
+    const { years, rows } = mpgByYearMonth([]);
+    expect(years).toEqual([]);
+    expect(rows).toHaveLength(12);
   });
 });

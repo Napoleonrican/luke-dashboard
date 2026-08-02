@@ -279,9 +279,53 @@ export function rollups(fuelLogs, visits = []) {
   const maintCostPerMile = totalMiles > 0 ? maintCostTotal / totalMiles : null;
   const totalCostPerMile = totalMiles > 0 ? (fuelCostTotal + maintCostTotal) / totalMiles : null;
 
+  // "What to expect" — at the pump, per week, per month. Per-fillup is total
+  // spend ÷ every fill (a $0 or partial fill still counts, since it still
+  // happened); per-week/per-month average only the weeks/months that
+  // actually had a fill-up, so a vehicle that isn't driven year-round doesn't
+  // get its typical cost diluted by zero-fill periods.
+  const avgCostPerFillup = stats.length > 0 ? fuelCostTotal / stats.length : null;
+  const avgCostPerWeek = byWeek.length > 0 ? byWeek.reduce((s, w) => s + w.cost, 0) / byWeek.length : null;
+  const avgCostPerMonth = byMonth.length > 0 ? byMonth.reduce((s, m) => s + m.cost, 0) / byMonth.length : null;
+
   return {
     byMonth, byYear, byWeek, maintenanceByYear,
     totalMiles, totalGallons, fuelCostTotal, maintCostTotal,
     lifetimeMPG, lifetimePricePerGallon, fuelCostPerMile, maintCostPerMile, totalCostPerMile,
+    avgCostPerFillup, avgCostPerWeek, avgCostPerMonth,
   };
+}
+
+// ── mpgByYearMonth ─────────────────────────────────────────────────────────────
+// Pivots MPG into one row per calendar month (Jan–Dec) with one column per
+// year present in the log — the shape a "compare this year to last year,
+// month by month" line chart needs. Uses the same reliable-gallons filter as
+// aggregateBy so a bad reading can't spike one month's line.
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function mpgByYearMonth(fuelLogs) {
+  const stats = fuelStats(fuelLogs);
+  const cells = {}; // monthIndex -> year -> { miles, gallons }
+  const years = new Set();
+  for (const s of stats) {
+    const d = asDate(s.fill_date);
+    if (!d) continue;
+    const year = d.getFullYear();
+    const mi = d.getMonth();
+    years.add(year);
+    (cells[mi] ||= {});
+    const cell = (cells[mi][year] ||= { miles: 0, gallons: 0 });
+    if (s.miles > 0) cell.miles += s.miles;
+    if ((s.gallons || 0) >= MIN_RELIABLE_GALLONS) cell.gallons += s.gallons;
+  }
+  const sortedYears = [...years].sort((a, b) => a - b);
+  const rows = MONTH_LABELS.map((label, mi) => {
+    const row = { monthIndex: mi, label };
+    for (const y of sortedYears) {
+      const cell = cells[mi]?.[y];
+      row[y] = cell && cell.gallons > 0 ? cell.miles / cell.gallons : null;
+    }
+    return row;
+  });
+  return { years: sortedYears, rows };
 }
