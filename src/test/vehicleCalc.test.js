@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   fuelStats, milesPerDay, estimatedOdometer, serviceDue, costPerYear, lastServiceFromLog,
-  avgCostFromLog, rollups, mpgByYearMonth, DEFAULT_MILES_PER_DAY,
+  avgCostFromLog, rollups, mpgByYearMonth, summarizeItems, periodCutoff, filterByPeriod,
+  DEFAULT_MILES_PER_DAY,
 } from '../pages/vehicles/vehicleCalc';
 
 // Real early CX-5 fill-ups from Mazda-Fuel Tracking (cols F:I), Jan 2024.
@@ -267,5 +268,51 @@ describe('mpgByYearMonth', () => {
     const { years, rows } = mpgByYearMonth([]);
     expect(years).toEqual([]);
     expect(rows).toHaveLength(12);
+  });
+});
+
+describe('summarizeItems', () => {
+  it('joins the three highest-cost items, cost descending', () => {
+    const items = [
+      { service_type: 'Labor', cost: 100 },
+      { service_type: 'Oil Change/Oil Filter', cost: 50 },
+      { service_type: 'Shop Supplies, Taxes, & Misc.', cost: 10 },
+      { service_type: 'Replace Cabin Air Filter', cost: 200 },
+    ];
+    expect(summarizeItems(items)).toBe('Replace Cabin Air Filter, Labor, Oil Change/Oil Filter');
+  });
+
+  it('skips items with no service type and returns empty for no items', () => {
+    expect(summarizeItems([{ service_type: '', cost: 5 }, { service_type: 'Labor', cost: 1 }])).toBe('Labor');
+    expect(summarizeItems([])).toBe('');
+  });
+});
+
+describe('periodCutoff / filterByPeriod', () => {
+  const today = new Date(2026, 5, 15); // 2026-06-15
+
+  it('computes the right cutoff for each named period', () => {
+    expect(periodCutoff('30d', today)).toBe('2026-05-16');
+    expect(periodCutoff('90d', today)).toBe('2026-03-17');
+    expect(periodCutoff('ytd', today)).toBe('2026-01-01');
+    expect(periodCutoff('all', today)).toBeNull();
+  });
+
+  it('filters fuel logs and visits to on/after the cutoff', () => {
+    const fuelLogs = [
+      { fill_date: '2025-12-01' },
+      { fill_date: '2026-01-01' },
+      { fill_date: '2026-06-01' },
+    ];
+    const visits = [{ service_date: '2025-11-01' }, { service_date: '2026-02-01' }];
+    const { fuelLogs: fl, visits: v } = filterByPeriod(fuelLogs, visits, 'ytd', today);
+    expect(fl.map((l) => l.fill_date)).toEqual(['2026-01-01', '2026-06-01']);
+    expect(v.map((x) => x.service_date)).toEqual(['2026-02-01']);
+  });
+
+  it("'all' returns everything unfiltered", () => {
+    const fuelLogs = [{ fill_date: '2020-01-01' }];
+    const { fuelLogs: fl } = filterByPeriod(fuelLogs, [], 'all', today);
+    expect(fl).toEqual(fuelLogs);
   });
 });

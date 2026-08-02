@@ -12,6 +12,7 @@ import { CardList, Card, CardField, CardState, CardLoadError } from '../cashflow
 import { makeToggleSort, sortRows } from '../cashflow/sorting';
 import { Field, ModalEdit, MoreDetails, AmountEdit } from '../cashflow/ModalField';
 import { notifyError } from '../cashflow/toast';
+import { summarizeItems } from './vehicleCalc';
 
 const SORT_ACCESSORS = {
   service_date: (v) => v.service_date,
@@ -24,9 +25,13 @@ const SORT_ACCESSORS = {
 // Every real shop visit tends to carry a labor charge and a shop-supplies/tax
 // line, so new visits seed these two automatically instead of making Luke
 // re-add them every time. These aren't scheduled maintenance (no interval),
-// so they don't belong on the Upcoming tab's plan — they're catalog options
-// here regardless of what's in veh_service_plan.
+// so they don't belong on the Upcoming tab's plan.
 const ALWAYS_ON_VISIT = ['Labor', 'Shop Supplies, Taxes, & Misc.'];
+
+// Dropdown catalog = the vehicle's scheduled services + the always-on items +
+// a standing "General Repair" catch-all — so a genuine one-off never needs
+// free-text entry (no "Custom…" escape hatch to maintain).
+const CATALOG_EXTRAS = [...ALWAYS_ON_VISIT, 'General Repair'];
 
 export default function ServiceLog() {
   const { vehicleId, setPageMenuItems } = useOutletContext();
@@ -86,7 +91,10 @@ export default function ServiceLog() {
       ALWAYS_ON_VISIT.map((service_type, i) => upsertServiceItem({ visit_id: visit.id, service_type, cost: 0, sort_order: i })),
     );
     const seededItems = seeded.map((r) => r.data?.[0]).filter(Boolean);
-    if (seededItems.length) setItemsByVisit((prev) => ({ ...prev, [visit.id]: seededItems }));
+    if (seededItems.length) {
+      setItemsByVisit((prev) => ({ ...prev, [visit.id]: seededItems }));
+      update(visit.id, 'summary', summarizeItems(seededItems));
+    }
     setEditingId(visit.id);
   };
 
@@ -98,11 +106,14 @@ export default function ServiceLog() {
   };
 
   // Called by the modal whenever its line items change — recomputes and
-  // persists the visit total so the log table always reflects the item sum.
+  // persists the visit total AND summary (the top-3-by-cost line items) so
+  // the log table always reflects what's actually been logged, with no
+  // manual name to keep in sync.
   const onItemsChange = (visitId, items) => {
     setItemsByVisit((prev) => ({ ...prev, [visitId]: items }));
     const total = Math.round(items.reduce((s, i) => s + (i.cost || 0), 0) * 100) / 100;
     update(visitId, 'total_cost', total);
+    update(visitId, 'summary', summarizeItems(items));
   };
 
   const rows = visits.map((v) => ({ ...v, itemCount: (itemsByVisit[v.id] || []).length }));
@@ -203,15 +214,14 @@ export default function ServiceLog() {
 }
 
 // Detail surface: visit key fields on top, then a repeating line-item editor
-// whose sum drives the visit total, then notes. Each item's service picks
-// from a dropdown (the vehicle's scheduled services, plus Labor/Shop
-// Supplies) so the text matches what the Upcoming tab looks for exactly —
-// no typos, no near-duplicates. "Custom…" escapes to free text for a
-// genuine one-off (a repair, a part, something with no recurring interval).
+// whose sum drives the visit total (and, via the parent's onItemsChange,
+// the summary), then notes. Each item's service picks from a dropdown (the
+// vehicle's scheduled services + Labor/Shop Supplies/General Repair) so the
+// text matches what the Upcoming tab looks for exactly — no typos, no
+// near-duplicates, and no free-text escape hatch to maintain.
 function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onClose }) {
-  const [customModeIds, setCustomModeIds] = useState(new Set());
   const catalog = useMemo(() => {
-    const names = new Set([...planRows.map((r) => r.service).filter(Boolean), ...ALWAYS_ON_VISIT]);
+    const names = new Set([...planRows.map((r) => r.service).filter(Boolean), ...CATALOG_EXTRAS]);
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [planRows]);
 
@@ -249,7 +259,9 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Date"><ModalEdit type="date" value={visit.service_date} onCommit={set('service_date')} /></Field>
               <Field label="Odometer"><ModalEdit type="number" value={visit.odometer} onCommit={set('odometer')} /></Field>
-              <Field label="Summary"><ModalEdit value={visit.summary} onCommit={set('summary')} /></Field>
+              <Field label="Summary (from line items below)">
+                <span className="text-sm text-zinc-300">{visit.summary || '—'}</span>
+              </Field>
               <Field label="Total (derived from items below)">
                 <span className="text-sm font-semibold text-emerald-400 tabular-nums">{fmt(itemsTotal)}</span>
               </Field>
@@ -268,30 +280,24 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
               {items.length === 0 ? (
                 <p className="text-sm text-zinc-600">No line items yet — add one and pick what was done.</p>
               ) : items.map((i) => {
-                // A brand-new blank row, or one explicitly switched to custom
-                // entry, gets a free-text box; everything else — including
-                // legacy imported items whose name isn't in the current
-                // catalog — gets the dropdown so it can be corrected/matched.
-                const inCustomMode = customModeIds.has(i.id)
-                  || (i.service_type && !catalog.includes(i.service_type));
+                // A legacy imported item whose name isn't in the current
+                // catalog still gets a free-text box so it displays as-is;
+                // everything else — including a brand-new blank row — gets
+                // the dropdown.
+                const legacyFreeText = i.service_type && !catalog.includes(i.service_type);
                 return (
                   <div key={i.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5 space-y-1.5">
                     <div className="flex items-center gap-2">
-                      {inCustomMode ? (
+                      {legacyFreeText ? (
                         <EditCell value={i.service_type} onSave={(v) => updateItem(i.id, 'service_type', v)} className="flex-1 min-w-0 text-zinc-200 font-medium" placeholder="service type" />
                       ) : (
                         <select
                           value={i.service_type || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === '__custom__') { setCustomModeIds((prev) => new Set(prev).add(i.id)); return; }
-                            updateItem(i.id, 'service_type', v);
-                          }}
+                          onChange={(e) => updateItem(i.id, 'service_type', e.target.value)}
                           className="flex-1 min-w-0 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-white focus:border-emerald-600 focus:outline-none"
                         >
                           <option value="">— choose a service —</option>
                           {catalog.map((c) => <option key={c} value={c}>{c}</option>)}
-                          <option value="__custom__">Custom…</option>
                         </select>
                       )}
                       <div className="w-24 shrink-0">

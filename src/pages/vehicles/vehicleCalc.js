@@ -329,3 +329,47 @@ export function mpgByYearMonth(fuelLogs) {
   });
   return { years: sortedYears, rows };
 }
+
+// ── summarizeItems ────────────────────────────────────────────────────────────
+// One-line visit summary: the (up to) three highest-cost line items, by cost
+// descending — mirrors scripts/import-vehicle-workbook.mjs's summarize() so a
+// visit logged live reads the same way as the imported history.
+export function summarizeItems(items) {
+  const named = (items || []).filter((i) => i.service_type);
+  const sorted = [...named].sort((a, b) => (b.cost || 0) - (a.cost || 0));
+  return sorted.slice(0, 3).map((i) => i.service_type).join(', ');
+}
+
+// ── period filtering ──────────────────────────────────────────────────────────
+// The Insights tab's headline stats (MPG, $/mile, cost per fill-up/week/month)
+// default to a recent window rather than the vehicle's entire history, since
+// "what should I expect right now" is the question being answered — a car
+// bought new five years ago shouldn't have its current MPG averaged against
+// its first month of data. The month/year trend charts stay full-history
+// (that's the point of a trend), independent of this filter.
+export const PERIODS = [
+  { key: '30d', label: '30 days', days: 30 },
+  { key: '90d', label: '90 days', days: 90 },
+  { key: 'ytd', label: 'This year', ytd: true },
+  { key: '12mo', label: '12 months', days: 365 },
+  { key: 'all', label: 'Lifetime', days: null },
+];
+
+// Returns an ISO date string cutoff (rows on/after it are in-period), or null
+// for 'all' (no cutoff — full history).
+export function periodCutoff(periodKey, today = new Date()) {
+  const p = PERIODS.find((x) => x.key === periodKey);
+  if (!p) return null;
+  if (p.ytd) return toISO(new Date(today.getFullYear(), 0, 1));
+  if (p.days == null) return null;
+  return addDays(toISO(today), -p.days);
+}
+
+export function filterByPeriod(fuelLogs, visits, periodKey, today = new Date()) {
+  const cutoff = periodCutoff(periodKey, today);
+  if (!cutoff) return { fuelLogs: fuelLogs || [], visits: visits || [] };
+  return {
+    fuelLogs: (fuelLogs || []).filter((l) => String(l.fill_date).slice(0, 10) >= cutoff),
+    visits: (visits || []).filter((v) => String(v.service_date).slice(0, 10) >= cutoff),
+  };
+}

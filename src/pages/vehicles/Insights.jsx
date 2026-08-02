@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { ChevronDown, Check } from 'lucide-react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label,
 } from 'recharts';
 import { fetchFuelLogs, fetchServiceVisits } from '../../lib/vehicles';
 import { fmt, fmtDec } from '../cashflow/format';
 import { StateRow, LoadErrorRow } from '../cashflow/tableparts';
-import { rollups, mpgByYearMonth } from './vehicleCalc';
+import { rollups, mpgByYearMonth, PERIODS, filterByPeriod } from './vehicleCalc';
 
 // One hue per chart (magnitude, not identity) — see dataviz skill's
 // color-formula: sequential/single-series data gets one consistent hue, never
@@ -53,6 +53,7 @@ export default function Insights() {
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedYears, setSelectedYears] = useState(() => new Set([new Date().getFullYear()]));
+  const [period, setPeriod] = useState('90d');
 
   useEffect(() => { if (setPageMenuItems) setPageMenuItems([]); }, [setPageMenuItems]);
 
@@ -89,7 +90,14 @@ export default function Insights() {
   if (loading) return <StateRow colSpan={1}>Loading…</StateRow>;
   if (error) return <LoadErrorRow colSpan={1} onRetry={reload} />;
 
+  // Trend charts (month/year/week bars, the multi-year MPG comparison) stay
+  // full-history — that's the point of a trend. The headline tiles are the
+  // ones answering "what should I expect right now", so they respond to the
+  // period picker instead.
   const r = rollups(fuelLogs, visits);
+  const { fuelLogs: periodFuelLogs, visits: periodVisits } = filterByPeriod(fuelLogs, visits, period);
+  const rPeriod = rollups(periodFuelLogs, periodVisits);
+
   const monthData = r.byMonth.slice(-24).map((m) => ({ ...m, label: monthLabel(m.key) }));
   const yearData = r.byYear.map((y) => ({ ...y, label: y.key }));
   const maintYearData = r.maintenanceByYear.map((y) => ({ ...y, label: y.key }));
@@ -110,20 +118,26 @@ export default function Insights() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatTile label="Lifetime MPG" value={r.lifetimeMPG != null ? r.lifetimeMPG.toFixed(1) : '—'} tone="text-emerald-400" />
-        <StatTile label="$/gallon" value={r.lifetimePricePerGallon != null ? fmtDec(r.lifetimePricePerGallon) : '—'} tone="text-amber-400" />
-        <StatTile label="$/mile (fuel)" value={r.fuelCostPerMile != null ? `${(r.fuelCostPerMile).toFixed(3)}` : '—'} tone="text-amber-400" />
-        <StatTile label="Maint. $/mile" value={r.maintCostPerMile != null ? `${(r.maintCostPerMile).toFixed(3)}` : '—'} tone="text-violet-400" />
-        <StatTile label="Total $/mile" value={r.totalCostPerMile != null ? `${(r.totalCostPerMile).toFixed(3)}` : '—'} tone="text-cyan-400" />
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-zinc-500">Averages below reflect</p>
+          <PeriodPicker period={period} onChange={setPeriod} />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <StatTile label="MPG" value={rPeriod.lifetimeMPG != null ? rPeriod.lifetimeMPG.toFixed(1) : '—'} tone="text-emerald-400" />
+          <StatTile label="$/gallon" value={rPeriod.lifetimePricePerGallon != null ? fmtDec(rPeriod.lifetimePricePerGallon) : '—'} tone="text-amber-400" />
+          <StatTile label="$/mile (fuel)" value={rPeriod.fuelCostPerMile != null ? `${(rPeriod.fuelCostPerMile).toFixed(3)}` : '—'} tone="text-amber-400" />
+          <StatTile label="Maint. $/mile" value={rPeriod.maintCostPerMile != null ? `${(rPeriod.maintCostPerMile).toFixed(3)}` : '—'} tone="text-violet-400" />
+          <StatTile label="Total $/mile" value={rPeriod.totalCostPerMile != null ? `${(rPeriod.totalCostPerMile).toFixed(3)}` : '—'} tone="text-cyan-400" />
+        </div>
       </div>
 
       <div>
         <p className="text-xs text-zinc-500 mb-2">What to expect</p>
         <div className="grid grid-cols-3 gap-3">
-          <StatTile label="Avg / fill-up" value={r.avgCostPerFillup != null ? fmt(r.avgCostPerFillup) : '—'} tone="text-amber-400" />
-          <StatTile label="Avg / week" value={r.avgCostPerWeek != null ? fmt(r.avgCostPerWeek) : '—'} tone="text-amber-400" />
-          <StatTile label="Avg / month" value={r.avgCostPerMonth != null ? fmt(r.avgCostPerMonth) : '—'} tone="text-amber-400" />
+          <StatTile label="Avg / fill-up" value={rPeriod.avgCostPerFillup != null ? fmt(rPeriod.avgCostPerFillup) : '—'} tone="text-amber-400" />
+          <StatTile label="Avg / week" value={rPeriod.avgCostPerWeek != null ? fmt(rPeriod.avgCostPerWeek) : '—'} tone="text-amber-400" />
+          <StatTile label="Avg / month" value={rPeriod.avgCostPerMonth != null ? fmt(rPeriod.avgCostPerMonth) : '—'} tone="text-amber-400" />
         </div>
       </div>
 
@@ -132,7 +146,7 @@ export default function Insights() {
         action={<YearMultiSelect years={mpgYears} selected={selectedYears} onToggle={toggleYear} />}
       >
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={mpgRows} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+          <LineChart data={mpgRows} margin={{ top: 5, right: 70, left: -10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#71717a' }} />
             <YAxis tick={{ fontSize: 11, fill: '#71717a' }} domain={mpgMultiDomain} tickFormatter={(v) => v.toFixed(0)} />
@@ -141,7 +155,14 @@ export default function Insights() {
               <Line key={y} type="monotone" dataKey={String(y)} name={String(y)} stroke={colorForYear(y, mpgYears)} strokeWidth={2} dot={false} connectNulls />
             ))}
             {activeYears.map((y) => (avgMpgByYear[y] != null && (
-              <ReferenceLine key={`avg-${y}`} y={avgMpgByYear[y]} stroke={colorForYear(y, mpgYears)} strokeDasharray="4 4" strokeOpacity={0.7} />
+              <ReferenceLine key={`avg-${y}`} y={avgMpgByYear[y]} stroke={colorForYear(y, mpgYears)} strokeDasharray="4 4" strokeOpacity={0.7}>
+                <Label
+                  value={`${y} avg ${avgMpgByYear[y].toFixed(1)}`}
+                  position="right"
+                  fill={colorForYear(y, mpgYears)}
+                  fontSize={11}
+                />
+              </ReferenceLine>
             )))}
           </LineChart>
         </ResponsiveContainer>
@@ -152,7 +173,7 @@ export default function Insights() {
             {activeYears.map((y) => (
               <span key={y} className="inline-flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorForYear(y, mpgYears) }} />
-                {y}{avgMpgByYear[y] != null && <span className="text-zinc-700">· avg {avgMpgByYear[y].toFixed(1)} (dashed)</span>}
+                {y}<span className="text-zinc-700">— dashed line is that year's average</span>
               </span>
             ))}
           </p>
@@ -302,6 +323,26 @@ function YearMultiSelect({ years, selected, onToggle }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Segmented control for the headline tiles' time window — same idea as the
+// Bills "All columns" toggle, just multi-way instead of on/off.
+function PeriodPicker({ period, onChange }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 p-0.5">
+      {PERIODS.map((p) => (
+        <button
+          key={p.key}
+          onClick={() => onChange(p.key)}
+          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            period === p.key ? 'bg-emerald-900/50 text-emerald-400' : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
     </div>
   );
 }
