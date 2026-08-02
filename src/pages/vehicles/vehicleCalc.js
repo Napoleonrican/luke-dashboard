@@ -165,6 +165,31 @@ export function costPerYear(planRow, mpd = DEFAULT_MILES_PER_DAY) {
   return timesPerYear != null ? planRow.avg_cost * timesPerYear : null;
 }
 
+// Shared by lastServiceFromLog/avgCostFromLog — walks every visit's items
+// looking for ones matching a service name, case/whitespace-insensitively.
+function matchingItems(serviceName, visits, itemsByVisitId) {
+  const name = (serviceName || '').trim().toLowerCase();
+  if (!name) return [];
+  const out = [];
+  for (const v of visits || []) {
+    for (const it of itemsByVisitId[v.id] || []) {
+      if ((it.service_type || '').trim().toLowerCase() === name) out.push({ visit: v, item: it });
+    }
+  }
+  return out;
+}
+
+// ── avgCostFromLog ─────────────────────────────────────────────────────────────
+// Average cost per occurrence, computed from every Service Log line item that
+// matches this service — the "Avg cost" a workbook column would otherwise
+// have to be hand-maintained. Null (not 0) when the service has never been
+// logged, so callers can fall back to a manual figure instead of showing $0.
+export function avgCostFromLog(serviceName, visits, itemsByVisitId) {
+  const matches = matchingItems(serviceName, visits, itemsByVisitId);
+  if (!matches.length) return null;
+  return matches.reduce((s, m) => s + (m.item.cost || 0), 0) / matches.length;
+}
+
 // ── lastServiceFromLog ────────────────────────────────────────────────────────
 // The Upcoming tab's "last done" should reflect real Service Log entries, not
 // a separate "mark completed" click — so a service is considered done as of
@@ -173,13 +198,9 @@ export function costPerYear(planRow, mpd = DEFAULT_MILES_PER_DAY) {
 // never been logged (the plan row's own last_completed_date/last_odometer —
 // e.g. from the initial workbook import — is the caller's fallback then).
 export function lastServiceFromLog(serviceName, visits, itemsByVisitId) {
-  const name = (serviceName || '').trim().toLowerCase();
-  if (!name) return null;
+  const matches = matchingItems(serviceName, visits, itemsByVisitId);
   let best = null;
-  for (const v of visits || []) {
-    const items = itemsByVisitId[v.id] || [];
-    const matches = items.some((it) => (it.service_type || '').trim().toLowerCase() === name);
-    if (!matches) continue;
+  for (const { visit: v } of matches) {
     if (!best || v.service_date > best.date) best = { date: v.service_date, odometer: v.odometer };
   }
   return best;

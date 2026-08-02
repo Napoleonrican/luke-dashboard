@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, X, ChevronDown, Check } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
   fetchServiceVisits, fetchServiceItemsForVisits, fetchServicePlan, upsertServiceVisit,
   upsertServiceItem, deleteRow,
@@ -20,6 +20,13 @@ const SORT_ACCESSORS = {
   items:        (v) => v.itemCount,
   total_cost:   (v) => v.total_cost,
 };
+
+// Every real shop visit tends to carry a labor charge and a shop-supplies/tax
+// line, so new visits seed these two automatically instead of making Luke
+// re-add them every time. These aren't scheduled maintenance (no interval),
+// so they don't belong on the Upcoming tab's plan — they're catalog options
+// here regardless of what's in veh_service_plan.
+const ALWAYS_ON_VISIT = ['Labor', 'Shop Supplies, Taxes, & Misc.'];
 
 export default function ServiceLog() {
   const { vehicleId, setPageMenuItems } = useOutletContext();
@@ -73,8 +80,14 @@ export default function ServiceLog() {
       vehicle_id: vehicleId, service_date: todayISO(), total_cost: 0, sort_order: visits.length,
     });
     if (err || !data?.[0]) { notifyError('Couldn’t add the visit. Please retry.'); return; }
-    setVisits((prev) => [data[0], ...prev]);
-    setEditingId(data[0].id);
+    const visit = data[0];
+    setVisits((prev) => [visit, ...prev]);
+    const seeded = await Promise.all(
+      ALWAYS_ON_VISIT.map((service_type, i) => upsertServiceItem({ visit_id: visit.id, service_type, cost: 0, sort_order: i })),
+    );
+    const seededItems = seeded.map((r) => r.data?.[0]).filter(Boolean);
+    if (seededItems.length) setItemsByVisit((prev) => ({ ...prev, [visit.id]: seededItems }));
+    setEditingId(visit.id);
   };
 
   const remove = async (id) => {
@@ -190,12 +203,18 @@ export default function ServiceLog() {
 }
 
 // Detail surface: visit key fields on top, then a repeating line-item editor
-// whose sum drives the visit total, then notes. Line items can come from the
-// "Add from schedule" checklist (services already tracked on the Upcoming
-// tab — this is also what lets Upcoming auto-detect "last done" from here)
-// or from "Add item" for one-off work not on the schedule (registration,
-// diagnostics, general repair, etc.).
+// whose sum drives the visit total, then notes. Each item's service picks
+// from a dropdown (the vehicle's scheduled services, plus Labor/Shop
+// Supplies) so the text matches what the Upcoming tab looks for exactly —
+// no typos, no near-duplicates. "Custom…" escapes to free text for a
+// genuine one-off (a repair, a part, something with no recurring interval).
 function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onClose }) {
+  const [customModeIds, setCustomModeIds] = useState(new Set());
+  const catalog = useMemo(() => {
+    const names = new Set([...planRows.map((r) => r.service).filter(Boolean), ...ALWAYS_ON_VISIT]);
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [planRows]);
+
   if (!visit) return null;
   const set = (field) => (v) => onChangeVisit(visit.id, field, v);
 
@@ -204,9 +223,9 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
     onChangeItems(next);
     await upsertServiceItem({ id, [field]: value });
   };
-  const addItem = async (serviceType = 'New item') => {
+  const addItem = async () => {
     const { data } = await upsertServiceItem({
-      visit_id: visit.id, service_type: serviceType, cost: 0, sort_order: items.length,
+      visit_id: visit.id, service_type: '', cost: 0, sort_order: items.length,
     });
     if (data?.[0]) onChangeItems([...items, data[0]]);
   };
@@ -214,13 +233,8 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
     onChangeItems(items.filter((i) => i.id !== id));
     await deleteRow('veh_service_items', id);
   };
-  const removeItemByServiceType = async (serviceType) => {
-    const match = items.find((i) => (i.service_type || '').trim().toLowerCase() === serviceType.trim().toLowerCase());
-    if (match) await removeItem(match.id);
-  };
 
   const itemsTotal = items.reduce((s, i) => s + (i.cost || 0), 0);
-  const checkedServices = new Set(items.map((i) => (i.service_type || '').trim().toLowerCase()));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={onClose}>
@@ -246,30 +260,49 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
           <div className="border-t border-zinc-800 pt-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] uppercase tracking-wide text-zinc-500">Line items</p>
-              <div className="flex items-center gap-2">
-                <ScheduleChecklist
-                  planRows={planRows}
-                  checked={checkedServices}
-                  onToggle={(service, isChecked) => (isChecked ? addItem(service) : removeItemByServiceType(service))}
-                />
-                <button onClick={() => addItem()} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
-                  <Plus size={12} /> Add item
-                </button>
-              </div>
+              <button onClick={addItem} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-600 bg-emerald-900/30 text-xs font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+                <Plus size={12} /> Add item
+              </button>
             </div>
             <div className="space-y-2">
               {items.length === 0 ? (
-                <p className="text-sm text-zinc-600">No line items yet — check off what was done above, or add a one-off item.</p>
-              ) : items.map((i) => (
-                <div key={i.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <EditCell value={i.service_type} onSave={(v) => updateItem(i.id, 'service_type', v)} className="flex-1 min-w-0 text-zinc-200 font-medium" />
-                    <AmountEdit value={i.cost} onCommit={(v) => updateItem(i.id, 'cost', v)} className="w-20 shrink-0 text-right text-zinc-300" />
-                    <button onClick={() => removeItem(i.id)} aria-label="Delete item" className="shrink-0 text-red-400/70 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                <p className="text-sm text-zinc-600">No line items yet — add one and pick what was done.</p>
+              ) : items.map((i) => {
+                // A brand-new blank row, or one explicitly switched to custom
+                // entry, gets a free-text box; everything else — including
+                // legacy imported items whose name isn't in the current
+                // catalog — gets the dropdown so it can be corrected/matched.
+                const inCustomMode = customModeIds.has(i.id)
+                  || (i.service_type && !catalog.includes(i.service_type));
+                return (
+                  <div key={i.id} className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {inCustomMode ? (
+                        <EditCell value={i.service_type} onSave={(v) => updateItem(i.id, 'service_type', v)} className="flex-1 min-w-0 text-zinc-200 font-medium" placeholder="service type" />
+                      ) : (
+                        <select
+                          value={i.service_type || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '__custom__') { setCustomModeIds((prev) => new Set(prev).add(i.id)); return; }
+                            updateItem(i.id, 'service_type', v);
+                          }}
+                          className="flex-1 min-w-0 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-sm text-white focus:border-emerald-600 focus:outline-none"
+                        >
+                          <option value="">— choose a service —</option>
+                          {catalog.map((c) => <option key={c} value={c}>{c}</option>)}
+                          <option value="__custom__">Custom…</option>
+                        </select>
+                      )}
+                      <div className="w-24 shrink-0">
+                        <AmountEdit value={i.cost} onCommit={(v) => updateItem(i.id, 'cost', v)} className="text-zinc-300" />
+                      </div>
+                      <button onClick={() => removeItem(i.id)} aria-label="Delete item" className="shrink-0 text-red-400/70 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                    </div>
+                    <EditCell value={i.notes} onSave={(v) => updateItem(i.id, 'notes', v)} className="block w-full text-zinc-500 text-xs" placeholder="notes" />
                   </div>
-                  <EditCell value={i.notes} onSave={(v) => updateItem(i.id, 'notes', v)} className="block w-full text-zinc-500 text-xs" placeholder="notes" />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -283,58 +316,6 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
           <button onClick={onClose} className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">Done</button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Popover checklist of the vehicle's Upcoming-tab services. Checking a box
-// adds it as a line item (cost starts at $0 — filled in below); unchecking
-// removes that line item. Closes on outside click or Escape, same pattern as
-// CashflowLayout's SettingsMenu.
-function ScheduleChecklist({ planRows, checked, onToggle }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onClick); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  if (!planRows.length) return null;
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
-          open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-zinc-200'
-        }`}
-      >
-        From schedule <ChevronDown size={12} />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-30 mt-2 w-64 max-h-72 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-xl shadow-black/40">
-          {planRows.map((r) => {
-            const isChecked = checked.has((r.service || '').trim().toLowerCase());
-            return (
-              <button
-                key={r.id}
-                onClick={() => onToggle(r.service, !isChecked)}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-200 transition-colors hover:bg-zinc-800"
-              >
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isChecked ? 'border-emerald-500 bg-emerald-600' : 'border-zinc-600'}`}>
-                  {isChecked && <Check size={11} className="text-white" />}
-                </span>
-                {r.service || 'Service'}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

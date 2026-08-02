@@ -9,10 +9,10 @@ import { fmt, fmtDate } from '../cashflow/format';
 import { Th, Td, StateRow, LoadErrorRow } from '../cashflow/tableparts';
 import { CardList, Card, CardField, CardState, CardLoadError } from '../cashflow/cardparts';
 import { makeToggleSort, sortRows } from '../cashflow/sorting';
-import { Field, ModalEdit, MoreDetails, AmountEdit } from '../cashflow/ModalField';
+import { Field, ModalEdit, MoreDetails } from '../cashflow/ModalField';
 import { notifyError } from '../cashflow/toast';
 import {
-  estimatedOdometer, milesPerDay, serviceDue, costPerYear, lastServiceFromLog,
+  estimatedOdometer, milesPerDay, serviceDue, costPerYear, lastServiceFromLog, avgCostFromLog,
 } from './vehicleCalc';
 
 const STATUS_COLOR = {
@@ -115,7 +115,18 @@ export default function Upcoming() {
     const merged = logged
       ? { ...r, last_completed_date: logged.date, last_odometer: logged.odometer }
       : r;
-    return { ...merged, due: serviceDue(merged, { estOdo, milesPerDay: mpd }), costPerYear: costPerYear(merged, mpd) };
+    // Avg cost: prefer the real average from logged visits over the manual
+    // avg_cost field, which is only a fallback for services never logged yet
+    // (or the initial workbook-import figure).
+    const avgCostLogged = avgCostFromLog(r.service, visits, itemsByVisit);
+    const effectiveAvgCost = avgCostLogged ?? r.avg_cost;
+    const withAvgCost = { ...merged, avg_cost: effectiveAvgCost };
+    return {
+      ...withAvgCost,
+      avgCostLogged,
+      due: serviceDue(withAvgCost, { estOdo, milesPerDay: mpd }),
+      costPerYear: costPerYear(withAvgCost, mpd),
+    };
   });
   const toggleSort = makeToggleSort(setSort, () => {});
   const sorted = sortRows(rowsWithDue, sort, SORT_ACCESSORS);
@@ -190,7 +201,7 @@ export default function Upcoming() {
                   <Td className="tabular-nums">
                     <span className="rounded px-1.5 py-0.5 font-medium" style={sc}>{r.due.eta ? fmtDate(r.due.eta) : '—'}</span>
                   </Td>
-                  <Td className="text-right"><AmountEdit value={r.avg_cost} onCommit={(v) => update(r.id, 'avg_cost', v)} className="text-zinc-400" /></Td>
+                  <Td className="text-right tabular-nums text-zinc-400">{r.avg_cost != null ? fmt(r.avg_cost) : '—'}</Td>
                   <Td className="text-right tabular-nums text-zinc-500">{r.costPerYear != null ? fmt(r.costPerYear) : '—'}</Td>
                   <Td className="text-right">
                     <button onClick={() => remove(r.id)} aria-label={`Delete ${r.service || 'service'}`} title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
@@ -232,6 +243,7 @@ export default function Upcoming() {
       {editingId && (
         <ServiceModal
           row={plan.find((r) => r.id === editingId)}
+          computed={rowsWithDue.find((r) => r.id === editingId)}
           onChange={update}
           onClose={() => setEditingId(null)}
         />
@@ -249,9 +261,11 @@ function StatCard({ label, value, tone = 'text-white' }) {
   );
 }
 
-function ServiceModal({ row, onChange, onClose }) {
+function ServiceModal({ row, computed, onChange, onClose }) {
   if (!row) return null;
   const set = (field) => (v) => onChange(row.id, field, v);
+  const avgCostLogged = computed?.avgCostLogged;
+  const costPerYearValue = computed?.costPerYear;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:p-8" onClick={onClose}>
@@ -268,16 +282,28 @@ function ServiceModal({ row, onChange, onClose }) {
               <Field label="Enabled"><ModalEdit type="checkbox" value={row.enabled} onCommit={set('enabled')} /></Field>
               <Field label="Interval (months)"><ModalEdit type="number" value={row.interval_months} onCommit={set('interval_months')} /></Field>
               <Field label="Interval (miles)"><ModalEdit type="number" value={row.interval_miles} onCommit={set('interval_miles')} /></Field>
-              <Field label="Avg cost"><ModalEdit type="currency" value={row.avg_cost} onCommit={set('avg_cost')} /></Field>
+              <Field label="Avg cost (from Service Log)">
+                <span className="text-sm font-semibold text-emerald-400 tabular-nums">
+                  {avgCostLogged != null ? fmt(avgCostLogged) : 'Not logged yet'}
+                </span>
+              </Field>
+              <Field label="Cost per year">
+                <span className="text-sm font-semibold text-emerald-400 tabular-nums">
+                  {costPerYearValue != null ? fmt(costPerYearValue) : '—'}
+                </span>
+              </Field>
             </div>
           </div>
           <p className="text-xs text-zinc-500 -mt-2">
-            Last done and due dates update automatically from the Service Log — log a visit with a
-            matching item here to mark this service done, instead of setting it manually.
+            Last done and average cost update automatically from the Service Log — log a visit with a
+            matching item here, instead of setting them manually.
           </p>
           <MoreDetails>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
               <Field label="Notes"><ModalEdit value={row.notes} onCommit={set('notes')} /></Field>
+              <Field label="Avg cost (manual — used until logged)">
+                <ModalEdit type="currency" value={row.avg_cost} onCommit={set('avg_cost')} />
+              </Field>
               <Field label="Last completed date (manual — used until logged)">
                 <ModalEdit type="date" value={row.last_completed_date} onCommit={set('last_completed_date')} />
               </Field>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   fuelStats, milesPerDay, estimatedOdometer, serviceDue, costPerYear, lastServiceFromLog,
-  DEFAULT_MILES_PER_DAY,
+  avgCostFromLog, DEFAULT_MILES_PER_DAY,
 } from '../pages/vehicles/vehicleCalc';
 
 // Real early CX-5 fill-ups from Mazda-Fuel Tracking (cols F:I), Jan 2024.
@@ -189,5 +189,26 @@ describe('lastServiceFromLog', () => {
 
   it('returns null when the service has never been logged', () => {
     expect(lastServiceFromLog('State Inspection', visits, itemsByVisitId)).toBeNull();
+  });
+});
+
+describe('avgCostFromLog', () => {
+  const visits = [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }];
+  const itemsByVisitId = {
+    v1: [{ service_type: 'Oil Change/Oil Filter', cost: 50.95 }],
+    v2: [{ service_type: 'Oil Change/Oil Filter', cost: 52.95 }],
+    v3: [{ service_type: 'Inspect Brakes', cost: 0 }],
+  };
+
+  it('averages cost across every matching line item, case-insensitively', () => {
+    expect(avgCostFromLog('oil change/oil filter', visits, itemsByVisitId)).toBeCloseTo(51.95, 2);
+  });
+
+  it('includes legitimate $0 occurrences (an inspection with no charge) in the average', () => {
+    expect(avgCostFromLog('Inspect Brakes', visits, itemsByVisitId)).toBe(0);
+  });
+
+  it('returns null, not 0, when the service has never been logged', () => {
+    expect(avgCostFromLog('Wheel Alignment', visits, itemsByVisitId)).toBeNull();
   });
 });

@@ -3,11 +3,10 @@ import { useOutletContext } from 'react-router-dom';
 import { Plus, Trash2, X } from 'lucide-react';
 import { fetchFuelLogs, upsertFuelLog, deleteRow } from '../../lib/vehicles';
 import { fmt, fmtDec, fmtDate, todayISO } from '../cashflow/format';
-import EditCell from '../cashflow/EditCell';
 import { Th, Td, StateRow, LoadErrorRow } from '../cashflow/tableparts';
 import { CardList, Card, CardField, CardState, CardLoadError } from '../cashflow/cardparts';
 import { makeToggleSort, sortRows } from '../cashflow/sorting';
-import { Field, ModalEdit, MoreDetails, AmountEdit } from '../cashflow/ModalField';
+import { Field, ModalEdit } from '../cashflow/ModalField';
 import { notifyError } from '../cashflow/toast';
 import { fuelStats } from './vehicleCalc';
 
@@ -122,17 +121,16 @@ export default function FuelLog() {
               <Th sortKey="ppg" sort={sort} onSort={toggleSort} align="right">$/gal</Th>
               <Th sortKey="miles" sort={sort} onSort={toggleSort} align="right">Miles</Th>
               <Th sortKey="mpg" sort={sort} onSort={toggleSort} align="right">MPG</Th>
-              <Th>Notes</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <StateRow colSpan={9}>Loading…</StateRow>
+              <StateRow colSpan={8}>Loading…</StateRow>
             ) : error ? (
-              <LoadErrorRow colSpan={9} onRetry={reload} />
+              <LoadErrorRow colSpan={8} onRetry={reload} />
             ) : sorted.length === 0 ? (
-              <StateRow colSpan={9}>No fill-ups yet — add one.</StateRow>
+              <StateRow colSpan={8}>No fill-ups yet — add one.</StateRow>
             ) : sorted.map((l) => (
               <tr key={l.id} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 group">
                 <Td className="tabular-nums">
@@ -140,13 +138,12 @@ export default function FuelLog() {
                     {fmtDate(l.fill_date)}
                   </button>
                 </Td>
-                <Td className="text-right tabular-nums"><EditCell type="number" value={l.odometer} onSave={(v) => update(l.id, 'odometer', v)} className="text-zinc-400" /></Td>
-                <Td className="text-right tabular-nums"><EditCell type="number" value={l.gallons} onSave={(v) => update(l.id, 'gallons', v)} className="text-zinc-400" /></Td>
-                <Td className="text-right"><AmountEdit value={l.total_cost} onCommit={(v) => update(l.id, 'total_cost', v)} className="text-zinc-200 font-medium" /></Td>
+                <Td className="text-right tabular-nums text-zinc-400">{l.odometer != null ? Math.round(l.odometer).toLocaleString() : '—'}</Td>
+                <Td className="text-right tabular-nums text-zinc-400">{l.gallons != null ? l.gallons.toFixed(2) : '—'}</Td>
+                <Td className="text-right tabular-nums text-zinc-200 font-medium">{fmt(l.total_cost)}</Td>
                 <Td className="text-right tabular-nums text-zinc-500">{l.pricePerGallon != null ? fmtDec(l.pricePerGallon) : '—'}</Td>
                 <Td className="text-right tabular-nums text-zinc-500">{l.miles != null ? Math.round(l.miles) : '—'}</Td>
                 <Td className="text-right tabular-nums text-zinc-300">{l.mpg != null ? l.mpg.toFixed(1) : '—'}</Td>
-                <Td><EditCell value={l.notes} onSave={(v) => update(l.id, 'notes', v)} className="text-zinc-500" /></Td>
                 <Td className="text-right">
                   <button onClick={() => remove(l.id)} aria-label="Delete fill-up" title="Delete" className="opacity-100 sm:opacity-0 sm:group-hover:opacity-40 hover:!opacity-100 text-red-400 transition-opacity"><Trash2 size={13} /></button>
                 </Td>
@@ -216,11 +213,6 @@ function FuelModal({ log, onChange, onClose }) {
             <Field label="Total cost"><ModalEdit type="currency" value={log.total_cost} onCommit={set('total_cost')} /></Field>
             <Field label="Partial fill"><ModalEdit type="checkbox" value={log.partial_fill} onCommit={set('partial_fill')} /></Field>
           </div>
-          <MoreDetails>
-            <div className="grid grid-cols-1 gap-y-4">
-              <Field label="Notes"><ModalEdit value={log.notes} onCommit={set('notes')} /></Field>
-            </div>
-          </MoreDetails>
         </div>
         <div className="flex justify-end border-t border-zinc-800 px-5 py-4">
           <button onClick={onClose} className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors">Done</button>
