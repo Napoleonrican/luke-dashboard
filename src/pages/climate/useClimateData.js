@@ -382,30 +382,39 @@ export function useClimateData() {
     })();
   }, []);
 
-  // When the outdoor line is enabled, pull the last week of hourly outdoor temps
-  // (°C, to match the chart's temp axis). One fetch covers every range.
+  // When the outdoor line is enabled, pull real outdoor_readings (Govee sensor) for
+  // the selected range — not the forecast. Refetches per range/refresh since the
+  // sensor is live data, not a one-shot forecast. mergeOutdoor() nearest-matches
+  // these onto the chart's time buckets same as it did for the old hourly forecast.
+  // NOTE: capped at 10k rows — at the 60s poll cadence that comfortably covers the
+  // 7D range (~10.1k rows), but if the poller cadence ever speeds up, the oldest
+  // points in a 7D window could silently get cut off by the cap.
+  const loadOutdoorHistory = useCallback(async () => {
+    if (!supabase) return;
+    const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
+    const since = new Date(Date.now() - range.hours * 3600 * 1000).toISOString();
+    const { data } = await supabase
+      .from('outdoor_readings')
+      .select('at,temp_f')
+      .gte('at', since)
+      .order('at', { ascending: true })
+      .limit(10000);
+    const series = (data ?? [])
+      .filter((r) => r.temp_f != null)
+      .map((r) => ({ ts: new Date(r.at).getTime(), tempC: fToC(r.temp_f) }));
+    setOutdoorSeries(series);
+  }, [rangeKey]);
+
   useEffect(() => {
-    if (!showOutdoor || !coords || outdoorSeries.length > 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}` +
-          `&hourly=temperature_2m&past_days=7&forecast_days=1&timezone=auto`
-        );
-        const d = await res.json();
-        const times = d.hourly?.time ?? [];
-        const temps = d.hourly?.temperature_2m ?? [];
-        const series = times
-          .map((t, i) => ({ ts: new Date(t).getTime(), tempC: temps[i] }))
-          .filter((p) => p.tempC != null);
-        if (!cancelled) setOutdoorSeries(series);
-      } catch {
-        /* outdoor line is optional; leave it empty on failure */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [showOutdoor, coords, outdoorSeries.length]);
+    if (!showOutdoor) { setOutdoorSeries([]); return; }
+    loadOutdoorHistory();
+  }, [showOutdoor, loadOutdoorHistory]);
+
+  useEffect(() => {
+    if (!showOutdoor || refreshInterval === 0) return;
+    const id = setInterval(loadOutdoorHistory, refreshInterval * 1000);
+    return () => clearInterval(id);
+  }, [showOutdoor, refreshInterval, loadOutdoorHistory]);
 
   const OUTDOOR_SENSOR_MAX_AGE_MIN = 10;
 

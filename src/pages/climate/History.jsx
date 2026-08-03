@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, ReferenceArea, Brush } from 'recharts';
 import * as XLSX from 'xlsx';
-import { Thermometer, Droplets, Cloud, Download, RefreshCw, Info } from 'lucide-react';
+import { Thermometer, Droplets, Download, RefreshCw, Info } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
   RANGES, REFRESH_OPTIONS, OUTDOOR_COLOR, cToF, fToC, fmtTemp, makeXTicks, mergeOutdoor,
@@ -161,15 +161,6 @@ export default function History() {
             >
               <Droplets size={12} /> Humidity
             </button>
-            <button
-              onClick={() => setShowOutdoor(!showOutdoor)}
-              title="Overlay outdoor temperature (Open-Meteo, your location)"
-              className={`text-xs px-3 py-1.5 rounded-md transition-colors min-h-[32px] flex items-center gap-1.5 ${
-                showOutdoor ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <Cloud size={12} style={{ color: showOutdoor ? OUTDOOR_COLOR : undefined }} /> Outdoor
-            </button>
           </div>
 
           {/* Database-refresh controls (re-query stored readings; not the sensor cadence). */}
@@ -230,6 +221,19 @@ export default function History() {
             </button>
           );
         })}
+        <button
+          onClick={() => setShowOutdoor(!showOutdoor)}
+          title="Overlay outdoor temperature (real Govee sensor, no forecast fallback in this graph)"
+          className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+            showOutdoor ? 'bg-zinc-800 border-zinc-700 text-zinc-100' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+          }`}
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full shrink-0"
+            style={{ background: showOutdoor ? OUTDOOR_COLOR : '#3f3f46' }}
+          />
+          Outdoor
+        </button>
       </div>
 
       {/* History chart */}
