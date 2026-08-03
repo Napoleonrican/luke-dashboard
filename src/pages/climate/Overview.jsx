@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Thermometer, Droplets, BatteryFull, BatteryMedium, BatteryLow, BatteryWarning, Cloud, Wind, LoaderCircle, Power, Snowflake, Sparkles, X, CalendarClock, AlertTriangle, Bot, PowerOff } from 'lucide-react';
-import { fmtTemp, timeAgo, APARTMENT_COORDS } from './useClimateData';
+import { fmtTemp, timeAgo, APARTMENT_COORDS, fToC } from './useClimateData';
 import { SOURCE_LABELS as SHARED_SOURCE_LABELS } from './sourceLabels';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -150,7 +150,7 @@ const CONTROL_MODE_CONFIG = {
 
 export default function Overview() {
   const {
-    sensors, latest, weather, weatherLoading, unit,
+    sensors, latest, weather, weatherLoading, outdoorSensor, unit,
     schedule, executorEnabled, goalsText, lastAcPush, acLiveState, loading,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts,
@@ -560,36 +560,53 @@ export default function Overview() {
           );
         })}
 
-        {/* Outdoor weather tile */}
+        {/* Outdoor weather tile — real sensor when fresh, forecast otherwise */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Cloud size={14} className="text-sky-400" />
             <span className="text-sm font-semibold text-zinc-100">Outdoor</span>
             <span className="text-xs text-zinc-500">· {APARTMENT_COORDS.label}</span>
           </div>
-          {weatherLoading ? (
+          {weatherLoading && !outdoorSensor ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm">
               <LoaderCircle size={14} className="animate-spin" /> Loading…
             </div>
-          ) : weather ? (
+          ) : weather || outdoorSensor ? (
             <>
-              <div className="flex items-baseline gap-1 mb-2">
+              <div className="flex items-baseline gap-1 mb-1">
                 <Cloud size={18} className="text-zinc-500" />
                 <span className="text-3xl font-bold tabular-nums text-zinc-100">
-                  {fmtTemp(weather.tempC, unit)}
+                  {outdoorSensor
+                    ? fmtTemp(fToC(outdoorSensor.tempF), unit)
+                    : fmtTemp(weather.tempC, unit)}
                 </span>
               </div>
+              <div className="mb-2">
+                {outdoorSensor ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Sensor · {timeAgo(outdoorSensor.at)}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                    Forecast
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col gap-1 text-xs text-zinc-400">
-                <span>Feels like {fmtTemp(weather.feelsLikeC, unit)}</span>
+                {weather && <span>Feels like {fmtTemp(weather.feelsLikeC, unit)}</span>}
                 <span className="flex items-center gap-1">
                   <Droplets size={12} className="text-sky-400" />
-                  {weather.humidity}% humidity
+                  {outdoorSensor ? outdoorSensor.humidity : weather?.humidity}% humidity
                 </span>
-                {weather.dewPointC != null && <span>Dew point {fmtTemp(weather.dewPointC, unit)}</span>}
-                <span className="flex items-center gap-1">
-                  <Wind size={12} />
-                  {Math.round(weather.windMph)} mph
-                </span>
+                {weather?.dewPointC != null && <span>Dew point {fmtTemp(weather.dewPointC, unit)}</span>}
+                {weather?.windMph != null && (
+                  <span className="flex items-center gap-1">
+                    <Wind size={12} />
+                    {Math.round(weather.windMph)} mph
+                  </span>
+                )}
               </div>
             </>
           ) : (
