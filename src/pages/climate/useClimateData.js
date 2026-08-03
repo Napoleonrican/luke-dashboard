@@ -133,6 +133,11 @@ export function useClimateData() {
   const [coords, setCoords] = useState(null);          // {lat, lon} — fixed apartment location
   const [outdoorSeries, setOutdoorSeries] = useState([]); // [{ts, tempC}] hourly outdoor history
 
+  // Real outdoor sensor (Govee H5107, via outdoor_readings). Same freshness window
+  // as controller.py's OUTDOOR_SENSOR_MAX_AGE_MIN — stale readings fall back to the
+  // Open-Meteo tile above rather than showing a sensor that's gone quiet.
+  const [outdoorSensor, setOutdoorSensor] = useState(null); // {tempF, humidity, at} | null
+
   // The live schedule, for the Overview "AC now / next change" summary.
   const [schedule, setSchedule] = useState([]);        // ac_schedule rows
   const [executorEnabled, setExecutorEnabled] = useState(null);
@@ -402,6 +407,29 @@ export function useClimateData() {
     return () => { cancelled = true; };
   }, [showOutdoor, coords, outdoorSeries.length]);
 
+  const OUTDOOR_SENSOR_MAX_AGE_MIN = 10;
+
+  const loadOutdoorSensor = useCallback(async () => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from('outdoor_readings')
+      .select('at,temp_f,humidity')
+      .order('at', { ascending: false })
+      .limit(1);
+    const row = data?.[0];
+    if (!row || row.temp_f == null) { setOutdoorSensor(null); return; }
+    const ageMin = (Date.now() - new Date(row.at).getTime()) / 60000;
+    if (ageMin > OUTDOOR_SENSOR_MAX_AGE_MIN) { setOutdoorSensor(null); return; }
+    setOutdoorSensor({ tempF: row.temp_f, humidity: row.humidity, at: row.at });
+  }, []);
+
+  useEffect(() => { loadOutdoorSensor(); }, [loadOutdoorSensor]);
+  useEffect(() => {
+    if (refreshInterval === 0) return;
+    const id = setInterval(loadOutdoorSensor, refreshInterval * 1000);
+    return () => clearInterval(id);
+  }, [refreshInterval, loadOutdoorSensor]);
+
   const setRefreshIntervalPersisted = useCallback((val) => {
     setRefreshInterval(val);
     localStorage.setItem('thermo_refresh_interval', String(val));
@@ -428,7 +456,7 @@ export function useClimateData() {
     sensors, latest, chartData, schedule, executorEnabled, goalsText, lastAcPush, acLiveState,
     comfortMode, activateComfortMode, clearComfortMode,
     alerts, saveAlerts,
-    weather, weatherLoading, coords, outdoorSeries,
+    weather, weatherLoading, coords, outdoorSeries, outdoorSensor,
     loading, lastRefresh,
     // prefs
     rangeKey, setRangeKey,
