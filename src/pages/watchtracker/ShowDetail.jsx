@@ -516,7 +516,7 @@ function OnDeckStrip({ tmdbId, seasonsMeta, watchedSet, onToggle }) {
               >
                 {m?.still_path
                   ? <img src={tmdbImageUrl(m.still_path, 'w300')} alt="" className={`h-full w-full object-cover ${watched ? 'opacity-40' : ''}`} />
-                  : <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">S{e.season} · E{e.episode}</div>}
+                  : <div className={`flex h-full w-full items-center justify-center text-xs text-zinc-600 ${watched ? 'opacity-40' : ''}`}>S{e.season} · E{e.episode}</div>}
 
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-1.5 pb-1 pt-4">
                   <div className="text-[9px] font-medium uppercase tracking-wide text-zinc-300">S{e.season} · E{e.episode}</div>
