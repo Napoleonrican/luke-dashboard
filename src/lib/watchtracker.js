@@ -309,6 +309,10 @@ export async function addShow(tmdbId, name) {
   if (!s) return { error: { message: 'Not configured' } };
   // wt_shows.tvtime_show_id is NOT NULL + unique per owner; real imported ids
   // are positive, so a manually-added show gets a synthetic negative one.
+  // NOTE: unlike movies, is_followed here means "in my library/active" (not
+  // "watched" — that's ep_watch_count > 0). A newly added show correctly lands
+  // in the "Haven't started" section via is_followed:true; setting it false
+  // would drop the show out of the library entirely (see Shows.jsx sectioning).
   return s.from('wt_shows').insert({
     tvtime_show_id: -tmdbId,
     series_name: name,
@@ -321,9 +325,15 @@ export async function addShow(tmdbId, name) {
 
 export async function addMovie(tmdbId, name, releaseDate) {
   if (!s) return { error: { message: 'Not configured' } };
+  // For movies, is_followed means "watched" and (is_for_later && !is_followed)
+  // means "want to watch" (see Movies.jsx filters). A freshly added movie
+  // should land in Want to Watch until Luke marks it watched, so insert it
+  // unwatched + for-later — NOT is_followed:true, which would file it under
+  // Watched immediately.
   return s.from('wt_movies').insert({
     movie_name: name,
-    is_followed: true,
+    is_followed: false,
+    is_for_later: true,
     release_date: releaseDate || null,
     tmdb_id: tmdbId,
     tmdb_match_status: 'confirmed',
