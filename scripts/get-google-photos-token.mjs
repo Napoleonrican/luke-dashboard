@@ -76,10 +76,18 @@ async function exchangeCodeForTokens(code) {
   return data; // { access_token, refresh_token, expires_in, ... }
 }
 
+async function resolveRedirect(url) {
+  // photos.app.goo.gl links are shortened redirects to the real
+  // photos.google.com/share/... URL that actually carries the token.
+  const res = await fetch(url, { redirect: 'follow' });
+  return res.url;
+}
+
 async function joinSharedAlbum(accessToken, shareUrl) {
+  const resolvedUrl = shareUrl.includes('/share/') ? shareUrl : await resolveRedirect(shareUrl);
   // The share token is the path segment after "/share/", before any "?".
-  const match = shareUrl.match(/\/share\/([^/?]+)/);
-  if (!match) throw new Error(`Couldn't find a share token in: ${shareUrl}`);
+  const match = resolvedUrl.match(/\/share\/([^/?]+)/);
+  if (!match) throw new Error(`Couldn't find a share token in: ${resolvedUrl} (from ${shareUrl})`);
   const shareToken = match[1];
 
   const res = await fetch('https://photoslibrary.googleapis.com/v1/albums:join', {
