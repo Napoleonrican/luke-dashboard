@@ -115,12 +115,33 @@ export function useLightingSchedule() {
     applyChange(partial, { immediate: !isSlider });
   }, [applyChange]);
 
-  // Bedtime trigger always flushes immediately — timing matters.
+  // Bedtime trigger is a one-shot command, not a setting, so it does NOT go
+  // through the debounced full-row upsert: we write just the trigger column and
+  // report whether it actually landed. The old path fired and forgot — the
+  // button said "Started" even when the write never happened — and could also be
+  // swallowed by the in-flight/debounce guard in flush(). Returns true on a
+  // confirmed write.
   const startBedtime = useCallback(async () => {
+    if (!supabase) return false;
     const ts = new Date().toISOString();
-    applyChange({ bedtime_trigger_at: ts }, { immediate: true });
+    const next = { ...ref.current, bedtime_trigger_at: ts };
+    ref.current = next;
+    setSchedule(next);
+    const { data, error } = await supabase
+      .from('lighting_schedule')
+      .update({ bedtime_trigger_at: ts, updated_at: ts })
+      .eq('id', 1)
+      .select('id');
+    if (error) {
+      if (isMissingTableError(error)) setMissing(true);
+      return false;
+    }
+    // No error but no row touched means the config row is missing — the Pi will
+    // never see a trigger, so this is a failure, not a success.
+    if (!data?.length) return false;
     setBedtimeSentAt(new Date());
-  }, [applyChange]);
+    return true;
+  }, []);
 
   return {
     schedule, loading, missing, lastRefresh, bedtimeSentAt, reload: load,
