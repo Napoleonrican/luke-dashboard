@@ -228,20 +228,37 @@ function VisitModal({ visit, items, planRows, onChangeVisit, onChangeItems, onCl
   if (!visit) return null;
   const set = (field) => (v) => onChangeVisit(visit.id, field, v);
 
+  // These follow the same optimistic-update-with-rollback pattern as the
+  // visit-level update/add/remove above. Rolling back matters more here than it
+  // looks: onChangeItems is what recomputes and persists the visit's total_cost
+  // and summary, so an item write that fails silently would leave a total saved
+  // against line items that were never stored — the log would disagree with
+  // itself on the next reload. Reverting to the pre-edit `items` array also
+  // walks the derived total back to the right number.
   const updateItem = async (id, field, value) => {
-    const next = items.map((i) => (i.id === id ? { ...i, [field]: value } : i));
-    onChangeItems(next);
-    await upsertServiceItem({ id, [field]: value });
+    const snapshot = items;
+    onChangeItems(items.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+    const { error: err } = await upsertServiceItem({ id, [field]: value });
+    if (err) {
+      onChangeItems(snapshot);
+      notifyError('Couldn’t save that change — reverted. Please retry.');
+    }
   };
   const addItem = async () => {
-    const { data } = await upsertServiceItem({
+    const { data, error: err } = await upsertServiceItem({
       visit_id: visit.id, service_type: '', cost: 0, sort_order: items.length,
     });
-    if (data?.[0]) onChangeItems([...items, data[0]]);
+    if (err || !data?.[0]) { notifyError('Couldn’t add that line item. Please retry.'); return; }
+    onChangeItems([...items, data[0]]);
   };
   const removeItem = async (id) => {
+    const snapshot = items;
     onChangeItems(items.filter((i) => i.id !== id));
-    await deleteRow('veh_service_items', id);
+    const { error: err } = await deleteRow('veh_service_items', id);
+    if (err) {
+      onChangeItems(snapshot);
+      notifyError('Couldn’t delete that line item — restored. Please retry.');
+    }
   };
 
   const itemsTotal = items.reduce((s, i) => s + (i.cost || 0), 0);
