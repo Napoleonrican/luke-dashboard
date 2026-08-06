@@ -90,12 +90,14 @@ async function joinSharedAlbum(accessToken, shareUrl) {
   if (!match) throw new Error(`Couldn't find a share token in: ${resolvedUrl} (from ${shareUrl})`);
   const shareToken = match[1];
 
-  const res = await fetch('https://photoslibrary.googleapis.com/v1/albums:join', {
+  const res = await fetch('https://photoslibrary.googleapis.com/v1/sharedAlbums:join', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ shareToken }),
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(`Non-JSON response joining ${shareUrl}: ${text.slice(0, 300)}`); }
   if (!res.ok) throw new Error(`Join failed for ${shareUrl}: ${JSON.stringify(data)}`);
   return data.album.id;
 }
