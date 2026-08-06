@@ -305,15 +305,19 @@ export default function Schedule() {
 
   const [editor, setEditor] = useState(null); // {kind:'timer', slot} | {kind:'wake'} | {kind:'bedtime'}
 
-  // Transient "Bedtime started" confirmation on the row button.
-  const [justStarted, setJustStarted] = useState(false);
+  // Bedtime button state: 'idle' | 'sending' | 'sent' | 'failed'. This used to
+  // flash "Started" unconditionally, so a write that never landed looked
+  // identical to one that did — the button reverting a few seconds later was the
+  // only thing you'd see, with the lights still off and no way to tell why.
+  const [bedtimeState, setBedtimeState] = useState('idle');
   const resetRef = useRef();
   useEffect(() => () => clearTimeout(resetRef.current), []);
   const handleBedtime = async () => {
-    await startBedtime();
-    setJustStarted(true);
     clearTimeout(resetRef.current);
-    resetRef.current = setTimeout(() => setJustStarted(false), 4000);
+    setBedtimeState('sending');
+    const ok = await startBedtime();
+    setBedtimeState(ok ? 'sent' : 'failed');
+    resetRef.current = setTimeout(() => setBedtimeState('idle'), 8000);
   };
 
   if (loading || timersLoading) {
@@ -378,15 +382,34 @@ export default function Schedule() {
             right={
               <button
                 onClick={handleBedtime}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  justStarted ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                disabled={bedtimeState === 'sending'}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-70 ${
+                  bedtimeState === 'sent' ? 'bg-emerald-600 text-white'
+                    : bedtimeState === 'failed' ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                 }`}
               >
-                {justStarted ? <><Check size={14} /> Started</> : <><Play size={14} /> Start now</>}
+                {bedtimeState === 'sending' && <>Sending…</>}
+                {bedtimeState === 'sent' && <><Check size={14} /> Sent</>}
+                {bedtimeState === 'failed' && <><AlertTriangle size={14} /> Failed — retry</>}
+                {bedtimeState === 'idle' && <><Play size={14} /> Start now</>}
               </button>
             }
           />
         </div>
+        {bedtimeState === 'sent' && (
+          <p className="text-[12px] text-emerald-400/90 mt-2 px-1 leading-relaxed">
+            Sent. The Pi picks this up within ~20s, then the strip comes on at{' '}
+            {s.sleep_brightness}% and dims itself to off over{' '}
+            {Math.max(10, s.sleep_fade_min)}m.
+          </p>
+        )}
+        {bedtimeState === 'failed' && (
+          <p className="text-[12px] text-rose-400 mt-2 px-1 leading-relaxed">
+            Couldn&apos;t reach the database — nothing was sent to the strip. Check your
+            connection and tap again.
+          </p>
+        )}
       </section>
 
       {/* modals */}
