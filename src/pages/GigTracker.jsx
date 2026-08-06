@@ -85,13 +85,36 @@ function resumePromptLabel(shiftDate) {
 // 20 hours comfortably covers any realistic overnight shift while still
 // expiring truly abandoned snapshots from days earlier.
 const RESUMABLE_WINDOW_HOURS = 20;
-function isShiftResumable(shiftDate, startTime) {
-  if (!shiftDate) return false;
+// Epoch ms of a shift's recorded start, from its stored shiftDate + startTime.
+// Returns null when shiftDate is missing (nothing sensible to anchor to).
+function shiftStartEpoch(shiftDate, startTime) {
+  if (!shiftDate) return null;
   const [h, m] = (startTime || '00:00').split(':').map(Number);
   const startedAt = new Date(`${shiftDate}T00:00:00`);
+  if (Number.isNaN(startedAt.getTime())) return null;
   startedAt.setHours(h || 0, m || 0, 0, 0);
-  const hoursSinceStart = (Date.now() - startedAt.getTime()) / 3600000;
+  return startedAt.getTime();
+}
+
+function isShiftResumable(shiftDate, startTime) {
+  const startedAtMs = shiftStartEpoch(shiftDate, startTime);
+  if (startedAtMs == null) return false;
+  const hoursSinceStart = (Date.now() - startedAtMs) / 3600000;
   return hoursSinceStart >= -1 && hoursSinceStart < RESUMABLE_WINDOW_HOURS;
+}
+
+// Resuming spreads a saved snapshot over getDefaultState(), and object-spread
+// only overwrites keys that are actually present. Shifts persisted before
+// shiftStartedAtMs existed carry no such key, so they resumed with the default
+// 0 — and evaluateStrikeTriggers' idle fallback (`nowMs - shiftStartedAtMs`)
+// then read as decades of idleness and false-fired on the first 60s tick.
+// Rebuild the baseline from the snapshot's own recorded start when it's absent.
+function withResumeDefaults(savedResume) {
+  const merged = { ...getDefaultState(), ...savedResume };
+  if (!merged.shiftStartedAtMs) {
+    merged.shiftStartedAtMs = shiftStartEpoch(merged.shiftDate, merged.startTime) ?? Date.now();
+  }
+  return merged;
 }
 
 function computeElapsedMinutes(startTime, breakLength) {
@@ -235,7 +258,6 @@ function getDefaultState() {
     orderLog: [],
     ephElapsedMinutes: 0,
     etaAnchorMs: 0,
-    ordersPerHour: 0,
     strikes: 0,
     setupCollapsed: false,
     statsCollapsed: true,
@@ -529,21 +551,17 @@ export default function GigTracker() {
     return () => clearInterval(id);
   }, []);
 
-  // EPH + ordersPerHour snapshot — refreshes every 15 minutes
+  // Elapsed-minutes snapshot — refreshes every 15 minutes.
+  // ordersPerHour used to be captured here too, which is why it lagged behind
+  // Current EPH after logging an order; it is now derived at render time
+  // alongside `eph` (see below). Do NOT update lastOrderEph in this interval.
   useEffect(() => {
     const id = setInterval(() => {
       const s = stateRef.current;
       if (s.shiftStarted && s.startTime) {
         const totalBreak = s.breakMinutes + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
         const elapsed = computeElapsedMinutes(s.startTime, totalBreak);
-        const elapsedHrs = elapsed / 60;
-        const log = s.orderLog ?? [];
-        // ordersPerHour is captured here — do NOT update lastOrderEph in this interval
-        setState(prev => ({
-          ...prev,
-          ephElapsedMinutes: elapsed,
-          ordersPerHour: elapsedHrs > 0 && log.length > 0 ? log.length / elapsedHrs : 0,
-        }));
+        setState(prev => ({ ...prev, ephElapsedMinutes: elapsed }));
       }
     }, 15 * 60 * 1000);
     return () => clearInterval(id);
@@ -923,7 +941,7 @@ export default function GigTracker() {
   const {
     shiftStarted, startTime, zone, day, breakMinutes, breakRunning, breakStartMs,
     orderLog, ephElapsedMinutes, etaAnchorMs, strikes, statsCollapsed, orderLogCollapsed,
-    lastOrderEph, orderType, ordersPerHour,
+    lastOrderEph, orderType,
   } = state;
   // Coerce to numbers for calculations; state values may be '' while the user is typing
   const minGoalHours = Number(state.minGoalHours) || 0;
@@ -954,6 +972,11 @@ export default function GigTracker() {
 
   const ephElapsedHours = elapsedMinutes / 60;
   const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
+
+  // Derived on the same cadence as `eph` so a newly logged order moves both at
+  // once. Previously this was a 15-minute state snapshot, so Orders/hr sat
+  // stale while Current EPH had already updated.
+  const ordersPerHour = elapsedHours > 0 && totalOrders > 0 ? totalOrders / elapsedHours : 0;
 
   const ephOrders = safeLog.filter(o => o.eph != null);
   const lastEphEntry = ephOrders.length > 0 ? ephOrders[ephOrders.length - 1] : null;
@@ -1226,7 +1249,7 @@ export default function GigTracker() {
             <span className="text-sm text-zinc-300">{resumePromptLabel(savedResume?.shiftDate)}</span>
             <div className="flex gap-2">
               <button
-                onClick={() => { setState({ ...getDefaultState(), ...savedResume }); setResumePrompt(false); }}
+                onClick={() => { setState(withResumeDefaults(savedResume)); setResumePrompt(false); }}
                 className="rounded-lg bg-green-700 hover:bg-green-600 px-4 py-2 text-sm font-medium text-white min-h-[40px] transition-colors"
               >
                 Resume
