@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Thermometer, Cloud } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { weatherIconFor } from './weatherIcons';
-import { timeAgo } from '../climate/useClimateData';
+import { timeAgo, PALETTE, APARTMENT_COORDS } from '../climate/useClimateData';
 
 // Full-bleed "digital photo frame" style display for a living-room panel.
 // No nav chrome, no auth gate (a TV/kiosk can't log in) — just the current
 // climate readout. Photo rotation is a planned follow-up; this is the
-// climate-view baseline it'll eventually alternate with.
+// climate-view baseline it'll eventually alternate with. Card styling
+// deliberately mirrors Climate Overview's sensor tiles (colored dot, icon
+// rows) so the two views read as the same product, just scaled up for a
+// wall display.
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -75,25 +78,10 @@ export default function Kiosk() {
             {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
         </div>
-        {(weather || outdoorSensor) && (
-          <div className="flex items-center gap-4">
-            {(() => {
-              const Icon = weatherIconFor(weather?.code, isNight);
-              return <Icon className="w-16 h-16 text-sky-400" strokeWidth={1.5} />;
-            })()}
-            <div className="text-right">
-              <div className="text-6xl font-light">{outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}</div>
-              <div className="flex items-center justify-end gap-2 text-lg text-zinc-400 mt-1">
-                <span>{outdoorIsReal ? 'Outdoor' : `Feels ${weather?.feelsLikeF != null ? Math.round(weather.feelsLikeF) + '°' : '—'}`}</span>
-                <Trend deltaF={outdoorDeltaF} />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Indoor sensor tiles — every area we're tracking */}
-      <div className="mt-10 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      {/* Sensor tiles + outdoor — same card language as Climate Overview */}
+      <div className="mt-8 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
         {loading && sensors.length === 0 && (
           <div className="col-span-full flex items-center gap-2 text-zinc-500 text-lg">
             <LoaderCircle className="w-5 h-5 animate-spin" /> Loading sensors…
@@ -102,26 +90,63 @@ export default function Kiosk() {
         {!loading && sensors.length === 0 && (
           <div className="col-span-full text-zinc-500 text-lg">No sensors found.</div>
         )}
-        {sensors.map((s) => {
+        {sensors.map((s, i) => {
           const stale = s.ts && Date.now() - new Date(s.ts).getTime() > 10 * 60 * 1000;
           const deltaF = s.deltaC != null ? s.deltaC * 9 / 5 : null;
+          const color = PALETTE[i % PALETTE.length];
           return (
-            <div key={s.mac} className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6">
-              <div className="text-lg text-zinc-400 truncate">{s.label}</div>
-              <div className={`text-5xl font-light mt-2 ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}>
-                {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
+            <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+              <div className="flex items-center gap-2 mb-3 min-w-0">
+                <span className="h-3 w-3 rounded-full shrink-0" style={{ background: color }} />
+                <span className="text-lg font-semibold text-zinc-100 truncate">{s.label}</span>
               </div>
-              <div className="flex items-center justify-between mt-2">
+              <div className="flex items-baseline gap-1.5">
+                <Thermometer className="w-6 h-6 text-zinc-500" />
+                <span className={`text-5xl font-bold tabular-nums ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}>
+                  {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center gap-4 text-base text-zinc-400">
                 {s.humidity != null && (
-                  <div className="flex items-center gap-1.5 text-zinc-400 text-lg">
-                    <Droplets className="w-5 h-5" /> {Math.round(s.humidity)}%
-                  </div>
+                  <span className="flex items-center gap-1">
+                    <Droplets className="w-4 h-4 text-sky-400" /> {Math.round(s.humidity)}%
+                  </span>
                 )}
                 <Trend deltaF={deltaF} />
+                <span className={`ml-auto ${stale ? 'text-amber-400' : 'text-zinc-600'}`}>
+                  {s.ts ? timeAgo(s.ts) : 'no data'}
+                </span>
               </div>
             </div>
           );
         })}
+
+        {/* Outdoor tile — real sensor when fresh, Open-Meteo current reading otherwise */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Cloud className="w-4 h-4 text-sky-400" />
+            <span className="text-lg font-semibold text-zinc-100">Outdoor</span>
+            <span className="text-sm text-zinc-500 truncate">· {APARTMENT_COORDS.label}</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            {(() => {
+              const Icon = weatherIconFor(weather?.code, isNight);
+              return <Icon className="w-6 h-6 text-sky-400" strokeWidth={1.5} />;
+            })()}
+            <span className="text-5xl font-bold tabular-nums text-zinc-100">
+              {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-base text-zinc-400">
+            <span className={outdoorIsReal ? 'text-emerald-400' : ''}>
+              {outdoorIsReal ? 'Sensor' : `Feels ${weather?.feelsLikeF != null ? Math.round(weather.feelsLikeF) + '°' : '—'}`}
+            </span>
+            <Trend deltaF={outdoorDeltaF} />
+            <span className="ml-auto text-zinc-600">
+              {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : weather ? 'forecast' : ''}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Forecast strip */}
