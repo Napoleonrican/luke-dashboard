@@ -1,18 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Thermometer, Cloud } from 'lucide-react';
 import { useKioskData } from './useKioskData';
+import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
 import { timeAgo, PALETTE, APARTMENT_COORDS } from '../climate/useClimateData';
 
 // Full-bleed "digital photo frame" style display for a living-room panel.
-// No nav chrome, no auth gate (a TV/kiosk can't log in) — just the current
-// climate readout. Photo rotation is a planned follow-up; this is the
-// climate-view baseline it'll eventually alternate with. Card styling
+// No nav chrome, no auth gate (a TV/kiosk can't log in). Card styling
 // deliberately mirrors Climate Overview's sensor tiles (colored dot, icon
 // rows) so the two views read as the same product, just scaled up for a
 // wall display.
+//
+// Two Google Photos albums (api/kiosk-photos.js) feed two different things:
+//   - "backgrounds" rotates slowly as a dimmed backdrop behind the climate view
+//   - "slideshow" takes over the full screen for a stretch on a timer, then
+//     hands back to the climate view
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const CLIMATE_MS = 45_000;          // how long the climate view stays up
+const PHOTO_SLIDE_MS = 8_000;       // how long each slideshow photo shows
+const PHOTOS_PER_TAKEOVER = 4;      // how many photos per photo-mode stretch
+const BACKGROUND_ROTATE_MS = 5 * 60_000;
+
+// Google Photos baseUrls need a size suffix to actually return an image.
+const sized = (baseUrl, w, h) => `${baseUrl}=w${w}-h${h}-c`;
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -56,8 +67,52 @@ function Trend({ deltaF }) {
   );
 }
 
+// Alternates the display between the climate view and a full-screen photo
+// takeover. A ref (not state) tracks the slide index inside the timeout loop
+// so the effect doesn't need to re-run — and re-subscribe — on every photo.
+function useScreenRotation(slideCount) {
+  const [mode, setMode] = useState('climate');
+  const [slideIdx, setSlideIdx] = useState(0);
+  const slideIdxRef = useRef(0);
+
+  useEffect(() => {
+    if (slideCount === 0) return; // nothing to show, stay on climate view
+    let timeoutId;
+    let cancelled = false;
+
+    const scheduleNext = (nextMode, delay) => {
+      timeoutId = setTimeout(() => {
+        if (cancelled) return;
+        if (nextMode === 'photo') {
+          slideIdxRef.current = 0;
+          setSlideIdx(0);
+          setMode('photo');
+          scheduleNext('advance', PHOTO_SLIDE_MS);
+        } else if (nextMode === 'advance') {
+          const next = slideIdxRef.current + 1;
+          if (next >= Math.min(PHOTOS_PER_TAKEOVER, slideCount)) {
+            setMode('climate');
+            scheduleNext('photo', CLIMATE_MS);
+          } else {
+            slideIdxRef.current = next;
+            setSlideIdx(next);
+            scheduleNext('advance', PHOTO_SLIDE_MS);
+          }
+        }
+      }, delay);
+    };
+
+    scheduleNext('photo', CLIMATE_MS);
+    return () => { cancelled = true; clearTimeout(timeoutId); };
+  }, [slideCount]);
+
+  return { mode, slideIdx };
+}
+
 export default function Kiosk() {
   const { sensors, weather, outdoorSensor, lastRefresh, loading } = useKioskData();
+  const { photos: backgroundPhotos } = usePhotoAlbum('backgrounds');
+  const { photos: slidePhotos } = usePhotoAlbum('slideshow');
   const now = useClock();
   const isNight = now.getHours() < 6 || now.getHours() >= 20;
 
@@ -68,8 +123,41 @@ export default function Kiosk() {
   const outdoorDeltaF = outdoorSensor?.deltaF ?? null;
   const outdoorIsReal = outdoorSensor != null;
 
+  const { mode, slideIdx } = useScreenRotation(slidePhotos.length);
+
+  const [bgIdx, setBgIdx] = useState(0);
+  useEffect(() => {
+    if (backgroundPhotos.length === 0) return;
+    const id = setInterval(() => setBgIdx((i) => (i + 1) % backgroundPhotos.length), BACKGROUND_ROTATE_MS);
+    return () => clearInterval(id);
+  }, [backgroundPhotos.length]);
+
+  if (mode === 'photo' && slidePhotos[slideIdx]) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center select-none">
+        <img
+          src={sized(slidePhotos[slideIdx].baseUrl, 1920, 1080)}
+          alt=""
+          className="w-full h-screen object-contain"
+        />
+      </div>
+    );
+  }
+
+  const bgPhoto = backgroundPhotos[bgIdx];
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col p-8 select-none">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col p-8 select-none relative">
+      {bgPhoto && (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${sized(bgPhoto.baseUrl, 1920, 1080)})` }}
+          />
+          <div className="absolute inset-0 bg-zinc-950/75" />
+        </>
+      )}
+      <div className="relative flex flex-col flex-1">
       {/* Header: clock + date */}
       <div className="flex items-baseline justify-between">
         <div>
@@ -183,6 +271,7 @@ export default function Kiosk() {
 
       <div className="mt-auto pt-6 text-sm text-zinc-600">
         {lastRefresh ? `Updated ${timeAgo(lastRefresh.toISOString())}` : ''}
+      </div>
       </div>
     </div>
   );
