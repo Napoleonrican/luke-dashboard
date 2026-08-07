@@ -60,32 +60,32 @@ async function listFolderPhotos(accessToken, folderName) {
   if (!res.ok) throw new Error(`Folder fetch failed: ${JSON.stringify(data)}`);
   const items = (data.value ?? []).filter((item) => item.image);
 
-  // @microsoft.graph.downloadUrl is dropped on the /children listing
-  // endpoint even when explicitly $select-ed (a known Graph quirk) — it's
-  // only reliably present on a per-item GET, so fetch each image
-  // individually to get a real download link.
+  // @microsoft.graph.downloadUrl doesn't come back via $select at all on
+  // this drive (confirmed live — neither the listing nor a per-item GET
+  // includes it). The reliable alternative: GET /items/{id}/content
+  // redirects (302) to the real signed download URL — read it straight off
+  // the Location header without following the redirect.
   const itemResults = await Promise.all(items.map(async (item) => {
-    const itemRes = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}?$select=id,image,@microsoft.graph.downloadUrl`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+    const contentRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, redirect: 'manual' }
     );
-    const itemData = await itemRes.json();
-    return { ok: itemRes.ok, status: itemRes.status, data: itemData };
+    return { id: item.id, image: item.image, status: contentRes.status, url: contentRes.headers.get('location') };
   }));
 
   const photos = itemResults
-    .filter((r) => r.ok && r.data['@microsoft.graph.downloadUrl'])
+    .filter((r) => r.url)
     .map((r) => ({
-      id: r.data.id,
-      url: r.data['@microsoft.graph.downloadUrl'],
-      width: r.data.image?.width ?? null,
-      height: r.data.image?.height ?? null,
+      id: r.id,
+      url: r.url,
+      width: r.image?.width ?? null,
+      height: r.image?.height ?? null,
     }));
   return {
     photos,
     rawCount: items.length,
     sample: items.slice(0, 3).map((i) => ({ name: i.name, keys: Object.keys(i) })),
-    itemSample: itemResults.slice(0, 2).map((r) => ({ ok: r.ok, status: r.status, keys: Object.keys(r.data ?? {}) })),
+    itemSample: itemResults.slice(0, 2).map((r) => ({ status: r.status, hasUrl: Boolean(r.url) })),
   };
 }
 
