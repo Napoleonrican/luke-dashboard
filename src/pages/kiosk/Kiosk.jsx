@@ -259,9 +259,9 @@ export default function Kiosk() {
               <div className="text-right max-w-xs" title={ac.stateLabel}>
                 <div className="flex items-center justify-end gap-2">
                   <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: AC_STATE_COLOR[ac.stateLabel] ?? '#a1a1aa' }} />
-                  <Snowflake className="w-6 h-6 text-cyan-400" />
+                  <Snowflake className="w-6 h-6 text-cyan-400 shrink-0" />
+                  {ac.settingLine && <span className="text-2xl text-zinc-200">{ac.settingLine}</span>}
                 </div>
-                {ac.settingLine && <p className="mt-1 text-2xl text-zinc-200">{ac.settingLine}</p>}
                 {ac.lastLog?.reason && (
                   <p className="mt-1 text-sm text-zinc-500 truncate">{ac.lastLog.reason}</p>
                 )}
