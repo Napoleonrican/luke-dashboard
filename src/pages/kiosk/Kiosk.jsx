@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Thermometer, Cloud, Snowflake } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Cloud, Snowflake } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
@@ -23,6 +23,10 @@ const PHOTO_MAX_MS = 10 * 60_000;
 const BACKGROUND_MIN_INTERVAL_MS = 60 * 60_000; // change at most once/hour
 const FADE_MS = 1500;
 const OVERLAY_CORNERS = ['top-8 left-8', 'top-8 right-8', 'bottom-8 left-8', 'bottom-8 right-8'];
+// Kiosk devices sit powered on for weeks — a full reload once a day (off
+// hours) resets memory/JS state and picks up any new deploy, cheap insurance
+// against slow leaks rather than a sign anything's actually wrong.
+const DAILY_RELOAD_HOUR = 4;
 
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -33,6 +37,22 @@ function useClock() {
     return () => clearInterval(id);
   }, []);
   return now;
+}
+
+// Reloads the page once, the first time the clock crosses DAILY_RELOAD_HOUR:00.
+// A ref (not state) tracks whether today's reload already fired so this
+// doesn't re-trigger every second while the hour matches.
+function useDailyReload(now) {
+  const firedRef = useRef(false);
+  useEffect(() => {
+    const atReloadHour = now.getHours() === DAILY_RELOAD_HOUR && now.getMinutes() === 0;
+    if (atReloadHour && !firedRef.current) {
+      firedRef.current = true;
+      window.location.reload();
+    } else if (!atReloadHour) {
+      firedRef.current = false;
+    }
+  }, [now]);
 }
 
 function fmtClockTime(d) {
@@ -117,6 +137,7 @@ export default function Kiosk() {
   const { photos: slidePhotos } = usePhotoAlbum('slideshow');
   const now = useClock();
   const isNight = now.getHours() < 6 || now.getHours() >= 20;
+  useDailyReload(now);
 
   // Prefer the real outdoor sensor (Govee) when fresh; Open-Meteo's *current*
   // reading is only shown as a fallback. The forecast strip always comes from
@@ -130,11 +151,19 @@ export default function Kiosk() {
   // Only ever swap the background while the climate view is hidden (photo
   // mode) and at most once an hour, so the change is never actually seen
   // happening — the next time the dashboard comes back up, it's just already
-  // different.
+  // different. The very first pick (once photos actually load) is random
+  // too, so a fresh page load doesn't always start on the same photo.
   const [bgIdx, setBgIdx] = useState(0);
   const lastBgChangeRef = useRef(Date.now());
+  const bgInitializedRef = useRef(false);
   useEffect(() => {
-    if (mode !== 'photo' || backgroundPhotos.length === 0) return;
+    if (backgroundPhotos.length === 0) return;
+    if (!bgInitializedRef.current) {
+      bgInitializedRef.current = true;
+      setBgIdx(Math.floor(Math.random() * backgroundPhotos.length));
+      return;
+    }
+    if (mode !== 'photo') return;
     if (Date.now() - lastBgChangeRef.current < BACKGROUND_MIN_INTERVAL_MS) return;
     setBgIdx((i) => (i + 1) % backgroundPhotos.length);
     lastBgChangeRef.current = Date.now();
@@ -163,150 +192,181 @@ export default function Kiosk() {
 
       {/* Climate layer */}
       <div
-        className="flex flex-col p-8 min-h-screen transition-opacity ease-in-out"
+        className="flex flex-col p-10 min-h-screen transition-opacity ease-in-out"
         style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 0 : 1 }}
       >
-      {bgPhoto && (
-        <>
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${bgPhoto.url})` }}
-          />
-          <div className="absolute inset-0 bg-zinc-950/75" />
-        </>
-      )}
-      <div className="relative flex flex-col flex-1">
-      {/* Header: clock + date */}
-      <div className="flex items-baseline justify-between">
-        <div>
-          <div className="text-7xl font-light tracking-tight">{fmtClockTime(now)}</div>
-          <div className="text-xl text-zinc-400 mt-1">
+        {bgPhoto && (
+          <>
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${bgPhoto.url})` }}
+            />
+            <div className={`absolute inset-0 transition-colors duration-1000 ${isNight ? 'bg-zinc-950/90' : 'bg-zinc-950/75'}`} />
+          </>
+        )}
+        {/* Night mode (v1): dim the whole readout uniformly rather than a bright
+            wall-of-light in a dark room. Worth revisiting later (redder tones,
+            a stripped-down clock-only screen, etc.) but this is a real first pass. */}
+        <div
+          className="relative flex flex-col flex-1 transition-[filter] duration-1000"
+          style={{ filter: isNight ? 'brightness(0.55)' : 'none' }}
+        >
+          {/* Header: huge clock + date — from 9-13ft this is one of the only
+              things that needs to read at a glance */}
+          <div style={{ fontSize: 'clamp(5rem, 13vw, 11rem)' }} className="font-light leading-none tracking-tight">
+            {fmtClockTime(now)}
+          </div>
+          <div className="text-2xl md:text-3xl text-zinc-400 mt-2">
             {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
-        </div>
-      </div>
 
-      {/* Sensor tiles + outdoor — same card language as Climate Overview */}
-      <div className="mt-8 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-        {loading && sensors.length === 0 && (
-          <div className="col-span-full flex items-center gap-2 text-zinc-500 text-lg">
-            <LoaderCircle className="w-5 h-5 animate-spin" /> Loading sensors…
-          </div>
-        )}
-        {!loading && sensors.length === 0 && (
-          <div className="col-span-full text-zinc-500 text-lg">No sensors found.</div>
-        )}
-        {sensors.map((s, i) => {
-          const stale = s.ts && Date.now() - new Date(s.ts).getTime() > 10 * 60 * 1000;
-          const deltaF = s.deltaC != null ? s.deltaC * 9 / 5 : null;
-          const color = PALETTE[i % PALETTE.length];
-          return (
-            <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-              <div className="flex items-center gap-2 mb-3 min-w-0">
-                <span className="h-3 w-3 rounded-full shrink-0" style={{ background: color }} />
-                <span className="text-lg font-semibold text-zinc-100 truncate">{s.label}</span>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <Thermometer className="w-6 h-6 text-zinc-500" />
-                <span className={`text-5xl font-bold tabular-nums ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}>
-                  {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center gap-4 text-base text-zinc-400">
-                {s.humidity != null && (
-                  <span className="flex items-center gap-1">
-                    <Droplets className="w-4 h-4 text-sky-400" /> {Math.round(s.humidity)}%
+          {/* Two-column body: giant per-room temps on the left (also meant to
+              read across the room), finer-grained weather/AC detail on the
+              right — that right column has room to alternate to other content
+              later without touching the left side. */}
+          <div className="mt-10 flex-1 grid gap-10" style={{ gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr)' }}>
+            {/* Left: giant temp grid */}
+            <div className="grid grid-cols-2 gap-5 content-start">
+              {loading && sensors.length === 0 && (
+                <div className="col-span-full flex items-center gap-2 text-zinc-500 text-2xl">
+                  <LoaderCircle className="w-6 h-6 animate-spin" /> Loading sensors…
+                </div>
+              )}
+              {!loading && sensors.length === 0 && (
+                <div className="col-span-full text-zinc-500 text-2xl">No sensors found.</div>
+              )}
+              {sensors.map((s, i) => {
+                const stale = s.ts && Date.now() - new Date(s.ts).getTime() > 10 * 60 * 1000;
+                const deltaF = s.deltaC != null ? s.deltaC * 9 / 5 : null;
+                const color = PALETTE[i % PALETTE.length];
+                return (
+                  <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                    <div className="flex items-center gap-2.5 mb-1 min-w-0">
+                      <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: color }} />
+                      <span className="text-2xl font-semibold text-zinc-100 truncate">{s.label}</span>
+                    </div>
+                    <div
+                      style={{ fontSize: 'clamp(3.5rem, 6.5vw, 6.5rem)' }}
+                      className={`font-bold tabular-nums leading-none ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}
+                    >
+                      {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
+                    </div>
+                    <div className="mt-2 flex items-center gap-3 text-sm text-zinc-500">
+                      {s.humidity != null && (
+                        <span className="flex items-center gap-1">
+                          <Droplets className="w-3.5 h-3.5 text-sky-400" /> {Math.round(s.humidity)}%
+                        </span>
+                      )}
+                      <Trend deltaF={deltaF} />
+                      <span className={`ml-auto ${stale ? 'text-amber-400' : ''}`}>
+                        {s.ts ? timeAgo(s.ts) : 'no data'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Outdoor tile — real sensor when fresh, Open-Meteo current reading otherwise */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <Cloud className="w-5 h-5 text-sky-400 shrink-0" />
+                  <span className="text-2xl font-semibold text-zinc-100">Outdoor</span>
+                </div>
+                <div
+                  style={{ fontSize: 'clamp(3.5rem, 6.5vw, 6.5rem)' }}
+                  className="font-bold tabular-nums leading-none text-zinc-100"
+                >
+                  {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
+                </div>
+                <div className="mt-2 flex items-center gap-3 text-sm text-zinc-500">
+                  <span className={outdoorIsReal ? 'text-emerald-400' : ''}>
+                    {outdoorIsReal ? 'Sensor' : 'Forecast'}
                   </span>
-                )}
-                <Trend deltaF={deltaF} />
-                <span className={`ml-auto ${stale ? 'text-amber-400' : 'text-zinc-600'}`}>
-                  {s.ts ? timeAgo(s.ts) : 'no data'}
-                </span>
+                  <Trend deltaF={outdoorDeltaF} />
+                  <span className="ml-auto">
+                    {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : ''}
+                  </span>
+                </div>
               </div>
             </div>
-          );
-        })}
 
-        {/* Outdoor tile — real sensor when fresh, Open-Meteo current reading otherwise */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Cloud className="w-4 h-4 text-sky-400" />
-            <span className="text-lg font-semibold text-zinc-100">Outdoor</span>
-            <span className="text-sm text-zinc-500 truncate">· {APARTMENT_COORDS.label}</span>
+            {/* Right: finer detail — current weather, AC status, forecast.
+                Small on purpose: legible up close, not meant to compete with
+                the left column for across-the-room reading. */}
+            <div className="flex flex-col gap-4">
+              {weather && (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const Icon = weatherIconFor(weather?.code, isNight);
+                      return <Icon className="w-8 h-8 text-sky-400" strokeWidth={1.5} />;
+                    })()}
+                    <span className="text-2xl font-semibold text-zinc-100">{APARTMENT_COORDS.label}</span>
+                  </div>
+                  <div className="mt-1 text-base text-zinc-400">
+                    Feels {weather.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
+                    {weather.humidity != null && ` · ${Math.round(weather.humidity)}% humidity`}
+                  </div>
+                </div>
+              )}
+
+              {/* AC status — brief, mirrors the Home hub's ClimateRail framing */}
+              {ac && (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                  <div className="flex items-center gap-2">
+                    <Snowflake className="w-5 h-5 text-cyan-400" />
+                    <span className="text-lg font-semibold text-zinc-100">{ac.stateLabel}</span>
+                  </div>
+                  {ac.settingLine && <p className="mt-1 text-base text-zinc-400">Set to {ac.settingLine}</p>}
+                  {ac.lastLog?.reason && (
+                    <p className="mt-1.5 text-sm text-zinc-500 line-clamp-2">
+                      {ac.lastLog.reason} <span className="text-zinc-700">· {timeAgo(ac.lastLog.ts)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Forecast */}
+              {(weather?.hourly?.length > 0 || weather?.daily?.length > 0) && (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                  {weather?.hourly?.length > 0 && (
+                    <div className="flex gap-5 overflow-x-auto">
+                      {weather.hourly.map((h) => {
+                        const Icon = weatherIconFor(h.code);
+                        return (
+                          <div key={h.time} className="flex flex-col items-center gap-1 min-w-[52px]">
+                            <div className="text-xs text-zinc-500">{fmtHour(h.time)}</div>
+                            <Icon className="w-6 h-6 text-sky-400/80" strokeWidth={1.5} />
+                            <div className="text-sm">{h.tempF != null ? `${Math.round(h.tempF)}°` : '—'}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {weather?.daily?.length > 0 && (
+                    <div className="mt-4 flex flex-col gap-2 border-t border-zinc-800 pt-3">
+                      {weather.daily.map((d, i) => {
+                        const Icon = weatherIconFor(d.code);
+                        return (
+                          <div key={d.date} className="flex items-center gap-3 text-sm">
+                            <div className="text-zinc-400 w-12">{fmtDay(d.date, i === 0)}</div>
+                            <Icon className="w-5 h-5 text-sky-400/70" strokeWidth={1.5} />
+                            <div className="text-zinc-100 ml-auto">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
+                            <div className="text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            {(() => {
-              const Icon = weatherIconFor(weather?.code, isNight);
-              return <Icon className="w-6 h-6 text-sky-400" strokeWidth={1.5} />;
-            })()}
-            <span className="text-5xl font-bold tabular-nums text-zinc-100">
-              {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-4 text-base text-zinc-400">
-            <span className={outdoorIsReal ? 'text-emerald-400' : ''}>
-              {outdoorIsReal ? 'Sensor' : `Feels ${weather?.feelsLikeF != null ? Math.round(weather.feelsLikeF) + '°' : '—'}`}
-            </span>
-            <Trend deltaF={outdoorDeltaF} />
-            <span className="ml-auto text-zinc-600">
-              {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : weather ? 'forecast' : ''}
-            </span>
+
+          <div className="mt-6 text-sm text-zinc-600">
+            {lastRefresh ? `Updated ${timeAgo(lastRefresh.toISOString())}` : ''}
           </div>
         </div>
-      </div>
-
-      {/* AC status — brief, mirrors the Home hub's ClimateRail framing */}
-      {ac && (
-        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Snowflake className="w-4 h-4 text-cyan-400" />
-            <span className="text-base font-semibold text-zinc-100">{ac.stateLabel}</span>
-            {ac.settingLine && <span className="text-base text-zinc-400">· Set to {ac.settingLine}</span>}
-          </div>
-          {ac.lastLog?.reason && (
-            <p className="mt-1.5 text-sm text-zinc-500 line-clamp-1">
-              {ac.lastLog.reason} <span className="text-zinc-700">· {timeAgo(ac.lastLog.ts)}</span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Forecast strip */}
-      {weather?.hourly?.length > 0 && (
-        <div className="mt-10 flex gap-6 overflow-x-auto">
-          {weather.hourly.map((h) => {
-            const Icon = weatherIconFor(h.code);
-            return (
-              <div key={h.time} className="flex flex-col items-center gap-1 min-w-[64px]">
-                <div className="text-sm text-zinc-400">{fmtHour(h.time)}</div>
-                <Icon className="w-8 h-8 text-sky-400/80" strokeWidth={1.5} />
-                <div className="text-lg">{h.tempF != null ? `${Math.round(h.tempF)}°` : '—'}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {weather?.daily?.length > 0 && (
-        <div className="mt-6 flex gap-8">
-          {weather.daily.map((d, i) => {
-            const Icon = weatherIconFor(d.code);
-            return (
-              <div key={d.date} className="flex items-center gap-3">
-                <div className="text-zinc-400 w-14">{fmtDay(d.date, i === 0)}</div>
-                <Icon className="w-7 h-7 text-sky-400/70" strokeWidth={1.5} />
-                <div className="text-zinc-100">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
-                <div className="text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="mt-auto pt-6 text-sm text-zinc-600">
-        {lastRefresh ? `Updated ${timeAgo(lastRefresh.toISOString())}` : ''}
-      </div>
-      </div>
       </div>
     </div>
   );
