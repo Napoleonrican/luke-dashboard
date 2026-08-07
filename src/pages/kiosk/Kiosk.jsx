@@ -173,7 +173,7 @@ export default function Kiosk() {
   const showPhoto = mode === 'photo' && slide;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden select-none">
+    <div className="h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden select-none">
       {/* Photo-takeover layer — always mounted so the mode switch crossfades
           instead of hard-cutting. */}
       <div
@@ -190,9 +190,11 @@ export default function Kiosk() {
         )}
       </div>
 
-      {/* Climate layer */}
+      {/* Climate layer — h-full + overflow-hidden (not min-h-screen) so
+          content is forced to fit one screen; a kiosk panel has no scrollbar
+          to reveal anything that runs past the bottom edge. */}
       <div
-        className="flex flex-col p-10 min-h-screen transition-opacity ease-in-out"
+        className="flex flex-col h-full p-8 overflow-hidden transition-opacity ease-in-out"
         style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 0 : 1 }}
       >
         {bgPhoto && (
@@ -208,15 +210,16 @@ export default function Kiosk() {
             wall-of-light in a dark room. Worth revisiting later (redder tones,
             a stripped-down clock-only screen, etc.) but this is a real first pass. */}
         <div
-          className="relative flex flex-col flex-1 transition-[filter] duration-1000"
+          className="relative flex flex-col flex-1 min-h-0 transition-[filter] duration-1000"
           style={{ filter: isNight ? 'brightness(0.55)' : 'none' }}
         >
-          {/* Header: huge clock + date — from 9-13ft this is one of the only
-              things that needs to read at a glance */}
-          <div style={{ fontSize: 'clamp(5rem, 13vw, 11rem)' }} className="font-light leading-none tracking-tight">
+          {/* Header: clock + date — from 9-13ft this is one of the only
+              things that needs to read at a glance, but not so large it eats
+              the room the temp grid needs. */}
+          <div style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)' }} className="font-light leading-none tracking-tight shrink-0">
             {fmtClockTime(now)}
           </div>
-          <div className="text-2xl md:text-3xl text-zinc-400 mt-2">
+          <div className="text-lg md:text-xl text-zinc-400 mt-1 shrink-0">
             {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
 
@@ -224,9 +227,9 @@ export default function Kiosk() {
               read across the room), finer-grained weather/AC detail on the
               right — that right column has room to alternate to other content
               later without touching the left side. */}
-          <div className="mt-10 flex-1 grid gap-10" style={{ gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr)' }}>
+          <div className="mt-6 flex-1 min-h-0 grid gap-6" style={{ gridTemplateColumns: 'minmax(0,1.35fr) minmax(0,1fr)' }}>
             {/* Left: giant temp grid */}
-            <div className="grid grid-cols-2 gap-5 content-start">
+            <div className="grid grid-cols-2 gap-4 content-start">
               {loading && sensors.length === 0 && (
                 <div className="col-span-full flex items-center gap-2 text-zinc-500 text-2xl">
                   <LoaderCircle className="w-6 h-6 animate-spin" /> Loading sensors…
@@ -240,13 +243,13 @@ export default function Kiosk() {
                 const deltaF = s.deltaC != null ? s.deltaC * 9 / 5 : null;
                 const color = PALETTE[i % PALETTE.length];
                 return (
-                  <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                  <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4">
                     <div className="flex items-center gap-2.5 mb-1 min-w-0">
                       <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: color }} />
                       <span className="text-2xl font-semibold text-zinc-100 truncate">{s.label}</span>
                     </div>
                     <div
-                      style={{ fontSize: 'clamp(3.5rem, 6.5vw, 6.5rem)' }}
+                      style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
                       className={`font-bold tabular-nums leading-none ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}
                     >
                       {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
@@ -267,13 +270,13 @@ export default function Kiosk() {
               })}
 
               {/* Outdoor tile — real sensor when fresh, Open-Meteo current reading otherwise */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4">
                 <div className="flex items-center gap-2.5 mb-1">
                   <Cloud className="w-5 h-5 text-sky-400 shrink-0" />
                   <span className="text-2xl font-semibold text-zinc-100">Outdoor</span>
                 </div>
                 <div
-                  style={{ fontSize: 'clamp(3.5rem, 6.5vw, 6.5rem)' }}
+                  style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
                   className="font-bold tabular-nums leading-none text-zinc-100"
                 >
                   {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
@@ -293,17 +296,17 @@ export default function Kiosk() {
             {/* Right: finer detail — current weather, AC status, forecast.
                 Small on purpose: legible up close, not meant to compete with
                 the left column for across-the-room reading. */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 min-h-0">
               {weather && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
                   <div className="flex items-center gap-3">
                     {(() => {
                       const Icon = weatherIconFor(weather?.code, isNight);
-                      return <Icon className="w-8 h-8 text-sky-400" strokeWidth={1.5} />;
+                      return <Icon className="w-9 h-9 text-sky-400" strokeWidth={1.5} />;
                     })()}
-                    <span className="text-2xl font-semibold text-zinc-100">{APARTMENT_COORDS.label}</span>
+                    <span className="text-3xl font-semibold text-zinc-100">{APARTMENT_COORDS.label}</span>
                   </div>
-                  <div className="mt-1 text-base text-zinc-400">
+                  <div className="mt-1 text-lg text-zinc-400">
                     Feels {weather.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
                     {weather.humidity != null && ` · ${Math.round(weather.humidity)}% humidity`}
                   </div>
@@ -312,12 +315,12 @@ export default function Kiosk() {
 
               {/* AC status — brief, mirrors the Home hub's ClimateRail framing */}
               {ac && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <Snowflake className="w-5 h-5 text-cyan-400" />
-                    <span className="text-lg font-semibold text-zinc-100">{ac.stateLabel}</span>
+                    <Snowflake className="w-6 h-6 text-cyan-400" />
+                    <span className="text-2xl font-semibold text-zinc-100">{ac.stateLabel}</span>
                   </div>
-                  {ac.settingLine && <p className="mt-1 text-base text-zinc-400">Set to {ac.settingLine}</p>}
+                  {ac.settingLine && <p className="mt-1 text-lg text-zinc-400">Set to {ac.settingLine}</p>}
                   {ac.lastLog?.reason && (
                     <p className="mt-1.5 text-sm text-zinc-500 line-clamp-2">
                       {ac.lastLog.reason} <span className="text-zinc-700">· {timeAgo(ac.lastLog.ts)}</span>
@@ -326,9 +329,11 @@ export default function Kiosk() {
                 </div>
               )}
 
-              {/* Forecast */}
+              {/* Forecast — deliberately kept small/dense; this is reference
+                  detail for a close look, not meant to compete for
+                  across-the-room legibility like the rest of the page. */}
               {(weather?.hourly?.length > 0 || weather?.daily?.length > 0) && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4 flex-1 min-h-0 overflow-hidden">
                   {weather?.hourly?.length > 0 && (
                     <div className="flex gap-5 overflow-x-auto">
                       {weather.hourly.map((h) => {
@@ -363,7 +368,7 @@ export default function Kiosk() {
             </div>
           </div>
 
-          <div className="mt-6 text-sm text-zinc-600">
+          <div className="mt-3 text-sm text-zinc-600 shrink-0">
             {lastRefresh ? `Updated ${timeAgo(lastRefresh.toISOString())}` : ''}
           </div>
         </div>
