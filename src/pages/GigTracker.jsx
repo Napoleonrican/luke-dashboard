@@ -127,6 +127,12 @@ function computeElapsedMinutes(startTime, breakLength) {
   return Math.max(0, (now - startDate) / 60000 - Number(breakLength));
 }
 
+// Sums logged orders by orderCount (stacked/combo offers count as >1) rather
+// than by entry — one accepted offer can bundle 2-3 orders.
+function sumOrderCount(log) {
+  return (log ?? []).reduce((sum, o) => sum + (o.orderCount || 1), 0);
+}
+
 // --- Strike system (ported from the standalone Gig Tracker, items 2.9–2.11) ---
 // Aggressiveness scales the time-based triggers. 'conservative' = Hustle (fires
 // earliest), 'balanced' = default, 'aggressive' = Selective (fires latest).
@@ -303,6 +309,7 @@ export default function GigTracker() {
   const [savedResume, setSavedResume] = useState(null);
   const [orderInputOpen, setOrderInputOpen] = useState(false);
   const [orderInputValue, setOrderInputValue] = useState('');
+  const [orderCountValue, setOrderCountValue] = useState(1);
   const [selectedPlatform, setSelectedPlatform] = useState(() => localStorage.getItem(LAST_PLATFORM_KEY) || 'UberEats');
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingValue, setEditingValue] = useState('');
@@ -747,7 +754,7 @@ export default function GigTracker() {
     const totalBreak = Number(s.breakMinutes) + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
     const durationMinutes = Math.round(computeElapsedMinutes(s.startTime, totalBreak));
     const totalEarnings = s.orderLog.reduce((sum, o) => sum + o.amount, 0);
-    const totalOrders = s.orderLog.length;
+    const totalOrders = sumOrderCount(s.orderLog);
     const shiftEph = durationMinutes > 0 ? totalEarnings / (durationMinutes / 60) : 0;
     const entry = {
       shift_date: s.shiftDate,
@@ -777,7 +784,7 @@ export default function GigTracker() {
     const totalBreak = Number(s.breakMinutes) + (s.breakRunning && s.breakStartMs ? (Date.now() - s.breakStartMs) / 60000 : 0);
     const durationMinutes = Math.round(computeElapsedMinutes(s.startTime, totalBreak));
     const totalEarnings = (s.orderLog ?? []).reduce((sum, o) => sum + o.amount, 0);
-    const totalOrders = (s.orderLog ?? []).length;
+    const totalOrders = sumOrderCount(s.orderLog);
     const shiftEph = durationMinutes > 0 ? totalEarnings / (durationMinutes / 60) : 0;
     const ordersPerHr = durationMinutes > 0 && totalOrders > 0 ? totalOrders / (durationMinutes / 60) : 0;
     const dayIdx = DAYS.indexOf(s.day);
@@ -814,9 +821,10 @@ export default function GigTracker() {
     });
   }
 
-  function addOrder(platformLabel, amountStr) {
+  function addOrder(platformLabel, amountStr, countValue = 1) {
     const amount = parseFloat(amountStr);
     if (isNaN(amount) || amount <= 0) return;
+    const orderCount = Math.max(1, Math.round(Number(countValue)) || 1);
 
     const existingCombined = state.orderLog.reduce((s, o) => s + o.amount, 0);
     const totalBreak = state.breakMinutes + (state.breakRunning && state.breakStartMs ? (Date.now() - state.breakStartMs) / 60000 : 0);
@@ -824,7 +832,7 @@ export default function GigTracker() {
     const currentElapsedHours = currentElapsed / 60;
     const capturedEph = currentElapsedHours > 0 ? (existingCombined + amount) / currentElapsedHours : 0;
 
-    const newOrder = { id: Date.now(), platform: platformLabel, amount, timestamp: new Date().toISOString(), eph: Math.round(capturedEph * 100) / 100 };
+    const newOrder = { id: Date.now(), platform: platformLabel, amount, orderCount, timestamp: new Date().toISOString(), eph: Math.round(capturedEph * 100) / 100 };
     const newLog = [...state.orderLog, newOrder];
     const newCombined = newLog.reduce((s, o) => s + o.amount, 0);
 
@@ -866,6 +874,7 @@ export default function GigTracker() {
     setSelectedPlatform(platformLabel);
     setOrderInputOpen(false);
     setOrderInputValue('');
+    setOrderCountValue(1);
     autoIdleStrikeFiredRef.current = false; // new order re-arms the idle trigger
   }
 
@@ -968,7 +977,9 @@ export default function GigTracker() {
   const ueTotal = ueOrders.reduce((s, o) => s + o.amount, 0);
   const ddTotal = ddOrders.reduce((s, o) => s + o.amount, 0);
   const combined = ueTotal + ddTotal;
-  const totalOrders = safeLog.length;
+  const ueOrderCount = sumOrderCount(ueOrders);
+  const ddOrderCount = sumOrderCount(ddOrders);
+  const totalOrders = sumOrderCount(safeLog);
 
   const ephElapsedHours = elapsedMinutes / 60;
   const eph = ephElapsedHours > 0 ? combined / ephElapsedHours : 0;
@@ -1616,6 +1627,9 @@ export default function GigTracker() {
                               <div className="flex-1 flex flex-col min-w-0">
                                 <span className="text-sm font-semibold text-zinc-200 tabular-nums">
                                   {fmtMoney(order.amount)}
+                                  {order.orderCount > 1 && (
+                                    <span className="ml-1.5 text-xs font-semibold text-amber-400">×{order.orderCount}</span>
+                                  )}
                                 </span>
                                 {order.eph != null && (
                                   <span className="text-xs text-zinc-400">${order.eph.toFixed(2)}/hr</span>
@@ -1663,8 +1677,8 @@ export default function GigTracker() {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-4 pt-4">
                     <StatRow label="Orders/hr" value={ordersPerHour > 0 ? ordersPerHour.toFixed(1) : '—'} />
                     <StatRow label="Per-order avg" value={totalOrders > 0 ? fmtMoney(perOrderPay) : '—'} />
-                    <StatRow label="UberEats total" value={`${fmtMoney(ueTotal)} (${ueOrders.length} orders)`} />
-                    <StatRow label="DoorDash total" value={`${fmtMoney(ddTotal)} (${ddOrders.length} orders)`} />
+                    <StatRow label="UberEats total" value={`${fmtMoney(ueTotal)} (${ueOrderCount} orders)`} />
+                    <StatRow label="DoorDash total" value={`${fmtMoney(ddTotal)} (${ddOrderCount} orders)`} />
                     <StatRow label="Total orders" value={totalOrders} />
                     <StatRow
                       label={liveAvgTripMins != null ? 'Avg trip time (shift)' : 'Avg trip time (zone)'}
@@ -1687,7 +1701,7 @@ export default function GigTracker() {
           <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3 border-b border-zinc-800">
             <h2 className="text-lg font-bold text-zinc-100">Log Order</h2>
             <button
-              onClick={() => { setOrderInputOpen(false); setOrderInputValue(''); }}
+              onClick={() => { setOrderInputOpen(false); setOrderInputValue(''); setOrderCountValue(1); }}
               className="flex items-center justify-center w-10 h-10 rounded-full text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
             >
               <X size={20} />
@@ -1723,11 +1737,35 @@ export default function GigTracker() {
                 type="number" min="0" step="0.01" inputMode="decimal"
                 value={orderInputValue}
                 onChange={e => setOrderInputValue(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addOrder(selectedPlatform, orderInputValue)}
+                onKeyDown={e => e.key === 'Enter' && addOrder(selectedPlatform, orderInputValue, orderCountValue)}
                 autoFocus
                 placeholder="0.00"
                 className="flex-1 bg-transparent text-zinc-100 outline-none text-5xl font-bold tabular-nums min-w-0"
               />
+            </div>
+
+            {/* Stacked/combo order count — one accept can cover 2-3 orders */}
+            <div className="flex items-center justify-between bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3">
+              <span className="text-sm text-zinc-400">
+                Orders in this one <span className="text-zinc-600">(stacked/combo offers)</span>
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderCountValue(c => Math.max(1, c - 1))}
+                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-lg font-bold transition-colors"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-lg font-bold text-zinc-100 tabular-nums">{orderCountValue}</span>
+                <button
+                  type="button"
+                  onClick={() => setOrderCountValue(c => Math.min(10, c + 1))}
+                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-lg font-bold transition-colors"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             {/* Quick-add +/- buttons */}
@@ -1767,7 +1805,7 @@ export default function GigTracker() {
 
           <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 border-t border-zinc-800">
             <button
-              onClick={() => addOrder(selectedPlatform, orderInputValue)}
+              onClick={() => addOrder(selectedPlatform, orderInputValue, orderCountValue)}
               className="w-full bg-green-700 hover:bg-green-600 active:bg-green-800 text-white font-bold text-xl py-5 rounded-2xl min-h-[72px] transition-colors"
             >
               OK — Log Order
