@@ -71,13 +71,33 @@ async function loadOutdoorSensor() {
   }
 }
 
+// Aggregates a run of hourly entries into one summary tile: high/low across
+// the window, the max precip chance, and a "representative" icon — the code
+// from whichever hour in the window has the highest precip chance (the most
+// notable moment), falling back to the first hour's code when it's all dry.
+function summarizeHours(hours, startI, endI) {
+  const slice = hours.slice(startI, endI + 1);
+  if (slice.length === 0) return null;
+  const temps = slice.map((h) => h.tempF).filter((t) => t != null);
+  const precips = slice.map((h) => h.precipProb).filter((p) => p != null);
+  let repIdx = 0;
+  let bestP = -1;
+  slice.forEach((h, i) => { if (h.precipProb != null && h.precipProb > bestP) { bestP = h.precipProb; repIdx = i; } });
+  return {
+    maxF: temps.length ? Math.max(...temps) : null,
+    minF: temps.length ? Math.min(...temps) : null,
+    precipProb: precips.length ? Math.max(...precips) : null,
+    code: slice[repIdx]?.code ?? null,
+  };
+}
+
 async function loadWeather() {
   try {
     const { lat, lon } = APARTMENT_COORDS;
     const res = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` +
-      `&hourly=temperature_2m,weather_code` +
+      `&hourly=temperature_2m,weather_code,precipitation_probability` +
       `&daily=temperature_2m_max,temperature_2m_min,weather_code` +
       `&temperature_unit=fahrenheit&timezone=auto&forecast_days=3`
     );
@@ -91,13 +111,22 @@ async function loadWeather() {
     const hourlyTimes = d.hourly?.time ?? [];
     let startIdx = hourlyTimes.findIndex((t) => new Date(t) >= now);
     if (startIdx === -1) startIdx = 0;
-    const hourly = hourlyTimes
-      .slice(startIdx, startIdx + 6)
+    // Pull enough hours to cover the widest bucket (next 12h) below.
+    const hours = hourlyTimes
+      .slice(startIdx, startIdx + 13)
       .map((t, i) => ({
         time: t,
         tempF: d.hourly.temperature_2m[startIdx + i],
         code: d.hourly.weather_code[startIdx + i],
+        precipProb: d.hourly.precipitation_probability?.[startIdx + i] ?? null,
       }));
+    // Three summary windows, like a weather-station display: the immediate
+    // next hour on its own, then two widening lookaheads.
+    const hourlyBuckets = [
+      { label: 'Next Hr', ...summarizeHours(hours, 0, 0) },
+      { label: '1-6 Hrs', ...summarizeHours(hours, 1, 6) },
+      { label: '6-12 Hrs', ...summarizeHours(hours, 7, 12) },
+    ].filter((b) => b.maxF != null || b.minF != null);
     const daily = (d.daily?.time ?? []).slice(0, 3).map((t, i) => ({
       date: t,
       maxF: d.daily.temperature_2m_max[i],
@@ -109,7 +138,7 @@ async function loadWeather() {
       feelsLikeF: c?.apparent_temperature ?? null,
       humidity: c?.relative_humidity_2m ?? null,
       code: c?.weather_code ?? null,
-      hourly,
+      hourlyBuckets,
       daily,
     };
   } catch {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Cloud, Snowflake } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Cloud } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
@@ -34,6 +34,15 @@ const OPPOSITE_CORNER = {
 // against slow leaks rather than a sign anything's actually wrong.
 const DAILY_RELOAD_HOUR = 4;
 
+// Mirrors Climate Overview's CONTROL_MODE_CONFIG colors (violet/red/emerald)
+// for the same states, at the coarser 3-state granularity useKioskData's
+// loadAc() computes — a status dot instead of a full banner.
+const AC_STATE_COLOR = {
+  'Schedule Override': '#a78bfa', // violet-400
+  'Dashboard control': '#34d399', // emerald-400
+  'Manual control': '#f87171',    // red-400
+};
+
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function useClock() {
@@ -63,10 +72,6 @@ function useDailyReload(now) {
 
 function fmtClockTime(d) {
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-function fmtHour(iso) {
-  return new Date(iso).toLocaleTimeString([], { hour: 'numeric' });
 }
 
 function fmtDay(iso, isToday) {
@@ -251,12 +256,15 @@ export default function Kiosk() {
               </div>
             </div>
             {ac && (
-              <div className="text-right">
+              <div className="text-right max-w-xs">
                 <div className="flex items-center justify-end gap-2">
-                  <Snowflake className="w-7 h-7 text-cyan-400" />
-                  <span className="text-3xl font-semibold text-zinc-100">{ac.stateLabel}</span>
+                  <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: AC_STATE_COLOR[ac.stateLabel] ?? '#a1a1aa' }} />
+                  <span className="text-2xl font-semibold text-zinc-100">{ac.stateLabel}</span>
                 </div>
-                {ac.settingLine && <p className="mt-1 text-xl text-zinc-400">{ac.settingLine}</p>}
+                {ac.settingLine && <p className="mt-1 text-2xl text-zinc-200">{ac.settingLine}</p>}
+                {ac.lastLog?.reason && (
+                  <p className="mt-1 text-sm text-zinc-500 truncate">{ac.lastLog.reason}</p>
+                )}
               </div>
             )}
           </div>
@@ -286,18 +294,20 @@ export default function Kiosk() {
                       <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: color }} />
                       <span className="text-2xl font-semibold text-zinc-100 truncate">{s.label}</span>
                     </div>
-                    <div
-                      style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
-                      className={`font-bold tabular-nums leading-none ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}
-                    >
-                      {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
-                    </div>
-                    <div className="mt-2 flex items-center gap-3 text-sm text-zinc-500">
+                    <div className="flex items-baseline gap-2.5">
+                      <div
+                        style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
+                        className={`font-bold tabular-nums leading-none ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}
+                      >
+                        {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
+                      </div>
                       {s.humidity != null && (
-                        <span className="flex items-center gap-1">
-                          <Droplets className="w-3.5 h-3.5 text-sky-400" /> {Math.round(s.humidity)}%
+                        <span className="flex items-center gap-1 text-2xl text-zinc-400">
+                          <Droplets className="w-5 h-5 text-sky-400" /> {Math.round(s.humidity)}%
                         </span>
                       )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-3 text-sm text-zinc-500">
                       <Trend deltaF={deltaF} />
                       <span className={`ml-auto ${stale ? 'text-amber-400' : ''}`}>
                         {s.ts ? timeAgo(s.ts) : 'no data'}
@@ -313,13 +323,20 @@ export default function Kiosk() {
                   <Cloud className="w-5 h-5 text-sky-400 shrink-0" />
                   <span className="text-2xl font-semibold text-zinc-100">Outdoor</span>
                 </div>
-                <div
-                  style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
-                  className="font-bold tabular-nums leading-none text-zinc-100"
-                >
-                  {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
+                <div className="flex items-baseline gap-2.5">
+                  <div
+                    style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
+                    className="font-bold tabular-nums leading-none text-zinc-100"
+                  >
+                    {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
+                  </div>
+                  {outdoorHumidity != null && (
+                    <span className="flex items-center gap-1 text-2xl text-zinc-400">
+                      <Droplets className="w-5 h-5 text-sky-400" /> {Math.round(outdoorHumidity)}%
+                    </span>
+                  )}
                 </div>
-                <div className="mt-2 flex items-center gap-3 text-sm text-zinc-500">
+                <div className="mt-1 flex items-center gap-3 text-sm text-zinc-500">
                   <span className={outdoorIsReal ? 'text-emerald-400' : ''}>
                     {outdoorIsReal ? 'Sensor' : 'Forecast'}
                   </span>
@@ -328,20 +345,20 @@ export default function Kiosk() {
                     {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : ''}
                   </span>
                 </div>
-                <div className="mt-1 text-sm text-zinc-500">
+                <div className="mt-0.5 text-sm text-zinc-500">
                   Feels {weather?.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
-                  {outdoorHumidity != null && ` · ${Math.round(outdoorHumidity)}% humidity`}
                 </div>
               </div>
             </div>
 
             {/* Right: forecast only now — current weather merged into the
-                Outdoor tile, AC status moved to the header. Days run as 3
-                columns (the broad picture), hours as a 6-row list below (the
-                granular detail) — this whole column still has room to
-                alternate to other content later. */}
+                Outdoor tile, AC status moved to the header. Days and hour-
+                buckets both run as matching 3-column spreads (the days: the
+                next 3 days; the buckets: next hour / next 1-6h / next 6-12h,
+                each summarized like a weather-station display) — this whole
+                column still has room to alternate to other content later. */}
             <div className="flex flex-col min-h-0">
-              {(weather?.hourly?.length > 0 || weather?.daily?.length > 0) && (
+              {(weather?.hourlyBuckets?.length > 0 || weather?.daily?.length > 0) && (
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5 flex-1 min-h-0 flex flex-col overflow-hidden">
                   {weather?.daily?.length > 0 && (
                     <div className="grid grid-cols-3 gap-3 shrink-0">
@@ -349,24 +366,29 @@ export default function Kiosk() {
                         const Icon = weatherIconFor(d.code);
                         return (
                           <div key={d.date} className="flex flex-col items-center gap-1 text-center">
-                            <div className="text-base font-medium text-zinc-300">{fmtDay(d.date, i === 0)}</div>
-                            <Icon className="w-8 h-8 text-sky-400/80" strokeWidth={1.5} />
-                            <div className="text-lg text-zinc-100">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
-                            <div className="text-sm text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
+                            <div className="text-xl font-medium text-zinc-300">{fmtDay(d.date, i === 0)}</div>
+                            <Icon className="w-12 h-12 text-sky-400/80" strokeWidth={1.5} />
+                            <div className="text-2xl text-zinc-100">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
+                            <div className="text-lg text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                  {weather?.hourly?.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-zinc-800 flex-1 min-h-0 flex flex-col justify-between">
-                      {weather.hourly.map((h) => {
-                        const Icon = weatherIconFor(h.code);
+                  {weather?.hourlyBuckets?.length > 0 && (
+                    <div className="mt-5 pt-4 border-t border-zinc-800 grid grid-cols-3 gap-3 flex-1 min-h-0">
+                      {weather.hourlyBuckets.map((b) => {
+                        const Icon = weatherIconFor(b.code);
                         return (
-                          <div key={h.time} className="flex items-center gap-3 text-base">
-                            <div className="text-zinc-400 w-14">{fmtHour(h.time)}</div>
-                            <Icon className="w-6 h-6 text-sky-400/80" strokeWidth={1.5} />
-                            <div className="ml-auto text-zinc-100">{h.tempF != null ? `${Math.round(h.tempF)}°` : '—'}</div>
+                          <div key={b.label} className="flex flex-col items-center gap-1 text-center">
+                            <div className="text-sm font-medium text-zinc-400">{b.label}</div>
+                            <Icon className="w-8 h-8 text-sky-400/80" strokeWidth={1.5} />
+                            <div className="text-lg text-zinc-100">
+                              {b.maxF != null ? Math.round(b.maxF) : '—'}° / {b.minF != null ? Math.round(b.minF) : '—'}°
+                            </div>
+                            {b.precipProb != null && (
+                              <div className="text-sm text-sky-400/80">{Math.round(b.precipProb)}% rain</div>
+                            )}
                           </div>
                         );
                       })}
