@@ -216,18 +216,18 @@ export default function Kiosk() {
         {slide && (
           <>
             <img src={slide.url} alt="" className="w-full h-screen object-contain" />
-            <div className={`absolute ${corner} text-white drop-shadow-lg bg-black/30 rounded-xl px-5 py-3`}>
-              <div className="text-3xl font-light leading-none">{fmtClockTime(now)}</div>
-              <div className="text-base text-zinc-300 mt-1">
+            <div className={`absolute ${corner} text-white drop-shadow-lg bg-black/30 rounded-xl px-6 py-4`}>
+              <div style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)' }} className="font-light leading-none">{fmtClockTime(now)}</div>
+              <div className="text-xl text-zinc-300 mt-1.5">
                 {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
               </div>
             </div>
-            <div className={`absolute ${OPPOSITE_CORNER[corner]} text-white drop-shadow-lg bg-black/30 rounded-xl px-5 py-3 flex items-center gap-3`}>
+            <div className={`absolute ${OPPOSITE_CORNER[corner]} text-white drop-shadow-lg bg-black/30 rounded-xl px-6 py-4 flex items-center gap-4`}>
               {(() => {
                 const Icon = weatherIconFor(weather?.code, isNight);
-                return <Icon className="w-8 h-8 text-sky-300" strokeWidth={1.5} />;
+                return <Icon className="w-12 h-12 text-sky-300" strokeWidth={1.5} />;
               })()}
-              <div className="text-base leading-snug">
+              <div style={{ fontSize: 'clamp(1.5rem, 3vw, 2.25rem)' }} className="leading-snug">
                 <div>Living {livingTempF != null ? `${Math.round(livingTempF)}°` : '—'}</div>
                 <div>Outdoor {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}</div>
               </div>
