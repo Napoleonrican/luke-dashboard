@@ -64,24 +64,29 @@ async function listFolderPhotos(accessToken, folderName) {
   // endpoint even when explicitly $select-ed (a known Graph quirk) — it's
   // only reliably present on a per-item GET, so fetch each image
   // individually to get a real download link.
-  const withUrls = await Promise.all(items.map(async (item) => {
+  const itemResults = await Promise.all(items.map(async (item) => {
     const itemRes = await fetch(
       `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}?$select=id,image,@microsoft.graph.downloadUrl`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     const itemData = await itemRes.json();
-    return itemRes.ok ? itemData : null;
+    return { ok: itemRes.ok, status: itemRes.status, data: itemData };
   }));
 
-  const photos = withUrls
-    .filter((item) => item && item['@microsoft.graph.downloadUrl'])
-    .map((item) => ({
-      id: item.id,
-      url: item['@microsoft.graph.downloadUrl'],
-      width: item.image?.width ?? null,
-      height: item.image?.height ?? null,
+  const photos = itemResults
+    .filter((r) => r.ok && r.data['@microsoft.graph.downloadUrl'])
+    .map((r) => ({
+      id: r.data.id,
+      url: r.data['@microsoft.graph.downloadUrl'],
+      width: r.data.image?.width ?? null,
+      height: r.data.image?.height ?? null,
     }));
-  return { photos, rawCount: items.length, sample: items.slice(0, 3).map((i) => ({ name: i.name, keys: Object.keys(i) })) };
+  return {
+    photos,
+    rawCount: items.length,
+    sample: items.slice(0, 3).map((i) => ({ name: i.name, keys: Object.keys(i) })),
+    itemSample: itemResults.slice(0, 2).map((r) => ({ ok: r.ok, status: r.status, keys: Object.keys(r.data ?? {}) })),
+  };
 }
 
 export default async function handler(req, res) {
@@ -105,10 +110,10 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const { photos, rawCount, sample } = await listFolderPhotos(accessToken, folderName);
+    const { photos, rawCount, sample, itemSample } = await listFolderPhotos(accessToken, folderName);
     res.setHeader('Cache-Control', 'no-store');
     if (req.query.debug === '1') {
-      res.status(200).json({ photos, debug: { folderName, rawCount, sample } });
+      res.status(200).json({ photos, debug: { folderName, rawCount, sample, itemSample } });
       return;
     }
     res.status(200).json({ photos });
