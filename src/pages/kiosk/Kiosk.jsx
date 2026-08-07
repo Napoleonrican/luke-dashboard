@@ -3,7 +3,7 @@ import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Cloud, Snowflake } f
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
-import { timeAgo, PALETTE, APARTMENT_COORDS } from '../climate/useClimateData';
+import { timeAgo, PALETTE } from '../climate/useClimateData';
 
 // Full-bleed "digital photo frame" style display for a living-room panel.
 // No nav chrome, no auth gate (a TV/kiosk can't log in). Card styling
@@ -23,6 +23,12 @@ const PHOTO_MAX_MS = 10 * 60_000;
 const BACKGROUND_MIN_INTERVAL_MS = 60 * 60_000; // change at most once/hour
 const FADE_MS = 1500;
 const OVERLAY_CORNERS = ['top-8 left-8', 'top-8 right-8', 'bottom-8 left-8', 'bottom-8 right-8'];
+const OPPOSITE_CORNER = {
+  'top-8 left-8': 'bottom-8 right-8',
+  'top-8 right-8': 'bottom-8 left-8',
+  'bottom-8 left-8': 'top-8 right-8',
+  'bottom-8 right-8': 'top-8 left-8',
+};
 // Kiosk devices sit powered on for weeks — a full reload once a day (off
 // hours) resets memory/JS state and picks up any new deploy, cheap insurance
 // against slow leaks rather than a sign anything's actually wrong.
@@ -145,6 +151,11 @@ export default function Kiosk() {
   const outdoorTempF = outdoorSensor?.tempF ?? weather?.tempF ?? null;
   const outdoorDeltaF = outdoorSensor?.deltaF ?? null;
   const outdoorIsReal = outdoorSensor != null;
+  const outdoorHumidity = outdoorSensor?.humidity ?? weather?.humidity ?? null;
+
+  // For the slideshow overlay's compact climate readout.
+  const livingSensor = sensors.find((s) => /living/i.test(s.label));
+  const livingTempF = livingSensor?.tempC != null ? livingSensor.tempC * 9 / 5 + 32 : null;
 
   const { mode, slide, corner } = useScreenRotation(slidePhotos);
 
@@ -183,8 +194,21 @@ export default function Kiosk() {
         {slide && (
           <>
             <img src={slide.url} alt="" className="w-full h-screen object-contain" />
-            <div className={`absolute ${corner} text-white text-3xl font-light drop-shadow-lg bg-black/30 rounded-xl px-5 py-3`}>
-              {fmtClockTime(now)}
+            <div className={`absolute ${corner} text-white drop-shadow-lg bg-black/30 rounded-xl px-5 py-3`}>
+              <div className="text-3xl font-light leading-none">{fmtClockTime(now)}</div>
+              <div className="text-base text-zinc-300 mt-1">
+                {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+            <div className={`absolute ${OPPOSITE_CORNER[corner]} text-white drop-shadow-lg bg-black/30 rounded-xl px-5 py-3 flex items-center gap-3`}>
+              {(() => {
+                const Icon = weatherIconFor(weather?.code, isNight);
+                return <Icon className="w-8 h-8 text-sky-300" strokeWidth={1.5} />;
+              })()}
+              <div className="text-base leading-snug">
+                <div>Living {livingTempF != null ? `${Math.round(livingTempF)}°` : '—'}</div>
+                <div>Outdoor {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}</div>
+              </div>
             </div>
           </>
         )}
@@ -213,14 +237,28 @@ export default function Kiosk() {
           className="relative flex flex-col flex-1 min-h-0 transition-[filter] duration-1000"
           style={{ filter: isNight ? 'brightness(0.55)' : 'none' }}
         >
-          {/* Header: clock + date — from 9-13ft this is one of the only
-              things that needs to read at a glance, but not so large it eats
-              the room the temp grid needs. */}
-          <div style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)' }} className="font-light leading-none tracking-tight shrink-0">
-            {fmtClockTime(now)}
-          </div>
-          <div className="text-lg md:text-xl text-zinc-400 mt-1 shrink-0">
-            {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+          {/* Header: clock + date on the left — from 9-13ft this is one of the
+              only things that needs to read at a glance, but not so large it
+              eats the room the temp grid needs. AC status sits opposite,
+              height-matched so it never runs past the date line. */}
+          <div className="flex items-start justify-between shrink-0">
+            <div>
+              <div style={{ fontSize: 'clamp(3rem, 7vw, 5.5rem)' }} className="font-light leading-none tracking-tight">
+                {fmtClockTime(now)}
+              </div>
+              <div className="text-lg md:text-xl text-zinc-400 mt-1">
+                {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+            {ac && (
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <Snowflake className="w-7 h-7 text-cyan-400" />
+                  <span className="text-3xl font-semibold text-zinc-100">{ac.stateLabel}</span>
+                </div>
+                {ac.settingLine && <p className="mt-1 text-xl text-zinc-400">{ac.settingLine}</p>}
+              </div>
+            )}
           </div>
 
           {/* Two-column body: giant per-room temps on the left (also meant to
@@ -290,74 +328,45 @@ export default function Kiosk() {
                     {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : ''}
                   </span>
                 </div>
+                <div className="mt-1 text-sm text-zinc-500">
+                  Feels {weather?.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
+                  {outdoorHumidity != null && ` · ${Math.round(outdoorHumidity)}% humidity`}
+                </div>
               </div>
             </div>
 
-            {/* Right: finer detail — current weather, AC status, forecast.
-                Small on purpose: legible up close, not meant to compete with
-                the left column for across-the-room reading. */}
-            <div className="flex flex-col gap-4 min-h-0">
-              {weather && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    {(() => {
-                      const Icon = weatherIconFor(weather?.code, isNight);
-                      return <Icon className="w-9 h-9 text-sky-400" strokeWidth={1.5} />;
-                    })()}
-                    <span className="text-3xl font-semibold text-zinc-100">{APARTMENT_COORDS.label}</span>
-                  </div>
-                  <div className="mt-1 text-lg text-zinc-400">
-                    Feels {weather.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
-                    {weather.humidity != null && ` · ${Math.round(weather.humidity)}% humidity`}
-                  </div>
-                </div>
-              )}
-
-              {/* AC status — brief, mirrors the Home hub's ClimateRail framing */}
-              {ac && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <Snowflake className="w-6 h-6 text-cyan-400" />
-                    <span className="text-2xl font-semibold text-zinc-100">{ac.stateLabel}</span>
-                  </div>
-                  {ac.settingLine && <p className="mt-1 text-lg text-zinc-400">Set to {ac.settingLine}</p>}
-                  {ac.lastLog?.reason && (
-                    <p className="mt-1.5 text-sm text-zinc-500 line-clamp-2">
-                      {ac.lastLog.reason} <span className="text-zinc-700">· {timeAgo(ac.lastLog.ts)}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Forecast — deliberately kept small/dense; this is reference
-                  detail for a close look, not meant to compete for
-                  across-the-room legibility like the rest of the page. */}
+            {/* Right: forecast only now — current weather merged into the
+                Outdoor tile, AC status moved to the header. Days run as 3
+                columns (the broad picture), hours as a 6-row list below (the
+                granular detail) — this whole column still has room to
+                alternate to other content later. */}
+            <div className="flex flex-col min-h-0">
               {(weather?.hourly?.length > 0 || weather?.daily?.length > 0) && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4 flex-1 min-h-0 overflow-hidden">
-                  {weather?.hourly?.length > 0 && (
-                    <div className="flex gap-5 overflow-x-auto">
-                      {weather.hourly.map((h) => {
-                        const Icon = weatherIconFor(h.code);
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5 flex-1 min-h-0 flex flex-col overflow-hidden">
+                  {weather?.daily?.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3 shrink-0">
+                      {weather.daily.map((d, i) => {
+                        const Icon = weatherIconFor(d.code);
                         return (
-                          <div key={h.time} className="flex flex-col items-center gap-1 min-w-[52px]">
-                            <div className="text-xs text-zinc-500">{fmtHour(h.time)}</div>
-                            <Icon className="w-6 h-6 text-sky-400/80" strokeWidth={1.5} />
-                            <div className="text-sm">{h.tempF != null ? `${Math.round(h.tempF)}°` : '—'}</div>
+                          <div key={d.date} className="flex flex-col items-center gap-1 text-center">
+                            <div className="text-base font-medium text-zinc-300">{fmtDay(d.date, i === 0)}</div>
+                            <Icon className="w-8 h-8 text-sky-400/80" strokeWidth={1.5} />
+                            <div className="text-lg text-zinc-100">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
+                            <div className="text-sm text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                  {weather?.daily?.length > 0 && (
-                    <div className="mt-4 flex flex-col gap-2 border-t border-zinc-800 pt-3">
-                      {weather.daily.map((d, i) => {
-                        const Icon = weatherIconFor(d.code);
+                  {weather?.hourly?.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-zinc-800 flex-1 min-h-0 flex flex-col justify-between">
+                      {weather.hourly.map((h) => {
+                        const Icon = weatherIconFor(h.code);
                         return (
-                          <div key={d.date} className="flex items-center gap-3 text-sm">
-                            <div className="text-zinc-400 w-12">{fmtDay(d.date, i === 0)}</div>
-                            <Icon className="w-5 h-5 text-sky-400/70" strokeWidth={1.5} />
-                            <div className="text-zinc-100 ml-auto">{d.maxF != null ? Math.round(d.maxF) : '—'}°</div>
-                            <div className="text-zinc-500">{d.minF != null ? Math.round(d.minF) : '—'}°</div>
+                          <div key={h.time} className="flex items-center gap-3 text-base">
+                            <div className="text-zinc-400 w-14">{fmtHour(h.time)}</div>
+                            <Icon className="w-6 h-6 text-sky-400/80" strokeWidth={1.5} />
+                            <div className="ml-auto text-zinc-100">{h.tempF != null ? `${Math.round(h.tempF)}°` : '—'}</div>
                           </div>
                         );
                       })}

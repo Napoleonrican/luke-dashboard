@@ -79,7 +79,7 @@ async function loadWeather() {
       `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` +
       `&hourly=temperature_2m,weather_code` +
       `&daily=temperature_2m_max,temperature_2m_min,weather_code` +
-      `&temperature_unit=fahrenheit&timezone=auto&forecast_days=4`
+      `&temperature_unit=fahrenheit&timezone=auto&forecast_days=3`
     );
     const d = await res.json();
     const c = d.current;
@@ -98,7 +98,7 @@ async function loadWeather() {
         tempF: d.hourly.temperature_2m[startIdx + i],
         code: d.hourly.weather_code[startIdx + i],
       }));
-    const daily = (d.daily?.time ?? []).slice(0, 4).map((t, i) => ({
+    const daily = (d.daily?.time ?? []).slice(0, 3).map((t, i) => ({
       date: t,
       maxF: d.daily.temperature_2m_max[i],
       minF: d.daily.temperature_2m_min[i],
