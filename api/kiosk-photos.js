@@ -111,7 +111,10 @@ export default async function handler(req, res) {
   try {
     const accessToken = await getAccessToken();
     const { photos, rawCount, sample, itemSample } = await listFolderPhotos(accessToken, folderName);
-    res.setHeader('Cache-Control', 'no-store');
+    // Debug requests always bypass the CDN cache so they reflect live state;
+    // normal requests get a short shared cache since Graph/redirect URLs are
+    // relatively expensive to regenerate and the kiosk only polls every 10 min.
+    res.setHeader('Cache-Control', req.query.debug === '1' ? 'no-store' : 's-maxage=240, stale-while-revalidate=300');
     if (req.query.debug === '1') {
       res.status(200).json({ photos, debug: { folderName, rawCount, sample, itemSample } });
       return;
