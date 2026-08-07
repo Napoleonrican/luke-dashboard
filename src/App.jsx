@@ -64,6 +64,7 @@ const VehiclesUpcoming = lazy(() => import('./pages/vehicles/Upcoming'));
 const VehiclesServiceLog = lazy(() => import('./pages/vehicles/ServiceLog'));
 const VehiclesFuelLog = lazy(() => import('./pages/vehicles/FuelLog'));
 const VehiclesInsights = lazy(() => import('./pages/vehicles/Insights'));
+const Kiosk = lazy(() => import('./pages/kiosk/Kiosk'));
 
 export default function App() {
   const background = useRandomPalette();
@@ -162,6 +163,10 @@ export default function App() {
         <Route path="/gig-ops" element={
           <GigOpsAuthGate><GigOpsMissionControl /></GigOpsAuthGate>
         } />
+        {/* Living-room wall display. Public (no auth gate) — a TV/kiosk panel
+            can't log in — and not linked from the Home hub; opened directly by
+            URL on the display device. */}
+        <Route path="/kiosk" element={<Kiosk />} />
       </Routes>
       </Suspense>
     </div>
