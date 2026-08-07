@@ -54,19 +54,32 @@ async function getAccessToken() {
 async function listFolderPhotos(accessToken, folderName) {
   // Path-based addressing — no folder id lookup needed, just the name.
   const encodedPath = folderName.split('/').map(encodeURIComponent).join('/');
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/children` +
-    `?$select=id,name,file,image,@microsoft.graph.downloadUrl`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const listUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/children?$select=id,name,file,image`;
+  const res = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await res.json();
   if (!res.ok) throw new Error(`Folder fetch failed: ${JSON.stringify(data)}`);
-  const items = data.value ?? [];
-  const photos = items
-    .filter((item) => item.image && item['@microsoft.graph.downloadUrl'])
+  const items = (data.value ?? []).filter((item) => item.image);
+
+  // @microsoft.graph.downloadUrl is dropped on the /children listing
+  // endpoint even when explicitly $select-ed (a known Graph quirk) — it's
+  // only reliably present on a per-item GET, so fetch each image
+  // individually to get a real download link.
+  const withUrls = await Promise.all(items.map(async (item) => {
+    const itemRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}?$select=id,image,@microsoft.graph.downloadUrl`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const itemData = await itemRes.json();
+    return itemRes.ok ? itemData : null;
+  }));
+
+  const photos = withUrls
+    .filter((item) => item && item['@microsoft.graph.downloadUrl'])
     .map((item) => ({
       id: item.id,
       url: item['@microsoft.graph.downloadUrl'],
-      width: item.image.width ?? null,
-      height: item.image.height ?? null,
+      width: item.image?.width ?? null,
+      height: item.image?.height ?? null,
     }));
   return { photos, rawCount: items.length, sample: items.slice(0, 3).map((i) => ({ name: i.name, keys: Object.keys(i) })) };
 }
