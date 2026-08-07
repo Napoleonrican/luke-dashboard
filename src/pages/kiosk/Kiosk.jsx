@@ -20,7 +20,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const CLIMATE_MS = 10 * 60_000;         // how long the climate view stays up
 const PHOTO_MIN_MS = 5 * 60_000;        // a single slideshow photo shows for 5-10 min
 const PHOTO_MAX_MS = 10 * 60_000;
-const BACKGROUND_ROTATE_MS = 5 * 60_000;
+const BACKGROUND_MIN_INTERVAL_MS = 60 * 60_000; // change at most once/hour
 const FADE_MS = 1500;
 const OVERLAY_CORNERS = ['top-8 left-8', 'top-8 right-8', 'bottom-8 left-8', 'bottom-8 right-8'];
 
@@ -127,12 +127,18 @@ export default function Kiosk() {
 
   const { mode, slide, corner } = useScreenRotation(slidePhotos);
 
+  // Only ever swap the background while the climate view is hidden (photo
+  // mode) and at most once an hour, so the change is never actually seen
+  // happening — the next time the dashboard comes back up, it's just already
+  // different.
   const [bgIdx, setBgIdx] = useState(0);
+  const lastBgChangeRef = useRef(Date.now());
   useEffect(() => {
-    if (backgroundPhotos.length === 0) return;
-    const id = setInterval(() => setBgIdx((i) => (i + 1) % backgroundPhotos.length), BACKGROUND_ROTATE_MS);
-    return () => clearInterval(id);
-  }, [backgroundPhotos.length]);
+    if (mode !== 'photo' || backgroundPhotos.length === 0) return;
+    if (Date.now() - lastBgChangeRef.current < BACKGROUND_MIN_INTERVAL_MS) return;
+    setBgIdx((i) => (i + 1) % backgroundPhotos.length);
+    lastBgChangeRef.current = Date.now();
+  }, [mode, backgroundPhotos.length]);
 
   const bgPhoto = backgroundPhotos[bgIdx];
   const showPhoto = mode === 'photo' && slide;
