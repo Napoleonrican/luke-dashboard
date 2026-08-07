@@ -59,7 +59,8 @@ async function listFolderPhotos(accessToken, folderName) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await res.json();
   if (!res.ok) throw new Error(`Folder fetch failed: ${JSON.stringify(data)}`);
-  return (data.value ?? [])
+  const items = data.value ?? [];
+  const photos = items
     .filter((item) => item.image && item['@microsoft.graph.downloadUrl'])
     .map((item) => ({
       id: item.id,
@@ -67,6 +68,7 @@ async function listFolderPhotos(accessToken, folderName) {
       width: item.image.width ?? null,
       height: item.image.height ?? null,
     }));
+  return { photos, rawCount: items.length, sample: items.slice(0, 3).map((i) => ({ name: i.name, keys: Object.keys(i) })) };
 }
 
 export default async function handler(req, res) {
@@ -90,8 +92,12 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const photos = await listFolderPhotos(accessToken, folderName);
+    const { photos, rawCount, sample } = await listFolderPhotos(accessToken, folderName);
     res.setHeader('Cache-Control', 'no-store');
+    if (req.query.debug === '1') {
+      res.status(200).json({ photos, debug: { folderName, rawCount, sample } });
+      return;
+    }
     res.status(200).json({ photos });
   } catch (e) {
     res.status(502).json({ error: 'Could not read the OneDrive folder.', detail: String(e).slice(0, 300) });
