@@ -51,7 +51,20 @@ function DetailRow({ Icon, label, text, accent }) {
   );
 }
 
-function Project({ project, messages, reload, muted = false }) {
+// Which Inbox threads belong to a project. `mc_projects.repos` is a free-text
+// comma list ("gig-tracker, luke-dashboard") and `mc_threads.repo` is a single
+// tag, so membership is exact-tag containment — not a substring test, which
+// would make "gig-tracker" match a project tagged only "gig-tracker-ops".
+export function needsYouCount(project, threads) {
+  const tags = (project.repos || '')
+    .split(',')
+    .map(r => r.trim())
+    .filter(Boolean);
+  if (tags.length === 0) return 0;
+  return threads.filter(t => t.status === 'needs_you' && tags.includes(t.repo)).length;
+}
+
+function Project({ project, messages, reload, needsYou = 0, muted = false }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
@@ -90,6 +103,16 @@ function Project({ project, messages, reload, muted = false }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
             <span className="text-sm font-medium text-zinc-100">{project.title}</span>
+            {/* Open Inbox items waiting on Luke for this project (#190). Zero
+                renders nothing — a "0" badge is just noise. */}
+            {needsYou > 0 && (
+              <span
+                title={`${needsYou} Inbox ${needsYou === 1 ? 'item needs' : 'items need'} you`}
+                className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+              >
+                {needsYou} needs you
+              </span>
+            )}
             {stale && (
               <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-900/40 text-amber-300">
                 stalled
@@ -176,7 +199,7 @@ function Project({ project, messages, reload, muted = false }) {
   );
 }
 
-function CollapsibleSection({ label, Icon, items, byProject, reload }) {
+function CollapsibleSection({ label, Icon, items, byProject, countFor, reload }) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
   return (
@@ -192,7 +215,7 @@ function CollapsibleSection({ label, Icon, items, byProject, reload }) {
       {open && (
         <div className="space-y-3">
           {items.map(p => (
-            <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} muted />
+            <Project key={p.id} project={p} messages={byProject(p.id)} needsYou={countFor(p)} reload={reload} muted />
           ))}
         </div>
       )}
@@ -200,8 +223,9 @@ function CollapsibleSection({ label, Icon, items, byProject, reload }) {
   );
 }
 
-export default function ProjectsTab({ projects, messages, reload }) {
+export default function ProjectsTab({ projects, threads = [], messages, reload }) {
   const byProject = (id) => messages.filter(m => m.project_id === id);
+  const countFor  = (p) => needsYouCount(p, threads);
   // Oldest activity first — stalled work rises to the top as a reminder.
   const sorted = [...projects].sort(
     (a, b) => new Date(a.last_activity_at) - new Date(b.last_activity_at)
@@ -227,10 +251,10 @@ export default function ProjectsTab({ projects, messages, reload }) {
           Nothing active up here right now — check Dormant below for projects that have gone quiet.
         </div>
       )}
-      {live.map(p => <Project key={p.id} project={p} messages={byProject(p.id)} reload={reload} />)}
+      {live.map(p => <Project key={p.id} project={p} messages={byProject(p.id)} needsYou={countFor(p)} reload={reload} />)}
 
-      <CollapsibleSection label="dormant" Icon={Moon}  items={dormant} byProject={byProject} reload={reload} />
-      <CollapsibleSection label="shipped" Icon={Clock} items={shipped} byProject={byProject} reload={reload} />
+      <CollapsibleSection label="dormant" Icon={Moon}  items={dormant} byProject={byProject} countFor={countFor} reload={reload} />
+      <CollapsibleSection label="shipped" Icon={Clock} items={shipped} byProject={byProject} countFor={countFor} reload={reload} />
     </div>
   );
 }

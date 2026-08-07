@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   ChevronDown, ChevronUp, Send, ExternalLink, AlertTriangle,
-  ShieldAlert, CircleDot, CheckCircle2, Clock, Bot, User, Plus, X, Check,
+  ShieldAlert, CircleDot, CheckCircle2, CheckCheck, Clock, Reply,
+  Bot, User, Plus, X, Check,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Markdown from './Markdown';
@@ -19,6 +20,10 @@ const STATUS = {
   waiting_on_agent: { label: 'With Sidekick', badge: 'bg-blue-900/40 text-blue-300' },
   resolved:         { label: 'Resolved',     badge: 'bg-green-900/40 text-green-300' },
 };
+
+// Resolved, but Luke hasn't read the closing message yet — deliberately its own
+// badge so it doesn't look filed-away next to a genuinely archived thread.
+const UNREAD_RESOLVED = { label: 'Resolved · new', badge: 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40' };
 
 // Priority rides on the existing mc_threads.severity column (urgent | normal | low)
 // so this needs no schema change — it just presents that field as the same
@@ -48,27 +53,82 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+// Compact elapsed-time label ("just now" / "6h" / "3d") for the age indicators
+// and the thread's updated stamp. Returns null for a missing date so callers can
+// fall back to their own wording ("no reply yet").
+function relTime(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 365) return `${days}d`;
+  return `${Math.floor(days / 365)}y`;
+}
+
+// Same value in sentence form — "just now" already reads as a phrase, the rest
+// need the trailing "ago".
+function agoLabel(iso) {
+  const r = relTime(iso);
+  if (!r) return 'unknown';
+  return r === 'just now' ? r : `${r} ago`;
+}
+
+// A resolved thread is only "done" once Luke has actually read the closing
+// message. Until then it keeps its place in the Inbox — see migration 055.
+const isAcknowledged = (t) => !!t.luke_acknowledged_at;
+const isUnreadResolved = (t) => t.status === 'resolved' && !isAcknowledged(t);
+
+function AgeRow({ Icon, label, value, muted }) {
+  return (
+    <span className="flex items-center gap-1">
+      <Icon size={11} className="text-zinc-600 flex-shrink-0" />
+      <span className="text-[10px] uppercase tracking-wide text-zinc-600">{label}</span>
+      <span className={`text-[11px] font-medium ${muted ? 'text-zinc-600' : 'text-zinc-300'}`}>{value}</span>
+    </span>
+  );
+}
+
 function Thread({ thread, messages, reload }) {
   // Every thread renders collapsed on load (#154) — Luke wanted the Inbox to
   // behave like an actual inbox: a scannable list of headers you tap to open.
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
+  const [ackError, setAckError] = useState('');
 
   const cat = CATEGORY[thread.category] || CATEGORY.attention;
-  const st  = STATUS[thread.status] || STATUS.needs_you;
+  const unread = isUnreadResolved(thread);
+  // An unacknowledged resolved thread gets its own badge rather than the plain
+  // "Resolved" one, so it reads as something still to look at.
+  const st  = unread ? UNREAD_RESOLVED : (STATUS[thread.status] || STATUS.needs_you);
   const pr  = PRIORITY[thread.severity] || PRIORITY.normal;
   const Cat = cat.Icon;
+
+  // Age since Luke last weighed in — his own replies and the Gig Ops
+  // collaborator's both count as "a human answered"; the Sidekick's don't.
+  // `messages` arrives already ordered created_at ascending (MissionControl's
+  // load()), so the last human-authored one is the most recent.
+  const humanReplies   = messages.filter(m => !isAgentAuthor(m.author));
+  const lastHumanReply = humanReplies[humanReplies.length - 1];
 
   async function postReply() {
     if (!reply.trim() || !supabase) return;
     setPosting(true);
     // Luke's reply lands unsynced; the Sidekick routine picks it up, acts, and
-    // flips status to waiting_on_agent / resolved on its next run.
+    // flips status to waiting_on_agent / resolved on its next run. Replying to a
+    // resolved thread reopens it — and clears the read receipt so the NEXT close
+    // surfaces as unread again rather than staying silently acknowledged.
     await supabase.from('mc_messages').insert({
       thread_id: thread.id, author: 'luke', body: reply.trim(), synced: false,
     });
-    await supabase.from('mc_threads').update({ status: 'waiting_on_agent' }).eq('id', thread.id);
+    await supabase.from('mc_threads')
+      .update({ status: 'waiting_on_agent', luke_acknowledged_at: null })
+      .eq('id', thread.id);
     setReply('');
     setPosting(false);
     reload();
@@ -80,8 +140,23 @@ function Thread({ thread, messages, reload }) {
     reload();
   }
 
+  // "Got it" — Luke's read receipt on a closing message. Checked, because if
+  // migration 055 hasn't been run the column doesn't exist and the write fails;
+  // silently doing nothing would look like a broken button.
+  async function acknowledge() {
+    if (!supabase) return;
+    setAckError('');
+    const { error } = await supabase.from('mc_threads')
+      .update({ luke_acknowledged_at: new Date().toISOString() })
+      .eq('id', thread.id);
+    if (error) { setAckError("Couldn't mark it read — migration 055 may not have been run yet."); return; }
+    reload();
+  }
+
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+    <div className={`bg-zinc-900 border rounded-xl overflow-hidden ${
+      unread ? 'border-emerald-700/50' : 'border-zinc-800'
+    }`}>
       {/* Header */}
       <div
         className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/30 transition-colors"
@@ -95,10 +170,16 @@ function Thread({ thread, messages, reload }) {
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${pr.badge}`}>{pr.label}</span>
             <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${st.badge}`}>{st.label}</span>
           </div>
-          <p className={`text-sm leading-snug ${thread.status === 'resolved' ? 'text-zinc-400' : 'text-zinc-100'}`}>
+          <p className={`text-sm leading-snug ${thread.status === 'resolved' && !unread ? 'text-zinc-400' : 'text-zinc-100'}`}>
             {thread.title}
           </p>
-          <span className="text-[10px] text-zinc-600">{timeAgo(thread.updated_at)}</span>
+          {/* Updated stamp — carries real weight now (#190). It's the field Luke
+              scans to tell a live thread from one that's been sitting. */}
+          <span className="text-[11px] font-medium text-zinc-400 mt-0.5 inline-flex items-center gap-1">
+            <Clock size={11} className="text-zinc-600" />
+            Updated {agoLabel(thread.updated_at)}
+            <span className="text-[10px] font-normal text-zinc-600">· {timeAgo(thread.updated_at)}</span>
+          </span>
         </div>
         {expanded ? <ChevronUp size={13} className="text-zinc-600 mt-0.5" /> : <ChevronDown size={13} className="text-zinc-600 mt-0.5" />}
       </div>
@@ -106,6 +187,19 @@ function Thread({ thread, messages, reload }) {
       {/* Body */}
       {expanded && (
         <div className="border-t border-zinc-800 px-4 py-3 space-y-3">
+          {/* How long this has been alive, and how long since Luke last said
+              anything on it — the two numbers that tell him whether a thread is
+              genuinely new or has been quietly waiting on him. */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <AgeRow Icon={Clock} label="Open" value={agoLabel(thread.created_at)} />
+            <AgeRow
+              Icon={Reply}
+              label="Your last reply"
+              value={lastHumanReply ? agoLabel(lastHumanReply.created_at) : 'no reply yet'}
+              muted={!lastHumanReply}
+            />
+          </div>
+
           {thread.summary && (
             <Markdown className="text-xs text-zinc-400">{thread.summary}</Markdown>
           )}
@@ -158,45 +252,59 @@ function Thread({ thread, messages, reload }) {
             </div>
           )}
 
-          {/* Reply */}
-          {thread.status !== 'resolved' && (
-            <div>
-              <textarea
-                value={reply}
-                onChange={e => setReply(e.target.value)}
-                placeholder="Reply to your Sidekick…"
-                rows={2}
-                className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
-              />
-              <div className="flex items-center justify-between mt-1.5">
+          {/* Reply — available on resolved threads too. Luke asked to be able to
+              review a close before filing it, and to reopen one if he still has
+              something to say; postReply() flips it back to waiting_on_agent. */}
+          <div>
+            <textarea
+              value={reply}
+              onChange={e => setReply(e.target.value)}
+              placeholder={thread.status === 'resolved' ? 'Something to add? Replying reopens this…' : 'Reply to your Sidekick…'}
+              rows={2}
+              className="w-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-600 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-cyan-500 resize-none"
+            />
+            <div className="flex items-center justify-between gap-2 mt-1.5">
+              {unread ? (
+                <button
+                  onClick={acknowledge}
+                  className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 py-1"
+                >
+                  <CheckCheck size={12} /> Got it — mark read
+                </button>
+              ) : thread.status !== 'resolved' ? (
                 <button
                   onClick={markResolved}
                   className="text-[11px] text-zinc-600 hover:text-green-400 transition-colors flex items-center gap-1"
                 >
                   <CheckCircle2 size={11} /> Mark resolved
                 </button>
-                <div className="flex items-center gap-2">
-                  {thread.github_url && (
-                    <a
-                      href={thread.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1"
-                    >
-                      <ExternalLink size={10} /> Detail
-                    </a>
-                  )}
-                  <button
-                    onClick={postReply}
-                    disabled={posting || !reply.trim() || !supabase}
-                    className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
+              ) : (
+                <span className="text-[11px] text-zinc-700 flex items-center gap-1">
+                  <CheckCheck size={11} /> Read {agoLabel(thread.luke_acknowledged_at)}
+                </span>
+              )}
+              <div className="flex items-center gap-2">
+                {thread.github_url && (
+                  <a
+                    href={thread.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1"
                   >
-                    <Send size={10} /> {posting ? 'Sending…' : 'Send'}
-                  </button>
-                </div>
+                    <ExternalLink size={10} /> Detail
+                  </a>
+                )}
+                <button
+                  onClick={postReply}
+                  disabled={posting || !reply.trim() || !supabase}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded px-3 py-1 flex items-center gap-1 transition-colors"
+                >
+                  <Send size={10} /> {posting ? 'Sending…' : 'Send'}
+                </button>
               </div>
             </div>
-          )}
+            {ackError && <p className="text-[11px] text-amber-400 mt-1.5">{ackError}</p>}
+          </div>
         </div>
       )}
     </div>
@@ -330,7 +438,13 @@ export default function InboxTab({ threads, messages, reload }) {
   const open        = threads.filter(t => t.status !== 'resolved');
   const needsYou    = open.filter(awaitingLuke).sort(byPriorityThenAge);          // Tier 1
   const withSidekick = open.filter(t => !awaitingLuke(t)).sort(byPriorityThenAge); // Tier 2
-  const resolved    = threads.filter(t => t.status === 'resolved'); // stays excluded from the primary sort
+  // Tier 3 (#190) — closed out, but Luke hasn't read the closing message. Stays
+  // on screen like an unread email until he taps "Got it"; only then does it
+  // drop into the history section below. Newest close first.
+  const unreadResolved = threads
+    .filter(isUnreadResolved)
+    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const resolved    = threads.filter(t => t.status === 'resolved' && isAcknowledged(t));
 
   return (
     <div className="space-y-3">
@@ -349,7 +463,7 @@ export default function InboxTab({ threads, messages, reload }) {
         </button>
       </div>
 
-      {open.length === 0 ? (
+      {open.length === 0 && unreadResolved.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle2 size={28} className="text-green-500/70 mx-auto mb-2" />
           <p className="text-sm text-zinc-400">You're all caught up.</p>
@@ -376,6 +490,22 @@ export default function InboxTab({ threads, messages, reload }) {
               {withSidekick.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
             </>
           )}
+
+          {/* Tier 3 — resolved, waiting on Luke to read the close. */}
+          {unreadResolved.length > 0 && (
+            <>
+              {open.length > 0 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-px flex-1 bg-zinc-800" />
+                  <span className="text-[10px] uppercase tracking-wide text-emerald-500/70 flex-shrink-0">
+                    Resolved — new to you
+                  </span>
+                  <div className="h-px flex-1 bg-zinc-800" />
+                </div>
+              )}
+              {unreadResolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
+            </>
+          )}
         </>
       )}
 
@@ -386,7 +516,7 @@ export default function InboxTab({ threads, messages, reload }) {
             className="flex items-center gap-1.5 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors mb-2"
           >
             <Clock size={11} />
-            {showResolved ? 'Hide' : 'Show'} resolved ({resolved.length})
+            {showResolved ? 'Hide' : 'Show'} read &amp; resolved ({resolved.length})
             {showResolved ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
           {showResolved && (

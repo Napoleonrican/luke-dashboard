@@ -1,0 +1,33 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 055 — Inbox "Resolved" state that stays visible until Luke reads it
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Today the moment the Sidekick sets mc_threads.status = 'resolved', the thread
+-- drops straight into the collapsed "Show resolved" section — so the CLOSING
+-- message (the part that says what was actually done) is the one message Luke
+-- never sees. He asked for the Inbox to behave like email: a resolved thread is
+-- still UNREAD until he acknowledges it.
+--
+-- `luke_acknowledged_at` is that read receipt, and nothing else:
+--   • status='resolved' AND luke_acknowledged_at IS NULL → shows in the Inbox in
+--     a distinct "Resolved" state, below Needs-you/With-Sidekick but still on
+--     screen. A one-tap "Got it" sets this column.
+--   • status='resolved' AND luke_acknowledged_at IS NOT NULL → moves into the
+--     collapsed history section. Still readable, never deleted.
+--
+-- Deliberately NOT a status value. The Sidekick owns `status`; this column is
+-- Luke's alone, so a routine flipping a thread back to needs_you can't clobber
+-- his read state, and replying to a resolved thread just clears it back to NULL
+-- (the app does that) so the next resolve surfaces as unread again.
+--
+-- Nullable with no default: every existing resolved thread starts unacknowledged
+-- and resurfaces once, which is the intended catch-up — those closing messages
+-- are exactly the ones Luke said he's been missing.
+--
+-- No RLS change needed; 047_gig_ops_scope.sql's row-level policies on mc_threads
+-- already cover every column.
+--
+-- ⚠️ Run this manually in the Supabase SQL editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+ALTER TABLE public.mc_threads
+  ADD COLUMN IF NOT EXISTS luke_acknowledged_at timestamptz;
