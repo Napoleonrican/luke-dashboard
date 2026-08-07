@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Thermometer, Cloud } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Thermometer, Cloud, Snowflake } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
@@ -112,7 +112,7 @@ function useScreenRotation(slidePhotos) {
 }
 
 export default function Kiosk() {
-  const { sensors, weather, outdoorSensor, lastRefresh, loading } = useKioskData();
+  const { sensors, weather, outdoorSensor, ac, lastRefresh, loading } = useKioskData();
   const { photos: backgroundPhotos } = usePhotoAlbum('backgrounds');
   const { photos: slidePhotos } = usePhotoAlbum('slideshow');
   const now = useClock();
@@ -254,6 +254,22 @@ export default function Kiosk() {
           </div>
         </div>
       </div>
+
+      {/* AC status — brief, mirrors the Home hub's ClimateRail framing */}
+      {ac && (
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Snowflake className="w-4 h-4 text-cyan-400" />
+            <span className="text-base font-semibold text-zinc-100">{ac.stateLabel}</span>
+            {ac.settingLine && <span className="text-base text-zinc-400">· Set to {ac.settingLine}</span>}
+          </div>
+          {ac.lastLog?.reason && (
+            <p className="mt-1.5 text-sm text-zinc-500 line-clamp-1">
+              {ac.lastLog.reason} <span className="text-zinc-700">· {timeAgo(ac.lastLog.ts)}</span>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Forecast strip */}
       {weather?.hourly?.length > 0 && (

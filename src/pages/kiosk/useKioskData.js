@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { APARTMENT_COORDS } from '../climate/useClimateData';
 
-// Data for the living-room kiosk display: every tracked indoor sensor plus
-// outdoor current conditions + short forecast. Deliberately separate from
-// useClimateData — the kiosk has no AC/schedule/auth concerns, just needs to
-// poll a handful of read-only values and never throw on a flaky panel.
+// Data for the living-room kiosk display: every tracked indoor sensor,
+// outdoor current conditions + short forecast, and a brief "what's the AC
+// doing" readout. Deliberately separate from useClimateData/useHomeData —
+// the kiosk has no auth/schedule-editing concerns, just needs to poll a
+// handful of read-only values and never throw on a flaky panel.
 
 const REFRESH_MS = 5 * 60 * 1000; // 5 min — plenty fresh for a wall display
 const OUTDOOR_SENSOR_MAX_AGE_MIN = 10; // mirrors controller.py / useClimateData
@@ -82,10 +83,15 @@ async function loadWeather() {
     );
     const d = await res.json();
     const c = d.current;
-    const nowIso = d.current?.time;
-    const hourlyIdx = d.hourly?.time?.indexOf(nowIso) ?? -1;
-    const startIdx = hourlyIdx >= 0 ? hourlyIdx + 1 : 0;
-    const hourly = (d.hourly?.time ?? [])
+    // current.time isn't necessarily exactly on an hour boundary, so an
+    // indexOf against hourly.time (which is) can silently miss and fall back
+    // to index 0 — i.e. midnight, however far in the past. Find the first
+    // hourly slot at or after now instead.
+    const now = new Date();
+    const hourlyTimes = d.hourly?.time ?? [];
+    let startIdx = hourlyTimes.findIndex((t) => new Date(t) >= now);
+    if (startIdx === -1) startIdx = 0;
+    const hourly = hourlyTimes
       .slice(startIdx, startIdx + 6)
       .map((t, i) => ({
         time: t,
@@ -111,18 +117,60 @@ async function loadWeather() {
   }
 }
 
+// Brief "what's the AC doing and why" — mirrors the Home hub's ClimateRail
+// card (same acState/acSetting/lastLog shape as useHomeData's loadClimate),
+// just its own query here since the kiosk has no other reason to import the
+// Home data hook.
+async function loadAc() {
+  if (!supabase) return null;
+  try {
+    const { data: comfort } = await supabase.from('ac_comfort_mode').select('active').eq('active', true).limit(1);
+    const comfortActive = Boolean(comfort?.length);
+
+    const { data: prefs } = await supabase
+      .from('ac_preferences')
+      .select('executor_enabled,ac_confirmed_power,ac_confirmed_setpoint_f,ac_confirmed_mode,ac_confirmed_fan')
+      .eq('id', 1)
+      .limit(1);
+    const pref = prefs?.[0] ?? null;
+    const executorEnabled = Boolean(pref?.executor_enabled);
+    const stateLabel = comfortActive ? 'Schedule Override' : executorEnabled ? 'Dashboard control' : 'Manual control';
+    const settingLine = pref && (pref.ac_confirmed_setpoint_f != null || pref.ac_confirmed_mode || pref.ac_confirmed_power === false)
+      ? [
+          pref.ac_confirmed_power === false ? 'Off' : null,
+          pref.ac_confirmed_setpoint_f != null ? `${pref.ac_confirmed_setpoint_f}°` : null,
+          pref.ac_confirmed_mode,
+          pref.ac_confirmed_fan && `fan ${pref.ac_confirmed_fan}`,
+        ].filter(Boolean).join(' · ')
+      : null;
+
+    const { data: logRows } = await supabase
+      .from('ac_change_log')
+      .select('ts,source,detail,reason')
+      .order('ts', { ascending: false })
+      .limit(1);
+    const lastLog = logRows?.[0] ? { ts: logRows[0].ts, reason: logRows[0].reason || logRows[0].detail || null } : null;
+
+    return { stateLabel, settingLine, lastLog };
+  } catch {
+    return null;
+  }
+}
+
 export function useKioskData() {
   const [sensors, setSensors] = useState([]);
   const [weather, setWeather] = useState(null);
   const [outdoorSensor, setOutdoorSensor] = useState(null);
+  const [ac, setAc] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [s, w, o] = await Promise.all([loadSensors(), loadWeather(), loadOutdoorSensor()]);
+    const [s, w, o, a] = await Promise.all([loadSensors(), loadWeather(), loadOutdoorSensor(), loadAc()]);
     setSensors(s);
     setWeather(w);
     setOutdoorSensor(o);
+    setAc(a);
     setLastRefresh(new Date());
     setLoading(false);
   }, []);
@@ -133,5 +181,5 @@ export function useKioskData() {
     return () => clearInterval(id);
   }, [load]);
 
-  return { sensors, weather, outdoorSensor, lastRefresh, loading };
+  return { sensors, weather, outdoorSensor, ac, lastRefresh, loading };
 }
