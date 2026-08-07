@@ -1,39 +1,47 @@
 /**
  * /api/kiosk-photos — Vercel serverless function.
  *
- * Serves the current contents of one of two Google Photos shared albums
- * (Kiosk Backgrounds / Kiosk Slideshow) for the /kiosk wall display. The
- * OAuth refresh token stays server-side; the browser never talks to Google
- * directly. Set up once via scripts/get-google-photos-token.mjs.
+ * Serves the current contents of one of two OneDrive folders (Kiosk
+ * Backgrounds / Kiosk Slideshow) for the /kiosk wall display. The Microsoft
+ * Graph refresh token stays server-side; the browser never talks to
+ * Microsoft directly. Set up once via scripts/get-onedrive-token.mjs.
+ *
+ * (Originally built against the Google Photos Library API, but Google
+ * discontinued the shared-album-join scopes this relied on in 2025 — see
+ * git history. OneDrive/Graph has no such restriction: it reads a folder's
+ * children by path directly, no "join" step, no album API at all.)
  *
  * GET /api/kiosk-photos?album=backgrounds|slideshow
- * -> { photos: [{ id, baseUrl, width, height }] }
+ * -> { photos: [{ id, url, width, height }] }
  *
- * baseUrl is a Google-signed image URL good for a few hours — append e.g.
- * "=w1920-h1080" for a sized fetch, per the Photos Library API docs.
+ * url is a Microsoft-signed direct download link, short-lived (a few
+ * hours) — fine for a display that polls every 10 minutes.
  *
  * Environment variables (Vercel project settings):
- *   GOOGLE_CLIENT_ID
- *   GOOGLE_CLIENT_SECRET
- *   GOOGLE_REFRESH_TOKEN
- *   GOOGLE_PHOTOS_BACKGROUNDS_ALBUM_ID
- *   GOOGLE_PHOTOS_SLIDESHOW_ALBUM_ID
+ *   MS_CLIENT_ID
+ *   MS_CLIENT_SECRET
+ *   MS_REFRESH_TOKEN
+ *   ONEDRIVE_BACKGROUNDS_FOLDER   (e.g. "Kiosk Backgrounds")
+ *   ONEDRIVE_SLIDESHOW_FOLDER     (e.g. "Kiosk Slideshow")
  */
 
-const ALBUM_ENV = {
-  backgrounds: 'GOOGLE_PHOTOS_BACKGROUNDS_ALBUM_ID',
-  slideshow: 'GOOGLE_PHOTOS_SLIDESHOW_ALBUM_ID',
+const FOLDER_ENV = {
+  backgrounds: 'ONEDRIVE_BACKGROUNDS_FOLDER',
+  slideshow: 'ONEDRIVE_SLIDESHOW_FOLDER',
 };
 
+const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+
 async function getAccessToken() {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      client_id: process.env.MS_CLIENT_ID,
+      client_secret: process.env.MS_CLIENT_SECRET,
+      refresh_token: process.env.MS_REFRESH_TOKEN,
       grant_type: 'refresh_token',
+      scope: 'offline_access Files.Read',
     }),
   });
   const data = await res.json();
@@ -41,21 +49,21 @@ async function getAccessToken() {
   return data.access_token;
 }
 
-async function listAlbumPhotos(accessToken, albumId) {
-  const res = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ albumId, pageSize: 100 }),
-  });
+async function listFolderPhotos(accessToken, folderName) {
+  // Path-based addressing — no folder id lookup needed, just the name.
+  const encodedPath = folderName.split('/').map(encodeURIComponent).join('/');
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodedPath}:/children` +
+    `?$select=id,name,file,image,@microsoft.graph.downloadUrl`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Album fetch failed: ${JSON.stringify(data)}`);
-  return (data.mediaItems ?? [])
-    .filter((m) => m.mimeType?.startsWith('image/'))
-    .map((m) => ({
-      id: m.id,
-      baseUrl: m.baseUrl,
-      width: Number(m.mediaMetadata?.width) || null,
-      height: Number(m.mediaMetadata?.height) || null,
+  if (!res.ok) throw new Error(`Folder fetch failed: ${JSON.stringify(data)}`);
+  return (data.value ?? [])
+    .filter((item) => item.image && item['@microsoft.graph.downloadUrl'])
+    .map((item) => ({
+      id: item.id,
+      url: item['@microsoft.graph.downloadUrl'],
+      width: item.image.width ?? null,
+      height: item.image.height ?? null,
     }));
 }
 
@@ -66,24 +74,24 @@ export default async function handler(req, res) {
   }
 
   const album = String(req.query.album || '');
-  const envKey = ALBUM_ENV[album];
+  const envKey = FOLDER_ENV[album];
   if (!envKey) {
-    res.status(400).json({ error: `album must be one of: ${Object.keys(ALBUM_ENV).join(', ')}` });
+    res.status(400).json({ error: `album must be one of: ${Object.keys(FOLDER_ENV).join(', ')}` });
     return;
   }
 
-  const albumId = process.env[envKey];
-  if (!albumId || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REFRESH_TOKEN) {
-    res.status(500).json({ error: `Google Photos isn't configured yet (missing ${envKey} or OAuth env vars). See scripts/get-google-photos-token.mjs.` });
+  const folderName = process.env[envKey];
+  if (!folderName || !process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET || !process.env.MS_REFRESH_TOKEN) {
+    res.status(500).json({ error: `OneDrive isn't configured yet (missing ${envKey} or Graph env vars). See scripts/get-onedrive-token.mjs.` });
     return;
   }
 
   try {
     const accessToken = await getAccessToken();
-    const photos = await listAlbumPhotos(accessToken, albumId);
+    const photos = await listFolderPhotos(accessToken, folderName);
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
     res.status(200).json({ photos });
   } catch (e) {
-    res.status(502).json({ error: 'Could not read the Google Photos album.', detail: String(e).slice(0, 300) });
+    res.status(502).json({ error: 'Could not read the OneDrive folder.', detail: String(e).slice(0, 300) });
   }
 }

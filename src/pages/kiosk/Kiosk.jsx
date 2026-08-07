@@ -11,7 +11,7 @@ import { timeAgo, PALETTE, APARTMENT_COORDS } from '../climate/useClimateData';
 // rows) so the two views read as the same product, just scaled up for a
 // wall display.
 //
-// Two Google Photos albums (api/kiosk-photos.js) feed two different things:
+// Two OneDrive folders (api/kiosk-photos.js) feed two different things:
 //   - "backgrounds" rotates slowly as a dimmed backdrop behind the climate view
 //   - "slideshow" takes over the full screen for a stretch on a timer, then
 //     hands back to the climate view
@@ -21,9 +21,6 @@ const CLIMATE_MS = 45_000;          // how long the climate view stays up
 const PHOTO_SLIDE_MS = 8_000;       // how long each slideshow photo shows
 const PHOTOS_PER_TAKEOVER = 4;      // how many photos per photo-mode stretch
 const BACKGROUND_ROTATE_MS = 5 * 60_000;
-
-// Google Photos baseUrls need a size suffix to actually return an image.
-const sized = (baseUrl, w, h) => `${baseUrl}=w${w}-h${h}-c`;
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -136,7 +133,7 @@ export default function Kiosk() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center select-none">
         <img
-          src={sized(slidePhotos[slideIdx].baseUrl, 1920, 1080)}
+          src={slidePhotos[slideIdx].url}
           alt=""
           className="w-full h-screen object-contain"
         />
@@ -152,7 +149,7 @@ export default function Kiosk() {
         <>
           <div
             className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${sized(bgPhoto.baseUrl, 1920, 1080)})` }}
+            style={{ backgroundImage: `url(${bgPhoto.url})` }}
           />
           <div className="absolute inset-0 bg-zinc-950/75" />
         </>
