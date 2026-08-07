@@ -31,8 +31,11 @@ const CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
 const REDIRECT_PORT = 8080;
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
 const SCOPES = 'offline_access Files.Read';
-// "common" accepts both personal Microsoft accounts and work/school ones.
-const AUTHORITY = 'https://login.microsoftonline.com/common/oauth2/v2.0';
+// A "Personal Microsoft accounts only" app registration must use the
+// /consumers/ endpoint specifically — /common/ (which also accepts
+// work/school accounts) throws "unauthorized_client...not enabled for
+// consumers" against a personal-only registration.
+const AUTHORITY = 'https://login.microsoftonline.com/consumers/oauth2/v2.0';
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error('Set MS_CLIENT_ID and MS_CLIENT_SECRET (from the Azure app registration) and re-run.');

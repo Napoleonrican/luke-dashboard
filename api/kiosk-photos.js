@@ -30,7 +30,9 @@ const FOLDER_ENV = {
   slideshow: 'ONEDRIVE_SLIDESHOW_FOLDER',
 };
 
-const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+// Must match the /consumers/ authority used by scripts/get-onedrive-token.mjs
+// — the app is registered "Personal Microsoft accounts only".
+const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
 
 async function getAccessToken() {
   const res = await fetch(TOKEN_URL, {
