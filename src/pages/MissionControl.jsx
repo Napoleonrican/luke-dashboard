@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Radar, Inbox, FolderKanban, ListTodo, RefreshCw } from 'lucide-react';
+import { Radar, Inbox, FolderKanban, RefreshCw } from 'lucide-react';
 import TopNav from '../components/TopNav';
 import { supabase } from '../lib/supabase';
 import InboxTab from './mission-control/InboxTab';
 import ProjectsTab from './mission-control/ProjectsTab';
-import BacklogTab from './mission-control/BacklogTab';
 
 // Mission Control — one command center over the Sidekick's digested layer.
-// Inbox (things needing Luke) and Briefings (per-project status) read the
-// mc_* tables; Backlog reuses ai_backlog_tasks. GitHub issues remain the raw
-// source of truth for the agents; this page is the plain-language front for it.
+// Inbox (things needing Luke) and Projects (initiatives in flight) read the
+// mc_* tables. GitHub issues remain the raw source of truth for the agents;
+// this page is the plain-language front for it.
+//
+// The Backlog tab was retired in #190 — once Luke could start his own Inbox
+// thread (#138), the separate task list was a second place to say the same
+// thing. `ai_backlog_tasks` itself is untouched and still live: the Builder and
+// Sidekick routines read and write it directly, it just no longer has a tab.
 export default function MissionControl() {
   const [activeTab, setActiveTab]   = useState('inbox');
   const [threads, setThreads]       = useState([]);
@@ -33,7 +37,11 @@ export default function MissionControl() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openThreadCount = threads.filter(t => t.status !== 'resolved').length;
+  // Counts what's actually sitting in the Inbox: still-open threads plus
+  // resolved ones Luke hasn't read the close on yet (#190).
+  const openThreadCount = threads.filter(
+    t => t.status !== 'resolved' || !t.luke_acknowledged_at
+  ).length;
   // Nudge count = projects still in the main list that have gone quiet (14–30 days).
   // Past 30 they drop into the collapsed Dormant section and stop nagging here.
   const stalledProjects = projects.filter(p => {
@@ -45,7 +53,6 @@ export default function MissionControl() {
   const tabs = [
     { key: 'inbox',    label: 'Inbox',    Icon: Inbox,        count: openThreadCount,  accent: 'text-amber-300 border-amber-500',  badge: 'bg-amber-900/50 text-amber-300' },
     { key: 'projects', label: 'Projects', Icon: FolderKanban, count: stalledProjects,  accent: 'text-cyan-300 border-cyan-500',     badge: 'bg-cyan-900/50 text-cyan-300' },
-    { key: 'backlog',  label: 'Backlog',  Icon: ListTodo,     count: 0,                accent: 'text-violet-300 border-violet-500', badge: 'bg-violet-900/50 text-violet-300' },
   ];
 
   return (
@@ -102,10 +109,8 @@ export default function MissionControl() {
           <div className="text-center py-16 text-zinc-600 text-sm">Loading…</div>
         ) : activeTab === 'inbox' ? (
           <InboxTab threads={threads} messages={messages} reload={load} />
-        ) : activeTab === 'projects' ? (
-          <ProjectsTab projects={projects} messages={messages} reload={load} />
         ) : (
-          <BacklogTab />
+          <ProjectsTab projects={projects} threads={threads} messages={messages} reload={load} />
         )}
 
       </div>
