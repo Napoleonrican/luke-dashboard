@@ -2,10 +2,14 @@
 // One-time local setup script — NOT deployed, NOT run by the app.
 //
 // Run this once on your own machine to get a Microsoft Graph refresh token
-// for reading two OneDrive folders (Kiosk Backgrounds, Kiosk Slideshow) for
-// the /kiosk wall display. Unlike Google Photos, there's no "join an album"
-// step needed — Graph reads folders by path directly, so this just gets the
-// token and prints the env vars to paste into Vercel.
+// used by both api/kiosk-photos.js (reads Kiosk Backgrounds / Kiosk Slideshow
+// for the /kiosk wall display) and scripts/rotate-kiosk-photos.mjs (curates
+// photos into/out of those folders, which needs write access to copy and
+// move files — a Files.Read-only token from an older version of this script
+// will fail there with a 403; re-run this script to mint a new one).
+// Unlike Google Photos, there's no "join an album" step needed — Graph reads
+// folders by path directly, so this just gets the token and prints the env
+// vars to paste into Vercel / GitHub Actions secrets.
 //
 // Prereqs (Azure Portal, https://portal.azure.com):
 //   1. Azure Active Directory -> App registrations -> New registration.
@@ -16,10 +20,18 @@
 //   2. Certificates & secrets -> New client secret. Copy its VALUE (not the
 //      secret ID) — that's MS_CLIENT_SECRET below.
 //   3. API permissions -> Add a permission -> Microsoft Graph -> Delegated
-//      -> Files.Read and offline_access. (No admin consent needed for a
+//      -> Files.ReadWrite and offline_access. (No admin consent needed for a
 //      personal Microsoft account.)
-//   4. In OneDrive, create two folders at the root: "Kiosk Backgrounds" and
-//      "Kiosk Slideshow", and drop a few photos in each.
+//   4. In OneDrive, create four folders at the root: "Kiosk Camera Roll"
+//      (point your phone's OneDrive camera backup here), "Kiosk Backgrounds",
+//      "Kiosk Slideshow", and "Kiosk Archive" (rotate-kiosk-photos.mjs will
+//      also create any of these that are missing on its first run).
+//
+// Note: Microsoft rotates the refresh token on each use. Both kiosk-photos.js
+// and rotate-kiosk-photos.mjs use theirs read-only in the sense of not storing
+// the new one Graph returns, which is fine — the old refresh token stays valid
+// for the family of tokens for a while — but if you ever see auth failures
+// after months of not touching this, just re-run this script for a fresh one.
 //
 // Usage:
 //   MS_CLIENT_ID=... MS_CLIENT_SECRET=... node scripts/get-onedrive-token.mjs
@@ -30,7 +42,7 @@ const CLIENT_ID = process.env.MS_CLIENT_ID;
 const CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
 const REDIRECT_PORT = 8080;
 const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
-const SCOPES = 'offline_access Files.Read';
+const SCOPES = 'offline_access Files.ReadWrite';
 // A "Personal Microsoft accounts only" app registration must use the
 // /consumers/ endpoint specifically — /common/ (which also accepts
 // work/school accounts) throws "unauthorized_client...not enabled for
@@ -93,11 +105,14 @@ const code = await waitForAuthCode();
 const tokens = await exchangeCodeForTokens(code);
 
 console.log('Got tokens.\n');
-console.log('Add these to Vercel (Project Settings -> Environment Variables):\n');
+console.log('Add these to Vercel (Project Settings -> Environment Variables) — used by api/kiosk-photos.js:\n');
 console.log(`MS_CLIENT_ID=${CLIENT_ID}`);
 console.log(`MS_CLIENT_SECRET=${CLIENT_SECRET}`);
 console.log(`MS_REFRESH_TOKEN=${tokens.refresh_token}`);
 console.log('ONEDRIVE_BACKGROUNDS_FOLDER=Kiosk Backgrounds');
 console.log('ONEDRIVE_SLIDESHOW_FOLDER=Kiosk Slideshow');
+console.log('\nAlso add the same MS_CLIENT_ID / MS_CLIENT_SECRET / MS_REFRESH_TOKEN, plus');
+console.log('ANTHROPIC_API_KEY, as GitHub Actions secrets (repo Settings -> Secrets and');
+console.log('variables -> Actions) — used by scripts/rotate-kiosk-photos.mjs.');
 console.log('\n(Adjust the two folder names above if you named them differently.)');
-console.log('Then redeploy for them to take effect.');
+console.log('Then redeploy the Vercel app for its env vars to take effect.');
