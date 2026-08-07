@@ -105,6 +105,13 @@ function Trend({ deltaF }) {
 // overlay. A ref holds the latest photo pool so a background poll refresh
 // doesn't restart the whole multi-minute timing loop — only slideCount
 // (0 vs not) is a real dependency.
+//
+// The next photo is picked AND preloaded (a plain `new Image()` fetch, not
+// rendered) the moment we land back on the climate view — not at the moment
+// we need it — so the whole ~10min climate window is available to fetch a
+// full-res photo over a slow connection. By the time the crossfade to photo
+// mode actually happens, the browser already has it cached and the swap is
+// instant instead of fading in on a still-loading image.
 function useScreenRotation(slidePhotos) {
   const slidesRef = useRef(slidePhotos);
   useEffect(() => { slidesRef.current = slidePhotos; }, [slidePhotos]);
@@ -112,6 +119,7 @@ function useScreenRotation(slidePhotos) {
   const [mode, setMode] = useState('climate');
   const [slide, setSlide] = useState(null);
   const [corner, setCorner] = useState(OVERLAY_CORNERS[0]);
+  const nextSlideRef = useRef(null);
   const hasSlides = slidePhotos.length > 0;
 
   useEffect(() => {
@@ -119,22 +127,31 @@ function useScreenRotation(slidePhotos) {
     let timeoutId;
     let cancelled = false;
 
+    const preloadNext = () => {
+      const pool = slidesRef.current;
+      if (pool.length === 0) return;
+      const next = pickRandom(pool);
+      nextSlideRef.current = next;
+      const img = new window.Image();
+      img.src = next.url;
+    };
+
     const toPhoto = () => {
       if (cancelled) return;
-      const pool = slidesRef.current;
-      if (pool.length > 0) {
-        setSlide(pickRandom(pool));
-        setCorner(pickRandom(OVERLAY_CORNERS));
-        setMode('photo');
-      }
+      const next = nextSlideRef.current ?? pickRandom(slidesRef.current);
+      setSlide(next);
+      setCorner(pickRandom(OVERLAY_CORNERS));
+      setMode('photo');
       timeoutId = setTimeout(toClimate, PHOTO_MIN_MS + Math.random() * (PHOTO_MAX_MS - PHOTO_MIN_MS));
     };
     const toClimate = () => {
       if (cancelled) return;
       setMode('climate');
+      preloadNext();
       timeoutId = setTimeout(toPhoto, CLIMATE_MS);
     };
 
+    preloadNext(); // also cover the very first photo shown after page load
     timeoutId = setTimeout(toPhoto, CLIMATE_MS);
     return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [hasSlides]);
@@ -256,14 +273,18 @@ export default function Kiosk() {
               </div>
             </div>
             {ac && (
-              <div className="text-right max-w-xs" title={ac.stateLabel}>
-                <div className="flex items-center justify-end gap-2">
-                  <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: AC_STATE_COLOR[ac.stateLabel] ?? '#a1a1aa' }} />
-                  <Snowflake className="w-6 h-6 text-cyan-400 shrink-0" />
-                  {ac.settingLine && <span className="text-2xl text-zinc-200">{ac.settingLine}</span>}
+              <div className="text-right max-w-sm" title={ac.stateLabel}>
+                <div className="flex items-center justify-end gap-2.5">
+                  <span className="h-5 w-5 rounded-full shrink-0" style={{ background: AC_STATE_COLOR[ac.stateLabel] ?? '#a1a1aa' }} />
+                  <Snowflake className="w-9 h-9 text-cyan-400 shrink-0" />
+                  {ac.settingLine && (
+                    <span style={{ fontSize: 'clamp(1.75rem, 3.5vw, 3rem)' }} className="font-semibold text-zinc-100 leading-none">
+                      {ac.settingLine}
+                    </span>
+                  )}
                 </div>
                 {ac.lastLog?.reason && (
-                  <p className="mt-1 text-sm text-zinc-500 truncate">{ac.lastLog.reason}</p>
+                  <p className="mt-1.5 text-sm text-zinc-500 truncate">{ac.lastLog.reason}</p>
                 )}
               </div>
             )}
@@ -296,14 +317,14 @@ export default function Kiosk() {
                     </div>
                     <div className="flex items-baseline gap-2.5">
                       <div
-                        style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
+                        style={{ fontSize: 'clamp(3.25rem, 6.5vw, 5.75rem)' }}
                         className={`font-bold tabular-nums leading-none ${stale ? 'text-zinc-600' : 'text-zinc-100'}`}
                       >
                         {s.tempC != null ? `${Math.round(s.tempC * 9 / 5 + 32)}°` : '—'}
                       </div>
                       {s.humidity != null && (
-                        <span className="flex items-center gap-1 text-2xl text-zinc-400">
-                          <Droplets className="w-5 h-5 text-sky-400" /> {Math.round(s.humidity)}%
+                        <span className="flex items-center gap-1 text-3xl text-zinc-400">
+                          <Droplets className="w-6 h-6 text-sky-400" /> {Math.round(s.humidity)}%
                         </span>
                       )}
                     </div>
@@ -325,14 +346,14 @@ export default function Kiosk() {
                 </div>
                 <div className="flex items-baseline gap-2.5">
                   <div
-                    style={{ fontSize: 'clamp(2.75rem, 5vw, 4.5rem)' }}
+                    style={{ fontSize: 'clamp(3.25rem, 6.5vw, 5.75rem)' }}
                     className="font-bold tabular-nums leading-none text-zinc-100"
                   >
                     {outdoorTempF != null ? `${Math.round(outdoorTempF)}°` : '—'}
                   </div>
                   {outdoorHumidity != null && (
-                    <span className="flex items-center gap-1 text-2xl text-zinc-400">
-                      <Droplets className="w-5 h-5 text-sky-400" /> {Math.round(outdoorHumidity)}%
+                    <span className="flex items-center gap-1 text-3xl text-zinc-400">
+                      <Droplets className="w-6 h-6 text-sky-400" /> {Math.round(outdoorHumidity)}%
                     </span>
                   )}
                 </div>
