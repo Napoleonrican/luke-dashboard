@@ -17,10 +17,14 @@ import { timeAgo, PALETTE, APARTMENT_COORDS } from '../climate/useClimateData';
 //     hands back to the climate view
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const CLIMATE_MS = 45_000;          // how long the climate view stays up
-const PHOTO_SLIDE_MS = 8_000;       // how long each slideshow photo shows
-const PHOTOS_PER_TAKEOVER = 4;      // how many photos per photo-mode stretch
+const CLIMATE_MS = 10 * 60_000;         // how long the climate view stays up
+const PHOTO_MIN_MS = 5 * 60_000;        // a single slideshow photo shows for 5-10 min
+const PHOTO_MAX_MS = 10 * 60_000;
 const BACKGROUND_ROTATE_MS = 5 * 60_000;
+const FADE_MS = 1500;
+const OVERLAY_CORNERS = ['top-8 left-8', 'top-8 right-8', 'bottom-8 left-8', 'bottom-8 right-8'];
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function useClock() {
   const [now, setNow] = useState(new Date());
@@ -64,46 +68,47 @@ function Trend({ deltaF }) {
   );
 }
 
-// Alternates the display between the climate view and a full-screen photo
-// takeover. A ref (not state) tracks the slide index inside the timeout loop
-// so the effect doesn't need to re-run — and re-subscribe — on every photo.
-function useScreenRotation(slideCount) {
+// Alternates the display between the climate view and a single full-screen
+// photo shown for a while, each entry into photo mode picking a random photo
+// (not the same handful in sequence) and a random corner for the time
+// overlay. A ref holds the latest photo pool so a background poll refresh
+// doesn't restart the whole multi-minute timing loop — only slideCount
+// (0 vs not) is a real dependency.
+function useScreenRotation(slidePhotos) {
+  const slidesRef = useRef(slidePhotos);
+  useEffect(() => { slidesRef.current = slidePhotos; }, [slidePhotos]);
+
   const [mode, setMode] = useState('climate');
-  const [slideIdx, setSlideIdx] = useState(0);
-  const slideIdxRef = useRef(0);
+  const [slide, setSlide] = useState(null);
+  const [corner, setCorner] = useState(OVERLAY_CORNERS[0]);
+  const hasSlides = slidePhotos.length > 0;
 
   useEffect(() => {
-    if (slideCount === 0) return; // nothing to show, stay on climate view
+    if (!hasSlides) return;
     let timeoutId;
     let cancelled = false;
 
-    const scheduleNext = (nextMode, delay) => {
-      timeoutId = setTimeout(() => {
-        if (cancelled) return;
-        if (nextMode === 'photo') {
-          slideIdxRef.current = 0;
-          setSlideIdx(0);
-          setMode('photo');
-          scheduleNext('advance', PHOTO_SLIDE_MS);
-        } else if (nextMode === 'advance') {
-          const next = slideIdxRef.current + 1;
-          if (next >= Math.min(PHOTOS_PER_TAKEOVER, slideCount)) {
-            setMode('climate');
-            scheduleNext('photo', CLIMATE_MS);
-          } else {
-            slideIdxRef.current = next;
-            setSlideIdx(next);
-            scheduleNext('advance', PHOTO_SLIDE_MS);
-          }
-        }
-      }, delay);
+    const toPhoto = () => {
+      if (cancelled) return;
+      const pool = slidesRef.current;
+      if (pool.length > 0) {
+        setSlide(pickRandom(pool));
+        setCorner(pickRandom(OVERLAY_CORNERS));
+        setMode('photo');
+      }
+      timeoutId = setTimeout(toClimate, PHOTO_MIN_MS + Math.random() * (PHOTO_MAX_MS - PHOTO_MIN_MS));
+    };
+    const toClimate = () => {
+      if (cancelled) return;
+      setMode('climate');
+      timeoutId = setTimeout(toPhoto, CLIMATE_MS);
     };
 
-    scheduleNext('photo', CLIMATE_MS);
+    timeoutId = setTimeout(toPhoto, CLIMATE_MS);
     return () => { cancelled = true; clearTimeout(timeoutId); };
-  }, [slideCount]);
+  }, [hasSlides]);
 
-  return { mode, slideIdx };
+  return { mode, slide, corner };
 }
 
 export default function Kiosk() {
@@ -120,7 +125,7 @@ export default function Kiosk() {
   const outdoorDeltaF = outdoorSensor?.deltaF ?? null;
   const outdoorIsReal = outdoorSensor != null;
 
-  const { mode, slideIdx } = useScreenRotation(slidePhotos.length);
+  const { mode, slide, corner } = useScreenRotation(slidePhotos);
 
   const [bgIdx, setBgIdx] = useState(0);
   useEffect(() => {
@@ -129,22 +134,32 @@ export default function Kiosk() {
     return () => clearInterval(id);
   }, [backgroundPhotos.length]);
 
-  if (mode === 'photo' && slidePhotos[slideIdx]) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center select-none">
-        <img
-          src={slidePhotos[slideIdx].url}
-          alt=""
-          className="w-full h-screen object-contain"
-        />
-      </div>
-    );
-  }
-
   const bgPhoto = backgroundPhotos[bgIdx];
+  const showPhoto = mode === 'photo' && slide;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col p-8 select-none relative">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden select-none">
+      {/* Photo-takeover layer — always mounted so the mode switch crossfades
+          instead of hard-cutting. */}
+      <div
+        className="absolute inset-0 bg-black transition-opacity ease-in-out z-10"
+        style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 1 : 0, pointerEvents: showPhoto ? 'auto' : 'none' }}
+      >
+        {slide && (
+          <>
+            <img src={slide.url} alt="" className="w-full h-screen object-contain" />
+            <div className={`absolute ${corner} text-white text-3xl font-light drop-shadow-lg bg-black/30 rounded-xl px-5 py-3`}>
+              {fmtClockTime(now)}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Climate layer */}
+      <div
+        className="flex flex-col p-8 min-h-screen transition-opacity ease-in-out"
+        style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 0 : 1 }}
+      >
       {bgPhoto && (
         <>
           <div
@@ -268,6 +283,7 @@ export default function Kiosk() {
 
       <div className="mt-auto pt-6 text-sm text-zinc-600">
         {lastRefresh ? `Updated ${timeAgo(lastRefresh.toISOString())}` : ''}
+      </div>
       </div>
       </div>
     </div>
