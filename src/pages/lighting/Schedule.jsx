@@ -286,8 +286,9 @@ function BedtimeEditor({ s, updateSleep, onClose }) {
         <Slider label="Starting brightness" value={s.sleep_brightness} min={1} max={100} suffix="%"
                 onChange={(v) => updateSleep({ sleep_brightness: v })} accent="accent-indigo-400" />
         <p className="text-[11px] text-zinc-600 text-center">
-          Turns the strip on, then dims from {s.sleep_brightness}% to off over{' '}
-          {Math.max(10, s.sleep_fade_min)} minutes.
+          Turns the strip on, then the Pi steps it down from {s.sleep_brightness}%
+          to off over {Math.max(10, s.sleep_fade_min)} minutes. The fade needs the
+          Pi awake for its length — unlike Wake up, which the strip runs on its own.
         </p>
       </div>
     </Modal>
@@ -400,8 +401,9 @@ export default function Schedule() {
         {bedtimeState === 'sent' && (
           <p className="text-[12px] text-emerald-400/90 mt-2 px-1 leading-relaxed">
             Sent. The Pi picks this up within ~20s, then the strip comes on at{' '}
-            {s.sleep_brightness}% and dims itself to off over{' '}
-            {Math.max(10, s.sleep_fade_min)}m.
+            {s.sleep_brightness}% and the Pi steps it down to off over{' '}
+            {Math.max(10, s.sleep_fade_min)}m — watch the brightness above fall
+            as it goes.
           </p>
         )}
         {bedtimeState === 'failed' && (
