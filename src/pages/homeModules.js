@@ -1,6 +1,6 @@
 import {
   Thermometer, Lightbulb, Radar, ListChecks, Truck, Wallet, Droplets,
-  Inbox, Mail, Fuel, Wrench, Tv, Car,
+  Inbox, Mail, Fuel, Wrench, Tv, Car, MonitorSmartphone,
 } from 'lucide-react';
 
 // Single source of truth for every module on the dashboard. `placement` decides
@@ -83,6 +83,11 @@ export const MODULES = [
     id: 'email-pro', icon: Mail, title: 'Professional Email',
     accent: 'text-emerald-400', placement: 'other', wip: true,
     description: 'Inbox digest (lnapoleon14@gmail.com) — in development.',
+  },
+  {
+    id: 'kiosk', icon: MonitorSmartphone, title: 'Kiosk Display', to: '/kiosk',
+    accent: 'text-teal-400', placement: 'other',
+    description: 'Living-room wall display — temps, forecast & rotating photos. No sign-in (opens directly on a TV/panel).',
   },
 ];
 
