@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Cloud } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Snowflake } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
@@ -256,10 +256,10 @@ export default function Kiosk() {
               </div>
             </div>
             {ac && (
-              <div className="text-right max-w-xs">
+              <div className="text-right max-w-xs" title={ac.stateLabel}>
                 <div className="flex items-center justify-end gap-2">
                   <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: AC_STATE_COLOR[ac.stateLabel] ?? '#a1a1aa' }} />
-                  <span className="text-2xl font-semibold text-zinc-100">{ac.stateLabel}</span>
+                  <Snowflake className="w-6 h-6 text-cyan-400" />
                 </div>
                 {ac.settingLine && <p className="mt-1 text-2xl text-zinc-200">{ac.settingLine}</p>}
                 {ac.lastLog?.reason && (
@@ -289,7 +289,7 @@ export default function Kiosk() {
                 const deltaF = s.deltaC != null ? s.deltaC * 9 / 5 : null;
                 const color = PALETTE[i % PALETTE.length];
                 return (
-                  <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4">
+                  <div key={s.mac} className="rounded-2xl border border-zinc-800 bg-zinc-900/70 px-5 py-4">
                     <div className="flex items-center gap-2.5 mb-1 min-w-0">
                       <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: color }} />
                       <span className="text-2xl font-semibold text-zinc-100 truncate">{s.label}</span>
@@ -318,9 +318,9 @@ export default function Kiosk() {
               })}
 
               {/* Outdoor tile — real sensor when fresh, Open-Meteo current reading otherwise */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4">
-                <div className="flex items-center gap-2.5 mb-1">
-                  <Cloud className="w-5 h-5 text-sky-400 shrink-0" />
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 px-5 py-4">
+                <div className="flex items-center gap-2.5 mb-1" title={outdoorIsReal ? 'Real outdoor sensor' : 'Forecast (no fresh sensor reading)'}>
+                  <span className="h-3.5 w-3.5 rounded-full shrink-0" style={{ background: outdoorIsReal ? '#34d399' : '#71717a' }} />
                   <span className="text-2xl font-semibold text-zinc-100">Outdoor</span>
                 </div>
                 <div className="flex items-baseline gap-2.5">
@@ -337,16 +337,11 @@ export default function Kiosk() {
                   )}
                 </div>
                 <div className="mt-1 flex items-center gap-3 text-sm text-zinc-500">
-                  <span className={outdoorIsReal ? 'text-emerald-400' : ''}>
-                    {outdoorIsReal ? 'Sensor' : 'Forecast'}
-                  </span>
                   <Trend deltaF={outdoorDeltaF} />
+                  <span>Feels {weather?.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}</span>
                   <span className="ml-auto">
                     {outdoorSensor?.at ? timeAgo(outdoorSensor.at) : ''}
                   </span>
-                </div>
-                <div className="mt-0.5 text-sm text-zinc-500">
-                  Feels {weather?.feelsLikeF != null ? `${Math.round(weather.feelsLikeF)}°` : '—'}
                 </div>
               </div>
             </div>
@@ -359,7 +354,7 @@ export default function Kiosk() {
                 column still has room to alternate to other content later. */}
             <div className="flex flex-col min-h-0">
               {(weather?.hourlyBuckets?.length > 0 || weather?.daily?.length > 0) && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-6 py-5 flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 px-6 py-5 flex-1 min-h-0 flex flex-col overflow-hidden">
                   {weather?.daily?.length > 0 && (
                     <div className="grid grid-cols-3 gap-3 shrink-0">
                       {weather.daily.map((d, i) => {
