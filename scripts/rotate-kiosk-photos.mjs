@@ -45,6 +45,10 @@
  *   KIOSK_MAX_AGE_DAYS          (default 45 — how long a photo stays in rotation)
  *   KIOSK_MAX_SLIDESHOW         (default 150 — cap; oldest ages out first if exceeded)
  *   KIOSK_MAX_BACKGROUNDS       (default 40)
+ *   KIOSK_MAX_NEW_PER_RUN       (default 150 — caps vision-API calls per run so a
+ *                                large backlog can't blow the workflow's 15-minute
+ *                                timeout; processes oldest-first, remainder picked
+ *                                up on the next scheduled run)
  *   KIOSK_DRY_RUN               ("1" to log decisions without writing anything)
  *
  * Usage: node scripts/rotate-kiosk-photos.mjs
@@ -65,7 +69,9 @@ const STATE_FILE = process.env.KIOSK_STATE_FILE || 'kiosk-state.json';
 const MAX_AGE_DAYS = Number(process.env.KIOSK_MAX_AGE_DAYS || 45);
 const MAX_SLIDESHOW = Number(process.env.KIOSK_MAX_SLIDESHOW || 150);
 const MAX_BACKGROUNDS = Number(process.env.KIOSK_MAX_BACKGROUNDS || 40);
+const MAX_NEW_PER_RUN = Number(process.env.KIOSK_MAX_NEW_PER_RUN || 150);
 const DRY_RUN = process.env.KIOSK_DRY_RUN === '1';
+const STATE_SAVE_EVERY = 20; // write progress back to OneDrive every N processed items
 
 const SCREENSHOT_NAME_RE = /screenshot|screen shot|whatsapp image|img_\d+_wa/i;
 const MIN_DIMENSION = 800; // reject anything smaller on its longest side
@@ -121,12 +127,20 @@ async function ensureFolder(token, name) {
 }
 
 async function listFolder(token, folderName) {
+  // Graph paginates children (usually ~200/page regardless of $top) via
+  // @odata.nextLink — a folder with thousands of items (a phone's camera
+  // backup easily gets there) silently loses everything past page 1 if you
+  // don't follow it.
   const encoded = folderName.split('/').map(encodeURIComponent).join('/');
-  const data = await graphJson(
-    token,
-    `/me/drive/root:/${encoded}:/children?$select=id,name,file,image,size,createdDateTime&$top=999`
-  );
-  return data?.value ?? [];
+  let path = `/me/drive/root:/${encoded}:/children?$select=id,name,file,image,size,createdDateTime&$top=200`;
+  const items = [];
+  while (path) {
+    const data = await graphJson(token, path);
+    items.push(...(data?.value ?? []));
+    const nextLink = data?.['@odata.nextLink'];
+    path = nextLink ? nextLink.slice(nextLink.indexOf('/v1.0') + '/v1.0'.length) : null;
+  }
+  return items;
 }
 
 async function getFolderId(token, folderName) {
@@ -269,12 +283,28 @@ async function main() {
   ]);
 
   // --- Ingest new photos from the camera roll ---
-  const newItems = cameraItems.filter((item) => !state.processedIds[item.id]);
-  console.log(`${newItems.length} new item(s) in "${CAMERA_FOLDER}" (of ${cameraItems.length} total).`);
+  // Oldest-first, and capped per run: a phone's camera backup can easily hold
+  // thousands of items on first hookup, and scoring them all in one run would
+  // both blow the workflow timeout and risk losing progress if it got killed
+  // mid-run (see writeState below, saved periodically for that reason too).
+  // Working oldest-first means a big backlog drains in chronological order
+  // across however many scheduled runs it takes, rather than in random order.
+  const allNew = cameraItems
+    .filter((item) => !state.processedIds[item.id])
+    .sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
+  const newItems = allNew.slice(0, MAX_NEW_PER_RUN);
+  console.log(
+    `${allNew.length} new item(s) in "${CAMERA_FOLDER}" (of ${cameraItems.length} total); ` +
+    `processing ${newItems.length} this run (cap ${MAX_NEW_PER_RUN}).`
+  );
 
-  let kept = 0, rejected = 0, safetyRejected = 0;
+  let kept = 0, rejected = 0, safetyRejected = 0, processedThisRun = 0;
   for (const item of newItems) {
     state.processedIds[item.id] = true; // mark seen regardless of verdict, so we never re-score it
+    processedThisRun++;
+    if (processedThisRun % STATE_SAVE_EVERY === 0) {
+      await writeState(token, state); // checkpoint, so a mid-run kill doesn't cost a full re-scan
+    }
 
     if (!passesHeuristics(item)) { rejected++; continue; }
 
@@ -309,7 +339,11 @@ async function main() {
     // first time it sees a copy it doesn't recognize.
     state.placedItems[`pending:${item.id}`] = { folder: placement, addedAt: new Date().toISOString(), name: item.name };
   }
-  console.log(`Ingest done: ${kept} kept, ${rejected} rejected (${safetyRejected} for safety).`);
+  const remaining = allNew.length - newItems.length;
+  console.log(
+    `Ingest done: ${kept} kept, ${rejected} rejected (${safetyRejected} for safety). ` +
+    `${remaining} still queued for future runs.`
+  );
 
   // --- Age out old photos from Backgrounds/Slideshow ---
   await ageOutFolder(token, BACKGROUNDS_FOLDER, archiveId, MAX_BACKGROUNDS, state);
