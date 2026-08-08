@@ -40,12 +40,14 @@
  * without having to search the log for a filename and then hunt for that
  * photo in a folder of thousands.
  *
- * Requires a refresh token with Files.ReadWrite (not just Files.Read like the
- * kiosk-photos.js token) — re-run scripts/get-onedrive-token.mjs after the scope
- * change in that script to mint one.
+ * Requires its OWN refresh token (Files.ReadWrite) — do NOT reuse the one in
+ * Vercel's env vars for api/kiosk-photos.js. Microsoft rotates refresh tokens
+ * on every use; two independent consumers sharing one means whichever used
+ * it more recently invalidates the other's copy (this happened for real —
+ * see git history). Mint with `node scripts/get-onedrive-token.mjs github`.
  *
  * Environment variables:
- *   MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REFRESH_TOKEN   — Graph auth (Files.ReadWrite)
+ *   MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REFRESH_TOKEN   — Graph auth (Files.ReadWrite, own token)
  *   ANTHROPIC_API_KEY                                  — for the vision pass
  *   ONEDRIVE_CAMERA_FOLDER      (REQUIRED, no default — e.g. "Pictures/Camera Roll";
  *                                check your own OneDrive to see where Camera

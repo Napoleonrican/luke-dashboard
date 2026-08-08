@@ -20,10 +20,14 @@
  * Environment variables (Vercel project settings):
  *   MS_CLIENT_ID
  *   MS_CLIENT_SECRET
- *   MS_REFRESH_TOKEN              (Files.ReadWrite scope — shared with
- *                                  scripts/rotate-kiosk-photos.mjs, which
- *                                  populates these folders on a schedule via
- *                                  GitHub Actions; see that script's header)
+ *   MS_REFRESH_TOKEN              (its OWN token — do not reuse the one in
+ *                                  GitHub Actions' secrets for
+ *                                  rotate-kiosk-photos.mjs. Microsoft rotates
+ *                                  refresh tokens on every use; sharing one
+ *                                  between two independent consumers means
+ *                                  whichever used it more recently
+ *                                  invalidates the other's copy. Mint with
+ *                                  `node scripts/get-onedrive-token.mjs vercel`)
  *   ONEDRIVE_BACKGROUNDS_FOLDER   (e.g. "Kiosk Backgrounds")
  *   ONEDRIVE_SLIDESHOW_FOLDER     (e.g. "Kiosk Slideshow")
  */
