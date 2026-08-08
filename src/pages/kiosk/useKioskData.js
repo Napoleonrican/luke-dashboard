@@ -164,13 +164,17 @@ async function loadAc() {
     const pref = prefs?.[0] ?? null;
     const executorEnabled = Boolean(pref?.executor_enabled);
     const stateLabel = comfortActive ? 'Schedule Override' : executorEnabled ? 'Dashboard control' : 'Manual control';
-    const settingLine = pref && (pref.ac_confirmed_setpoint_f != null || pref.ac_confirmed_mode || pref.ac_confirmed_power === false)
-      ? [
-          pref.ac_confirmed_power === false ? 'Off' : null,
-          pref.ac_confirmed_setpoint_f != null ? `${pref.ac_confirmed_setpoint_f}°` : null,
-          pref.ac_confirmed_mode,
-          pref.ac_confirmed_fan && `fan ${pref.ac_confirmed_fan}`,
-        ].filter(Boolean).join(' · ')
+    // Raw fields, not a pre-joined string — Kiosk.jsx applies its own
+    // display-name mapping (raw controller enums like ENERGY_SAVER
+    // shouldn't reach the UI) and lays them out so a mid-line wrap can't
+    // strand a separator at a line boundary.
+    const setting = pref
+      ? {
+          power: pref.ac_confirmed_power,
+          setpointF: pref.ac_confirmed_setpoint_f ?? null,
+          mode: pref.ac_confirmed_mode ?? null,
+          fan: pref.ac_confirmed_fan ?? null,
+        }
       : null;
 
     const { data: logRows } = await supabase
@@ -180,7 +184,7 @@ async function loadAc() {
       .limit(1);
     const lastLog = logRows?.[0] ? { ts: logRows[0].ts, reason: logRows[0].reason || logRows[0].detail || null } : null;
 
-    return { stateLabel, settingLine, lastLog };
+    return { stateLabel, setting, lastLog };
   } catch {
     return null;
   }
