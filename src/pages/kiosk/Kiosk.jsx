@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Snowflake } from 'lucide-react';
+import { Droplets, LoaderCircle, ArrowUp, ArrowDown, Minus, Snowflake, Settings, X } from 'lucide-react';
 import { useKioskData } from './useKioskData';
 import { usePhotoAlbum } from './usePhotoAlbum';
 import { weatherIconFor } from './weatherIcons';
@@ -167,6 +167,73 @@ function useScreenRotation(slidePhotos, nightModeActive) {
   return { mode, slide, corner };
 }
 
+// Temporary on-screen debug menu (bottom-right, persists across both screen
+// modes) for tuning this thing in place without a keyboard — toggle night
+// mode or force a specific screen instead of waiting for the real clock.
+// Meant to be pulled once the layout stops needing hands-on iteration.
+const THREE_WAY_OPTIONS = [
+  { value: null, label: 'Auto' },
+];
+
+function DebugMenu({ nightOverride, setNightOverride, modeOverride, setModeOverride }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      {open && (
+        <div className="mb-3 w-64 rounded-2xl border border-zinc-700 bg-zinc-900/95 backdrop-blur p-4 text-sm shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <span className="font-semibold text-zinc-200">Debug controls</span>
+            <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-zinc-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mb-3">
+            <div className="text-xs uppercase tracking-wide text-zinc-500 mb-1.5">Night mode</div>
+            <div className="flex gap-1.5">
+              {[...THREE_WAY_OPTIONS, { value: false, label: 'Day' }, { value: true, label: 'Night' }].map((opt) => (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => setNightOverride(opt.value)}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    nightOverride === opt.value ? 'bg-cyan-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-zinc-500 mb-1.5">Screen</div>
+            <div className="flex gap-1.5">
+              {[...THREE_WAY_OPTIONS, { value: 'climate', label: 'Dash' }, { value: 'photo', label: 'Slideshow' }].map((opt) => (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => setModeOverride(opt.value)}
+                  className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    modeOverride === opt.value ? 'bg-cyan-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-full border border-zinc-700 bg-zinc-900/80 backdrop-blur p-3 text-zinc-400 hover:text-zinc-200 shadow-lg"
+      >
+        <Settings className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
 export default function Kiosk() {
   const { sensors, weather, outdoorSensor, ac, lastRefresh, loading } = useKioskData();
   const { photos: backgroundPhotos } = usePhotoAlbum('backgrounds');
@@ -174,8 +241,13 @@ export default function Kiosk() {
   const now = useClock();
   // Overnight mode: 12am-8am specifically (not a dusk/dawn approximation) —
   // warm color grade, no background photo, no slideshow takeover.
-  const isNight = now.getHours() < 8;
+  const computedIsNight = now.getHours() < 8;
   useDailyReload(now);
+
+  // Debug menu overrides (temporary, see DebugMenu above). null = auto/real.
+  const [nightOverride, setNightOverride] = useState(null);
+  const [modeOverride, setModeOverride] = useState(null);
+  const isNight = nightOverride ?? computedIsNight;
 
   // Prefer the real outdoor sensor (Govee) when fresh; Open-Meteo's *current*
   // reading is only shown as a fallback. The forecast strip always comes from
@@ -190,6 +262,17 @@ export default function Kiosk() {
   const livingTempF = livingSensor?.tempC != null ? livingSensor.tempC * 9 / 5 + 32 : null;
 
   const { mode, slide, corner } = useScreenRotation(slidePhotos, isNight);
+
+  // Debug menu forcing "Slideshow" before the rotation hook has ever picked a
+  // real slide (e.g. testing right after page load) needs something to
+  // actually show — fall back to a one-off random pick in that case only.
+  const [manualSlide, setManualSlide] = useState(null);
+  const handleSetModeOverride = (val) => {
+    if (val === 'photo' && !slide && slidePhotos.length > 0) setManualSlide(pickRandom(slidePhotos));
+    setModeOverride(val);
+  };
+  const effectiveMode = modeOverride ?? mode;
+  const effectiveSlide = effectiveMode === 'photo' ? (slide ?? manualSlide) : slide;
 
   // Only ever swap the background while the climate view is hidden (photo
   // mode) and at most once an hour, so the change is never actually seen
@@ -213,7 +296,7 @@ export default function Kiosk() {
   }, [mode, backgroundPhotos.length]);
 
   const bgPhoto = backgroundPhotos[bgIdx];
-  const showPhoto = mode === 'photo' && slide;
+  const showPhoto = effectiveMode === 'photo' && effectiveSlide;
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden select-none">
@@ -223,9 +306,9 @@ export default function Kiosk() {
         className="absolute inset-0 bg-black transition-opacity ease-in-out z-10"
         style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 1 : 0, pointerEvents: showPhoto ? 'auto' : 'none' }}
       >
-        {slide && (
+        {effectiveSlide && (
           <>
-            <img src={slide.url} alt="" className="w-full h-screen object-contain" />
+            <img src={effectiveSlide.url} alt="" className="w-full h-screen object-contain" />
             <div className={`absolute ${corner} text-white drop-shadow-lg bg-black/30 rounded-xl px-6 py-4`}>
               <div style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)' }} className="font-light leading-none">{fmtClockTime(now)}</div>
               <div className="text-xl text-zinc-300 mt-1.5">
@@ -434,6 +517,13 @@ export default function Kiosk() {
           </div>
         </div>
       </div>
+
+      <DebugMenu
+        nightOverride={nightOverride}
+        setNightOverride={setNightOverride}
+        modeOverride={modeOverride}
+        setModeOverride={handleSetModeOverride}
+      />
     </div>
   );
 }
