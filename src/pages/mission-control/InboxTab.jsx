@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import Markdown from './Markdown';
 import { authorLabel, isAgentAuthor, OWNER_AUTHOR } from '../../lib/authConfig';
+import { isUnreadResolved, inboxTiers, resolvedHistory } from './inboxOrder';
 
 const CATEGORY = {
   security:  { Icon: ShieldAlert,   color: 'text-red-400',    label: 'Security' },
@@ -78,10 +79,28 @@ function agoLabel(iso) {
   return r === 'just now' ? r : `${r} ago`;
 }
 
-// A resolved thread is only "done" once Luke has actually read the closing
-// message. Until then it keeps its place in the Inbox — see migration 055.
-const isAcknowledged = (t) => !!t.luke_acknowledged_at;
-const isUnreadResolved = (t) => t.status === 'resolved' && !isAcknowledged(t);
+// Every write that touches `luke_acknowledged_at` has to survive a database
+// where migration 055 hasn't been run: PostgREST rejects an UPDATE naming an
+// unknown column *in full* — it does not drop that column and apply the rest.
+// #222 was exactly that: the reply's status flip rode along with the receipt
+// clear, so on a pre-055 database the reply text saved but the thread never
+// left "Needs you", silently.
+//
+// So writes get split by what matters. `required` is the part that must land;
+// `receipt` is the 055-dependent half we'll drop and retry without. Returns
+// `degraded: true` when the essential write landed but the receipt didn't, so
+// the caller can say so instead of reporting a clean success.
+async function updateThread(id, required, receipt) {
+  const { error } = await supabase.from('mc_threads')
+    .update({ ...required, ...receipt })
+    .eq('id', id);
+  if (!error) return { ok: true, degraded: false };
+  if (!Object.keys(required).length) return { ok: false, degraded: false };
+  const { error: retryError } = await supabase.from('mc_threads')
+    .update(required)
+    .eq('id', id);
+  return { ok: !retryError, degraded: !retryError };
+}
 
 function AgeRow({ Icon, label, value, muted }) {
   return (
@@ -99,7 +118,9 @@ function Thread({ thread, messages, reload }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply]       = useState('');
   const [posting, setPosting]   = useState(false);
-  const [ackError, setAckError] = useState('');
+  // One line for anything a write couldn't do, shared by all three actions —
+  // none of them may fail silently (#222).
+  const [writeError, setWriteError] = useState('');
 
   const cat = CATEGORY[thread.category] || CATEGORY.attention;
   const unread = isUnreadResolved(thread);
@@ -119,37 +140,55 @@ function Thread({ thread, messages, reload }) {
   async function postReply() {
     if (!reply.trim() || !supabase) return;
     setPosting(true);
+    setWriteError('');
     // Luke's reply lands unsynced; the Sidekick routine picks it up, acts, and
     // flips status to waiting_on_agent / resolved on its next run. Replying to a
     // resolved thread reopens it — and clears the read receipt so the NEXT close
     // surfaces as unread again rather than staying silently acknowledged.
-    await supabase.from('mc_messages').insert({
+    const { error: insertError } = await supabase.from('mc_messages').insert({
       thread_id: thread.id, author: 'luke', body: reply.trim(), synced: false,
     });
-    await supabase.from('mc_threads')
-      .update({ status: 'waiting_on_agent', luke_acknowledged_at: null })
-      .eq('id', thread.id);
+    if (insertError) {
+      // The text is still in the box — don't clear it, he'd lose what he wrote.
+      setWriteError("Couldn't send that — your reply wasn't saved. Try again.");
+      setPosting(false);
+      return;
+    }
+    // The status flip is the half that actually matters: without it the thread
+    // sits in "Needs you" forever looking unanswered, and the Sidekick loses its
+    // hand-off signal.
+    const { ok } = await updateThread(
+      thread.id, { status: 'waiting_on_agent' }, { luke_acknowledged_at: null },
+    );
+    if (!ok) setWriteError('Reply saved, but this thread still shows as needing you — reload and check it.');
     setReply('');
     setPosting(false);
     reload();
   }
 
+  // Luke closing a thread himself IS the acknowledgement — there's no unread
+  // closing message for him to go back and read, he wrote the close. So stamp
+  // the receipt in the same write and file it in one tap, instead of bouncing
+  // it back one tier down as "Resolved · new" (#223).
   async function markResolved() {
     if (!supabase) return;
-    await supabase.from('mc_threads').update({ status: 'resolved' }).eq('id', thread.id);
+    setWriteError('');
+    const { ok, degraded } = await updateThread(
+      thread.id, { status: 'resolved' }, { luke_acknowledged_at: new Date().toISOString() },
+    );
+    if (!ok) { setWriteError("Couldn't mark it resolved — try again."); return; }
+    if (degraded) setWriteError('Marked resolved, but it may resurface as unread — migration 055 may not have been run yet.');
     reload();
   }
 
-  // "Got it" — Luke's read receipt on a closing message. Checked, because if
-  // migration 055 hasn't been run the column doesn't exist and the write fails;
-  // silently doing nothing would look like a broken button.
+  // "Got it" — Luke's read receipt on a closing message. Nothing rides along
+  // with it, so there's no essential half to fall back to: if the column isn't
+  // there the button genuinely can't do its job and has to say so.
   async function acknowledge() {
     if (!supabase) return;
-    setAckError('');
-    const { error } = await supabase.from('mc_threads')
-      .update({ luke_acknowledged_at: new Date().toISOString() })
-      .eq('id', thread.id);
-    if (error) { setAckError("Couldn't mark it read — migration 055 may not have been run yet."); return; }
+    setWriteError('');
+    const { ok } = await updateThread(thread.id, {}, { luke_acknowledged_at: new Date().toISOString() });
+    if (!ok) { setWriteError("Couldn't mark it read — migration 055 may not have been run yet."); return; }
     reload();
   }
 
@@ -303,7 +342,7 @@ function Thread({ thread, messages, reload }) {
                 </button>
               </div>
             </div>
-            {ackError && <p className="text-[11px] text-amber-400 mt-1.5">{ackError}</p>}
+            {writeError && <p className="text-[11px] text-amber-400 mt-1.5">{writeError}</p>}
           </div>
         </div>
       )}
@@ -416,35 +455,10 @@ export default function InboxTab({ threads, messages, reload }) {
 
   const byThread = (id) => messages.filter(m => m.thread_id === id);
 
-  // Tier signal (#154). mc_threads.status is the hand-off state the app already
-  // tracks and flips on every turn: postReply() sets 'waiting_on_agent' the
-  // moment Luke replies, and the Sidekick sets it back to 'needs_you' when it
-  // needs him again. That IS the "unaddressed vs. you've-replied" split Luke
-  // asked for, so we key the two tiers off status directly rather than
-  // re-deriving it from message order (the cleaner signal the issue points to).
-  //   Tier 1 — needs Luke: anything not yet handed to the Sidekick.
-  //   Tier 2 — with Sidekick: Luke has replied, waiting on a worker.
-  const awaitingLuke = (t) => t.status !== 'waiting_on_agent';
-
-  // Within a tier: highest priority first (urgent → normal → low), then oldest
-  // first, so a long-waiting item outranks a fresh one at the same priority.
-  const severityRank = (s) => (s === 'urgent' ? 0 : s === 'low' ? 2 : 1);
-  const byPriorityThenAge = (a, b) => {
-    const d = severityRank(a.severity) - severityRank(b.severity);
-    if (d !== 0) return d;
-    return new Date(a.created_at || a.updated_at) - new Date(b.created_at || b.updated_at);
-  };
-
-  const open        = threads.filter(t => t.status !== 'resolved');
-  const needsYou    = open.filter(awaitingLuke).sort(byPriorityThenAge);          // Tier 1
-  const withSidekick = open.filter(t => !awaitingLuke(t)).sort(byPriorityThenAge); // Tier 2
-  // Tier 3 (#190) — closed out, but Luke hasn't read the closing message. Stays
-  // on screen like an unread email until he taps "Got it"; only then does it
-  // drop into the history section below. Newest close first.
-  const unreadResolved = threads
-    .filter(isUnreadResolved)
-    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-  const resolved    = threads.filter(t => t.status === 'resolved' && isAcknowledged(t));
+  // Tiering and sort order both live in ./inboxOrder — see that file for the
+  // rule and why it's ordered the way it is (#230).
+  const tiers    = inboxTiers(threads);
+  const resolved = resolvedHistory(threads);
 
   return (
     <div className="space-y-3">
@@ -463,50 +477,32 @@ export default function InboxTab({ threads, messages, reload }) {
         </button>
       </div>
 
-      {open.length === 0 && unreadResolved.length === 0 ? (
+      {tiers.length === 0 ? (
         <div className="text-center py-12">
           <CheckCircle2 size={28} className="text-green-500/70 mx-auto mb-2" />
           <p className="text-sm text-zinc-400">You're all caught up.</p>
           <p className="text-xs text-zinc-600 mt-0.5">Nothing needs your attention right now.</p>
         </div>
       ) : (
-        <>
-          {/* Tier 1 — needs Luke */}
-          {needsYou.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
-
-          {/* Tier 2 — Luke has replied, waiting on a worker. Sinks below Tier 1;
-              a labeled divider only appears when both tiers have items. */}
-          {withSidekick.length > 0 && (
-            <>
-              {needsYou.length > 0 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="h-px flex-1 bg-zinc-800" />
-                  <span className="text-[10px] uppercase tracking-wide text-zinc-600 flex-shrink-0">
-                    With Sidekick — you've replied
-                  </span>
-                  <div className="h-px flex-1 bg-zinc-800" />
-                </div>
-              )}
-              {withSidekick.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
-            </>
-          )}
-
-          {/* Tier 3 — resolved, waiting on Luke to read the close. */}
-          {unreadResolved.length > 0 && (
-            <>
-              {open.length > 0 && (
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="h-px flex-1 bg-zinc-800" />
-                  <span className="text-[10px] uppercase tracking-wide text-emerald-500/70 flex-shrink-0">
-                    Resolved — new to you
-                  </span>
-                  <div className="h-px flex-1 bg-zinc-800" />
-                </div>
-              )}
-              {unreadResolved.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
-            </>
-          )}
-        </>
+        // A divider labels each tier once there's more than one on screen —
+        // with Resolved-new now on top, an unlabeled emerald block leading the
+        // list would read as the most urgent thing rather than the most filed.
+        // A lone tier stays unlabeled: its threads all carry the same status
+        // badge, so a header would only repeat them.
+        tiers.map(tier => (
+          <div key={tier.key} className="space-y-3">
+            {tiers.length > 1 && (
+              <div className="flex items-center gap-2 pt-1">
+                <div className="h-px flex-1 bg-zinc-800" />
+                <span className={`text-[10px] uppercase tracking-wide flex-shrink-0 ${tier.tone}`}>
+                  {tier.label}
+                </span>
+                <div className="h-px flex-1 bg-zinc-800" />
+              </div>
+            )}
+            {tier.items.map(t => <Thread key={t.id} thread={t} messages={byThread(t.id)} reload={reload} />)}
+          </div>
+        ))
       )}
 
       {resolved.length > 0 && (
