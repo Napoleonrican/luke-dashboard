@@ -112,7 +112,12 @@ function Trend({ deltaF }) {
 // full-res photo over a slow connection. By the time the crossfade to photo
 // mode actually happens, the browser already has it cached and the swap is
 // instant instead of fading in on a still-loading image.
-function useScreenRotation(slidePhotos) {
+//
+// nightModeActive suspends the whole rotation — overnight the display just
+// stays on the climate view, no photo takeover. Toggling it (at the 12am/8am
+// boundary) naturally restarts this effect, which resumes normal rotation
+// from a fresh climate-view timer.
+function useScreenRotation(slidePhotos, nightModeActive) {
   const slidesRef = useRef(slidePhotos);
   useEffect(() => { slidesRef.current = slidePhotos; }, [slidePhotos]);
 
@@ -123,7 +128,10 @@ function useScreenRotation(slidePhotos) {
   const hasSlides = slidePhotos.length > 0;
 
   useEffect(() => {
-    if (!hasSlides) return;
+    if (!hasSlides || nightModeActive) {
+      setMode('climate');
+      return;
+    }
     let timeoutId;
     let cancelled = false;
 
@@ -154,7 +162,7 @@ function useScreenRotation(slidePhotos) {
     preloadNext(); // also cover the very first photo shown after page load
     timeoutId = setTimeout(toPhoto, CLIMATE_MS);
     return () => { cancelled = true; clearTimeout(timeoutId); };
-  }, [hasSlides]);
+  }, [hasSlides, nightModeActive]);
 
   return { mode, slide, corner };
 }
@@ -164,7 +172,9 @@ export default function Kiosk() {
   const { photos: backgroundPhotos } = usePhotoAlbum('backgrounds');
   const { photos: slidePhotos } = usePhotoAlbum('slideshow');
   const now = useClock();
-  const isNight = now.getHours() < 6 || now.getHours() >= 20;
+  // Overnight mode: 12am-8am specifically (not a dusk/dawn approximation) —
+  // warm color grade, no background photo, no slideshow takeover.
+  const isNight = now.getHours() < 8;
   useDailyReload(now);
 
   // Prefer the real outdoor sensor (Govee) when fresh; Open-Meteo's *current*
@@ -179,7 +189,7 @@ export default function Kiosk() {
   const livingSensor = sensors.find((s) => /living/i.test(s.label));
   const livingTempF = livingSensor?.tempC != null ? livingSensor.tempC * 9 / 5 + 32 : null;
 
-  const { mode, slide, corner } = useScreenRotation(slidePhotos);
+  const { mode, slide, corner } = useScreenRotation(slidePhotos, isNight);
 
   // Only ever swap the background while the climate view is hidden (photo
   // mode) and at most once an hour, so the change is never actually seen
@@ -243,21 +253,25 @@ export default function Kiosk() {
         className="flex flex-col h-full p-8 overflow-hidden transition-opacity ease-in-out"
         style={{ transitionDuration: `${FADE_MS}ms`, opacity: showPhoto ? 0 : 1 }}
       >
-        {bgPhoto && (
+        {/* No background photo overnight — just the plain dark base, warmed
+            by the filter below. */}
+        {bgPhoto && !isNight && (
           <>
             <div
               className="absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: `url(${bgPhoto.url})` }}
             />
-            <div className={`absolute inset-0 transition-colors duration-1000 ${isNight ? 'bg-zinc-950/90' : 'bg-zinc-950/75'}`} />
+            <div className="absolute inset-0 bg-zinc-950/75" />
           </>
         )}
-        {/* Night mode (v1): dim the whole readout uniformly rather than a bright
-            wall-of-light in a dark room. Worth revisiting later (redder tones,
-            a stripped-down clock-only screen, etc.) but this is a real first pass. */}
+        {/* Night mode (12am-8am): warm/red color grade via CSS filter — shifts
+            every color uniformly (text, icons, dots) toward amber/red and dims
+            it, without needing a separate warm-toned copy of every element's
+            color classes. sepia+hue-rotate does the warming, brightness dims
+            for a dark room, contrast keeps text from washing out. */}
         <div
           className="relative flex flex-col flex-1 min-h-0 transition-[filter] duration-1000"
-          style={{ filter: isNight ? 'brightness(0.55)' : 'none' }}
+          style={{ filter: isNight ? 'sepia(0.55) saturate(1.7) hue-rotate(-15deg) brightness(0.45) contrast(1.1)' : 'none' }}
         >
           {/* Header: clock + date on the left — from 9-13ft this is one of the
               only things that needs to read at a glance, but not so large it
