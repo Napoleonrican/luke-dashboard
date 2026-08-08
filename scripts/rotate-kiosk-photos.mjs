@@ -6,11 +6,15 @@
  * NOT Vercel; this is a standalone script, not a serverless function, so it can run
  * as long as it needs to and isn't bound by Vercel's per-invocation timeout).
  *
- * Reads a source folder ("Kiosk Camera Roll" — point your phone's OneDrive camera
- * backup at it), curates new photos, and copies keepers into the two folders
- * api/kiosk-photos.js already serves ("Kiosk Backgrounds" / "Kiosk Slideshow").
- * Photos that have been in Backgrounds/Slideshow too long get aged out to an
- * Archive folder (moved, never deleted).
+ * Reads a source folder (ONEDRIVE_CAMERA_FOLDER — wherever your phone's OneDrive
+ * "Camera Backup" actually lands, e.g. "Pictures/Camera Roll"; that destination
+ * is fixed by the OneDrive app and can't be redirected, so there's no default
+ * here — you must point this at the real folder), curates new photos, and
+ * copies keepers into the two folders api/kiosk-photos.js already serves
+ * ("Kiosk Backgrounds" / "Kiosk Slideshow" by default — these ARE just plain
+ * folders you create yourself, unrelated to any backup app). Photos that have
+ * been in Backgrounds/Slideshow too long get aged out to an Archive folder
+ * (moved, never deleted).
  *
  * Curation is two passes:
  *   1. Free heuristics — reject screenshots (filename/aspect-ratio patterns),
@@ -31,7 +35,9 @@
  * Environment variables:
  *   MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REFRESH_TOKEN   — Graph auth (Files.ReadWrite)
  *   ANTHROPIC_API_KEY                                  — for the vision pass
- *   ONEDRIVE_CAMERA_FOLDER      (default "Kiosk Camera Roll")
+ *   ONEDRIVE_CAMERA_FOLDER      (REQUIRED, no default — e.g. "Pictures/Camera Roll";
+ *                                check your own OneDrive to see where Camera
+ *                                Backup actually saves to)
  *   ONEDRIVE_BACKGROUNDS_FOLDER (default "Kiosk Backgrounds")
  *   ONEDRIVE_SLIDESHOW_FOLDER   (default "Kiosk Slideshow")
  *   ONEDRIVE_ARCHIVE_FOLDER     (default "Kiosk Archive")
@@ -47,7 +53,11 @@
 const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 
-const CAMERA_FOLDER = process.env.ONEDRIVE_CAMERA_FOLDER || 'Kiosk Camera Roll';
+// No default here on purpose: OneDrive's mobile "Camera Backup" saves into a
+// fixed, app-managed folder (usually "Pictures/Camera Roll") that you cannot
+// redirect — so ONEDRIVE_CAMERA_FOLDER must be set explicitly to wherever your
+// phone's backup actually lands, not a folder you create yourself.
+const CAMERA_FOLDER = process.env.ONEDRIVE_CAMERA_FOLDER;
 const BACKGROUNDS_FOLDER = process.env.ONEDRIVE_BACKGROUNDS_FOLDER || 'Kiosk Backgrounds';
 const SLIDESHOW_FOLDER = process.env.ONEDRIVE_SLIDESHOW_FOLDER || 'Kiosk Slideshow';
 const ARCHIVE_FOLDER = process.env.ONEDRIVE_ARCHIVE_FOLDER || 'Kiosk Archive';
@@ -61,7 +71,7 @@ const SCREENSHOT_NAME_RE = /screenshot|screen shot|whatsapp image|img_\d+_wa/i;
 const MIN_DIMENSION = 800; // reject anything smaller on its longest side
 
 function assertEnv() {
-  const missing = ['MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MS_REFRESH_TOKEN', 'ANTHROPIC_API_KEY']
+  const missing = ['MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MS_REFRESH_TOKEN', 'ANTHROPIC_API_KEY', 'ONEDRIVE_CAMERA_FOLDER']
     .filter((k) => !process.env[k]);
   if (missing.length) {
     console.error(`Missing required env vars: ${missing.join(', ')}`);

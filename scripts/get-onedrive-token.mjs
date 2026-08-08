@@ -22,10 +22,17 @@
 //   3. API permissions -> Add a permission -> Microsoft Graph -> Delegated
 //      -> Files.ReadWrite and offline_access. (No admin consent needed for a
 //      personal Microsoft account.)
-//   4. In OneDrive, create four folders at the root: "Kiosk Camera Roll"
-//      (point your phone's OneDrive camera backup here), "Kiosk Backgrounds",
-//      "Kiosk Slideshow", and "Kiosk Archive" (rotate-kiosk-photos.mjs will
-//      also create any of these that are missing on its first run).
+//   4. Turn on Camera Backup in the OneDrive mobile app (profile picture ->
+//      Camera Backup -> on) if you haven't already, then check OneDrive on
+//      the web to see what folder it actually lands in — usually
+//      "Pictures/Camera Roll" at the root, but that destination is fixed by
+//      the app and can't be renamed/redirected, so confirm the real name.
+//      That's what you'll set ONEDRIVE_CAMERA_FOLDER to.
+//   5. Separately, create three plain folders at the OneDrive root that have
+//      nothing to do with any backup app: "Kiosk Backgrounds", "Kiosk
+//      Slideshow", "Kiosk Archive" (rotate-kiosk-photos.mjs will also create
+//      any of these three that are missing on its first run — just not the
+//      camera folder, since that one has to match your real backup location).
 //
 // Note: Microsoft rotates the refresh token on each use. Both kiosk-photos.js
 // and rotate-kiosk-photos.mjs use theirs read-only in the sense of not storing
