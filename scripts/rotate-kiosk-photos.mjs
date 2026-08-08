@@ -28,6 +28,18 @@
  * script is otherwise stateless, so nothing needs to persist across GitHub
  * Actions runs except that one file.
  *
+ * Every decision is also appended to a human-readable log file in your own
+ * OneDrive (KIOSK_LOG_FILE) — one line per photo, with filename, verdict, and
+ * reason. This is deliberately separate from the GitHub Actions run log: the
+ * Actions log is semi-public CI output and intentionally withholds filenames
+ * for safety-rejections, whereas this file lives privately in your own
+ * OneDrive and keeps the filename so you can actually audit what got caught.
+ * Photos rejected specifically for the safety rule are also copied (not
+ * moved — your camera roll is never altered) into a "Kiosk Flagged for
+ * Review" folder (KIOSK_REVIEW_FOLDER), so you can glance at what tripped it
+ * without having to search the log for a filename and then hunt for that
+ * photo in a folder of thousands.
+ *
  * Requires a refresh token with Files.ReadWrite (not just Files.Read like the
  * kiosk-photos.js token) — re-run scripts/get-onedrive-token.mjs after the scope
  * change in that script to mint one.
@@ -42,6 +54,13 @@
  *   ONEDRIVE_SLIDESHOW_FOLDER   (default "Kiosk Slideshow")
  *   ONEDRIVE_ARCHIVE_FOLDER     (default "Kiosk Archive")
  *   KIOSK_STATE_FILE            (default "kiosk-state.json", stored at OneDrive root)
+ *   KIOSK_LOG_FILE              (default "kiosk-rotation-log.jsonl", stored at OneDrive
+ *                                root — one JSON object per line, every decision, with
+ *                                filenames; append-only, open it in Notepad or
+ *                                onedrive.com to read it)
+ *   KIOSK_REVIEW_FOLDER         (default "Kiosk Flagged for Review" — safety-rejected
+ *                                photos are copied here, original untouched, so you
+ *                                can spot-check what the filter is catching)
  *   KIOSK_MAX_AGE_DAYS          (default 45 — how long a photo stays in rotation)
  *   KIOSK_MAX_SLIDESHOW         (default 150 — cap; oldest ages out first if exceeded)
  *   KIOSK_MAX_BACKGROUNDS       (default 40)
@@ -66,6 +85,8 @@ const BACKGROUNDS_FOLDER = process.env.ONEDRIVE_BACKGROUNDS_FOLDER || 'Kiosk Bac
 const SLIDESHOW_FOLDER = process.env.ONEDRIVE_SLIDESHOW_FOLDER || 'Kiosk Slideshow';
 const ARCHIVE_FOLDER = process.env.ONEDRIVE_ARCHIVE_FOLDER || 'Kiosk Archive';
 const STATE_FILE = process.env.KIOSK_STATE_FILE || 'kiosk-state.json';
+const LOG_FILE = process.env.KIOSK_LOG_FILE || 'kiosk-rotation-log.jsonl';
+const REVIEW_FOLDER = process.env.KIOSK_REVIEW_FOLDER || 'Kiosk Flagged for Review';
 const MAX_AGE_DAYS = Number(process.env.KIOSK_MAX_AGE_DAYS || 45);
 const MAX_SLIDESHOW = Number(process.env.KIOSK_MAX_SLIDESHOW || 150);
 const MAX_BACKGROUNDS = Number(process.env.KIOSK_MAX_BACKGROUNDS || 40);
@@ -171,6 +192,30 @@ function summarizeState(state) {
   return { processed: Object.keys(state.processedIds).length, placed: Object.keys(state.placedItems).length };
 }
 
+// --- Audit log: private, in your own OneDrive, filenames included ---
+async function readLogText(token) {
+  const res = await fetch(`${GRAPH}/me/drive/root:/${encodeURIComponent(LOG_FILE)}:/content`, {
+    headers: graphHeaders(token),
+  });
+  if (res.status === 404) return '';
+  if (!res.ok) throw new Error(`Failed to read log file: ${await res.text()}`);
+  return res.text();
+}
+
+async function writeLogText(token, text) {
+  if (DRY_RUN) return; // dry runs don't touch the real log either
+  const res = await fetch(`${GRAPH}/me/drive/root:/${encodeURIComponent(LOG_FILE)}:/content`, {
+    method: 'PUT',
+    headers: graphHeaders(token, { 'Content-Type': 'text/plain' }),
+    body: text,
+  });
+  if (!res.ok) throw new Error(`Failed to write log file: ${await res.text()}`);
+}
+
+function logLine(entry) {
+  return JSON.stringify({ ts: new Date().toISOString(), ...entry });
+}
+
 // --- Pass 1: free heuristics ---
 function passesHeuristics(item) {
   if (!item.file || !item.image) return false; // not an image
@@ -270,16 +315,26 @@ async function main() {
   assertEnv();
   const token = await getAccessToken();
 
-  for (const name of [CAMERA_FOLDER, BACKGROUNDS_FOLDER, SLIDESHOW_FOLDER, ARCHIVE_FOLDER]) {
+  for (const name of [CAMERA_FOLDER, BACKGROUNDS_FOLDER, SLIDESHOW_FOLDER, ARCHIVE_FOLDER, REVIEW_FOLDER]) {
     await ensureFolder(token, name);
   }
 
   const state = await readState(token);
-  const [cameraItems, backgroundsId, slideshowId, archiveId] = await Promise.all([
+  let logText = await readLogText(token);
+  const pendingLog = []; // buffered lines not yet flushed to OneDrive
+  const flushLog = async () => {
+    if (!pendingLog.length) return;
+    logText += pendingLog.map((l) => l + '\n').join('');
+    pendingLog.length = 0;
+    await writeLogText(token, logText);
+  };
+
+  const [cameraItems, backgroundsId, slideshowId, archiveId, reviewId] = await Promise.all([
     listFolder(token, CAMERA_FOLDER),
     getFolderId(token, BACKGROUNDS_FOLDER),
     getFolderId(token, SLIDESHOW_FOLDER),
     getFolderId(token, ARCHIVE_FOLDER),
+    getFolderId(token, REVIEW_FOLDER),
   ]);
 
   // --- Ingest new photos from the camera roll ---
@@ -304,27 +359,45 @@ async function main() {
     processedThisRun++;
     if (processedThisRun % STATE_SAVE_EVERY === 0) {
       await writeState(token, state); // checkpoint, so a mid-run kill doesn't cost a full re-scan
+      await flushLog();
     }
 
-    if (!passesHeuristics(item)) { rejected++; continue; }
+    if (!passesHeuristics(item)) {
+      rejected++;
+      pendingLog.push(logLine({ name: item.name, id: item.id, keep: false, stage: 'heuristic', reason: 'screenshot/low-res/non-image' }));
+      continue;
+    }
 
     let verdict;
     try {
       const thumb = await getThumbnailBase64(token, item.id);
-      if (!thumb) { rejected++; continue; }
+      if (!thumb) {
+        rejected++;
+        pendingLog.push(logLine({ name: item.name, id: item.id, keep: false, stage: 'heuristic', reason: 'no thumbnail available' }));
+        continue;
+      }
       verdict = await askClaudeVision(item.name, thumb.base64, thumb.mediaType);
     } catch (e) {
       console.warn(`Vision check failed for ${item.name}, skipping: ${e.message}`);
+      pendingLog.push(logLine({ name: item.name, id: item.id, keep: null, stage: 'vision', reason: `error: ${e.message.slice(0, 200)}` }));
       continue; // leave it processed=false-equivalent? No — already marked processed above to avoid retry storms.
     }
 
     if (!verdict.keep) {
       rejected++;
-      // Deliberately omit the filename here — this can land in CI logs, and a
-      // filename plus "flagged as not appropriate" is more than needs to be there.
-      if (verdict.reason === 'not appropriate for display') {
+      const isSafety = verdict.reason === 'not appropriate for display';
+      // The GitHub Actions console log deliberately omits the filename for safety
+      // rejections (that output is semi-public CI history); this OneDrive log file
+      // is private to you, so it keeps the filename either way — that's the point.
+      pendingLog.push(logLine({ name: item.name, id: item.id, keep: false, stage: 'vision', reason: verdict.reason || '(none given)', safety: isSafety }));
+      if (isSafety) {
         safetyRejected++;
-        console.log('REJECT [safety] (filename withheld from log)');
+        console.log('REJECT [safety] (filename withheld from console log — see the log file in OneDrive, and Kiosk Flagged for Review folder)');
+        try {
+          await copyItem(token, item.id, item.name, reviewId); // original untouched; this is a copy for you to check
+        } catch (e) {
+          console.warn(`Could not copy flagged photo to review folder: ${e.message}`);
+        }
       }
       continue;
     }
@@ -332,6 +405,7 @@ async function main() {
     const placement = verdict.placement === 'backgrounds' ? 'backgrounds' : 'slideshow';
     const destId = placement === 'backgrounds' ? backgroundsId : slideshowId;
     console.log(`KEEP  [${placement}] ${item.name} — ${verdict.reason || ''}`);
+    pendingLog.push(logLine({ name: item.name, id: item.id, keep: true, stage: 'vision', placement, reason: verdict.reason || '' }));
     await copyItem(token, item.id, item.name, destId);
     kept++;
     // Record under the *source* id too, so aging-out logic (which walks the live
@@ -342,7 +416,7 @@ async function main() {
   const remaining = allNew.length - newItems.length;
   console.log(
     `Ingest done: ${kept} kept, ${rejected} rejected (${safetyRejected} for safety). ` +
-    `${remaining} still queued for future runs.`
+    `${remaining} still queued for future runs. Full detail (with filenames) in ${LOG_FILE} on OneDrive.`
   );
 
   // --- Age out old photos from Backgrounds/Slideshow ---
@@ -350,6 +424,7 @@ async function main() {
   await ageOutFolder(token, SLIDESHOW_FOLDER, archiveId, MAX_SLIDESHOW, state);
 
   await writeState(token, state);
+  await flushLog();
   console.log('Done.', summarizeState(state));
 }
 
