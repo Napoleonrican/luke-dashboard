@@ -1,15 +1,23 @@
 #!/usr/bin/env node
 // One-time local setup script — NOT deployed, NOT run by the app.
 //
-// Run this once on your own machine to get a Microsoft Graph refresh token
-// used by both api/kiosk-photos.js (reads Kiosk Backgrounds / Kiosk Slideshow
-// for the /kiosk wall display) and scripts/rotate-kiosk-photos.mjs (curates
-// photos into/out of those folders, which needs write access to copy and
-// move files — a Files.Read-only token from an older version of this script
-// will fail there with a 403; re-run this script to mint a new one).
+// Run this to get a Microsoft Graph refresh token for ONE of the two
+// consumers — api/kiosk-photos.js (Vercel, reads Kiosk Backgrounds/Slideshow
+// for the /kiosk display) OR scripts/rotate-kiosk-photos.mjs (GitHub Actions,
+// curates photos into/out of those folders).
+//
+// RUN THIS TWICE, once per consumer, and DO NOT reuse the same resulting
+// refresh_token in both places. Microsoft rotates a refresh token on every
+// use — if Vercel and GitHub Actions share one, whichever used it more
+// recently invalidates the other's copy, and the other starts failing with
+// invalid_grant. Two separate authorization runs produce two independent
+// tokens with independent rotation chains that don't step on each other.
+// (This bit us for real: the rotate-kiosk-photos GitHub Action ran, rotated
+// the token both sides were sharing, and the kiosk's photo API broke.)
+//
 // Unlike Google Photos, there's no "join an album" step needed — Graph reads
 // folders by path directly, so this just gets the token and prints the env
-// vars to paste into Vercel / GitHub Actions secrets.
+// var(s) to paste into whichever one you're minting for this run.
 //
 // Prereqs (Azure Portal, https://portal.azure.com):
 //   1. Azure Active Directory -> App registrations -> New registration.
@@ -34,14 +42,13 @@
 //      any of these three that are missing on its first run — just not the
 //      camera folder, since that one has to match your real backup location).
 //
-// Note: Microsoft rotates the refresh token on each use. Both kiosk-photos.js
-// and rotate-kiosk-photos.mjs use theirs read-only in the sense of not storing
-// the new one Graph returns, which is fine — the old refresh token stays valid
-// for the family of tokens for a while — but if you ever see auth failures
-// after months of not touching this, just re-run this script for a fresh one.
+// If you ever see invalid_grant auth failures on either side (token expired
+// from months of disuse, or accidentally shared again), just re-run this
+// script for that one consumer to mint it a fresh, independent token.
 //
 // Usage:
-//   MS_CLIENT_ID=... MS_CLIENT_SECRET=... node scripts/get-onedrive-token.mjs
+//   MS_CLIENT_ID=... MS_CLIENT_SECRET=... node scripts/get-onedrive-token.mjs vercel
+//   MS_CLIENT_ID=... MS_CLIENT_SECRET=... node scripts/get-onedrive-token.mjs github
 
 import http from 'node:http';
 
@@ -111,15 +118,31 @@ async function exchangeCodeForTokens(code) {
 const code = await waitForAuthCode();
 const tokens = await exchangeCodeForTokens(code);
 
+const target = process.argv[2]; // 'vercel' | 'github' | undefined
+
 console.log('Got tokens.\n');
-console.log('Add these to Vercel (Project Settings -> Environment Variables) — used by api/kiosk-photos.js:\n');
-console.log(`MS_CLIENT_ID=${CLIENT_ID}`);
-console.log(`MS_CLIENT_SECRET=${CLIENT_SECRET}`);
-console.log(`MS_REFRESH_TOKEN=${tokens.refresh_token}`);
-console.log('ONEDRIVE_BACKGROUNDS_FOLDER=Kiosk Backgrounds');
-console.log('ONEDRIVE_SLIDESHOW_FOLDER=Kiosk Slideshow');
-console.log('\nAlso add the same MS_CLIENT_ID / MS_CLIENT_SECRET / MS_REFRESH_TOKEN, plus');
-console.log('ANTHROPIC_API_KEY, as GitHub Actions secrets (repo Settings -> Secrets and');
-console.log('variables -> Actions) — used by scripts/rotate-kiosk-photos.mjs.');
-console.log('\n(Adjust the two folder names above if you named them differently.)');
-console.log('Then redeploy the Vercel app for its env vars to take effect.');
+
+if (target !== 'github') {
+  console.log('--- For Vercel (Project Settings -> Environment Variables) ---');
+  console.log('Used by api/kiosk-photos.js. Do NOT also put this MS_REFRESH_TOKEN in GitHub Actions.\n');
+  console.log(`MS_CLIENT_ID=${CLIENT_ID}`);
+  console.log(`MS_CLIENT_SECRET=${CLIENT_SECRET}`);
+  console.log(`MS_REFRESH_TOKEN=${tokens.refresh_token}`);
+  console.log('ONEDRIVE_BACKGROUNDS_FOLDER=Kiosk Backgrounds');
+  console.log('ONEDRIVE_SLIDESHOW_FOLDER=Kiosk Slideshow');
+  console.log('\nRedeploy the Vercel app for its env vars to take effect.');
+}
+if (target !== 'vercel') {
+  if (target !== 'github') console.log('\n');
+  console.log('--- For GitHub Actions (repo Settings -> Secrets and variables -> Actions) ---');
+  console.log('Used by scripts/rotate-kiosk-photos.mjs. Do NOT also put this MS_REFRESH_TOKEN in Vercel.\n');
+  console.log(`MS_CLIENT_ID=${CLIENT_ID}`);
+  console.log(`MS_CLIENT_SECRET=${CLIENT_SECRET}`);
+  console.log(`MS_REFRESH_TOKEN=${tokens.refresh_token}`);
+  console.log('(plus ANTHROPIC_API_KEY and ONEDRIVE_CAMERA_FOLDER, which this script doesn\'t generate)');
+}
+if (!target) {
+  console.log('\n*** You just got ONE token — the printouts above both show it, but pick only\n' +
+              '*** ONE destination for it. Re-run this script (`node scripts/get-onedrive-token.mjs github`\n' +
+              '*** or `... vercel`) to mint the second, independent token for the other one. ***');
+}
